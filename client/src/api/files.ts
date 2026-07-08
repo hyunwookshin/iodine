@@ -46,3 +46,10 @@ export async function putFileContent(path: string, content: string): Promise<voi
     body: JSON.stringify({ path, content }),
   });
 }
+
+export type GitFileStatus = 'unstaged' | 'staged' | 'both';
+
+export async function fetchGitStatus(): Promise<Record<string, GitFileStatus>> {
+  const data = await request<{ status: Record<string, GitFileStatus> }>('/api/git/status');
+  return data.status;
+}

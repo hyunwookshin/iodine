@@ -2,8 +2,12 @@ import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import { exec } from 'child_process';
+import { promisify } from 'util';
 import { buildTree, readFileContent, writeFileContent } from '../services/fileSystem';
 import { rootPath, setRootPath } from '../state';
+
+const execAsync = promisify(exec);
 
 const router = Router();
 
@@ -112,6 +116,40 @@ router.put('/files/content', async (req, res) => {
     if (e.code === 'OUTSIDE_ROOT') return res.status(400).json({ error: e.message });
     if (e.code === 'ENOENT') return res.status(404).json({ error: 'File not found' });
     return res.status(500).json({ error: 'Failed to write file' });
+  }
+});
+
+router.get('/git/status', async (_req, res) => {
+  if (!rootPath) return res.json({ status: {} });
+
+  try {
+    const { stdout: rootOut } = await execAsync('git rev-parse --show-toplevel', { cwd: rootPath });
+    const repoRoot = rootOut.trim();
+
+    const { stdout } = await execAsync('git status --porcelain', { cwd: rootPath });
+
+    const status: Record<string, 'unstaged' | 'staged' | 'both'> = {};
+
+    for (const line of stdout.split('\n')) {
+      if (line.length < 3) continue;
+      const X = line[0]; // index (staged)
+      const Y = line[1]; // working tree (unstaged)
+      let filePath = line.slice(3).trim();
+      // Rename format: "old -> new" — use the new path
+      if (filePath.includes(' -> ')) filePath = filePath.split(' -> ')[1];
+
+      const absPath = path.join(repoRoot, filePath);
+      const isStaged   = X !== ' ' && X !== '?';
+      const isUnstaged = Y !== ' ' && Y !== '?';
+
+      if (isStaged && isUnstaged) status[absPath] = 'both';
+      else if (isStaged)          status[absPath] = 'staged';
+      else if (isUnstaged)        status[absPath] = 'unstaged';
+    }
+
+    return res.json({ status });
+  } catch {
+    return res.json({ status: {} });
   }
 });
 

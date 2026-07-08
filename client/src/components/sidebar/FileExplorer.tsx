@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useFileTree } from '../../hooks/useFileTree';
+import { useGitStatus } from '../../hooks/useGitStatus';
 import { FileTreeNode } from './FileTreeNode';
 import { openWorkspace } from '../../api/files';
 import type { FileNode } from '../../types';
@@ -20,6 +21,7 @@ export function FileExplorer({
   localTree,
 }: FileExplorerProps) {
   const { tree, expandedPaths, toggleExpand, loading, error, refetch } = useFileTree(workspacePath, localTree);
+  const gitStatus = useGitStatus(workspacePath);
   const [inputPath, setInputPath] = useState('');
   const [inputVisible, setInputVisible] = useState(false);
   const [openError, setOpenError] = useState<string | null>(null);
@@ -198,6 +200,7 @@ export function FileExplorer({
                 onToggleExpand={toggleExpand}
                 onFileClick={onFileClick}
                 activeFilePath={activeFilePath}
+                gitStatus={gitStatus}
               />
             ))}
           </div>

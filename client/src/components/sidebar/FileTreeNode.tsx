@@ -1,4 +1,5 @@
 import type { FileNode } from '../../types';
+import type { GitFileStatus } from '../../hooks/useGitStatus';
 
 interface FileTreeNodeProps {
   node: FileNode;
@@ -7,6 +8,7 @@ interface FileTreeNodeProps {
   onToggleExpand: (path: string) => void;
   onFileClick: (node: FileNode) => void;
   activeFilePath: string | null;
+  gitStatus?: Record<string, GitFileStatus>;
 }
 
 const ChevronRight = () => (
@@ -44,10 +46,15 @@ export function FileTreeNode({
   onToggleExpand,
   onFileClick,
   activeFilePath,
+  gitStatus = {},
 }: FileTreeNodeProps) {
   const isExpanded = expandedPaths.has(node.path);
   const isActive = node.path === activeFilePath;
   const isDir = node.type === 'directory';
+
+  const gs = gitStatus[node.path];
+  const nameFontWeight = (gs === 'unstaged' || gs === 'both') ? 'bold' : undefined;
+  const nameTextDecoration = (gs === 'staged' || gs === 'both') ? 'underline' : undefined;
 
   const handleClick = () => {
     if (isDir) {
@@ -101,7 +108,7 @@ export function FileTreeNode({
             </span>
           </>
         )}
-        <span style={{ fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        <span style={{ fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: nameFontWeight, textDecoration: nameTextDecoration }}>
           {node.name}
         </span>
       </div>
@@ -117,6 +124,7 @@ export function FileTreeNode({
               onToggleExpand={onToggleExpand}
               onFileClick={onFileClick}
               activeFilePath={activeFilePath}
+              gitStatus={gitStatus}
             />
           ))}
         </>
