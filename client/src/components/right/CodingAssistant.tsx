@@ -158,19 +158,20 @@ interface CodingAssistantProps {
 export function CodingAssistant({ workspacePath, activeFilePath, onWorkspaceOpen }: CodingAssistantProps) {
   const { uiMessages, isLoading, provider, setProvider, model, setModel, sendMessage, clearMessages } = useCodingAssistant();
   const [input, setInput] = useState('');
-  const [apiConfigured, setApiConfigured] = useState<boolean | null>(null);
+  const [providerStatus, setProviderStatus] = useState<Record<string, boolean>>({});
   const [showHelp, setShowHelp] = useState(false);
+  const apiConfigured = providerStatus[provider.id] ?? null;
   const [wsInput, setWsInput] = useState('');
   const [wsOpening, setWsOpening] = useState(false);
   const [wsError, setWsError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Check only API key on mount — workspace status comes via the workspacePath prop
+  // Fetch API key status on mount; result is a per-provider map
   useEffect(() => {
     fetch(`${API_BASE}/api/agent/status`, { method: 'GET' })
       .then(r => r.json())
-      .then(data => setApiConfigured(data.configured))
-      .catch(() => setApiConfigured(false));
+      .then(data => setProviderStatus(data.providers ?? { anthropic: data.configured }))
+      .catch(() => setProviderStatus({}));
   }, []);
 
   // Set workspace via the inline input — updates server state and notifies the parent

@@ -1,25 +1,24 @@
 import { Router } from 'express';
 import { loadApiKey, runAgentLoop } from '../services/anthropicAgent';
+import { loadOpenAIKey, runOpenAIAgentLoop } from '../services/openaiAgent';
 import { rootPath } from '../state';
 import Anthropic from '@anthropic-ai/sdk';
 
 const router = Router();
 
 router.get('/agent/status', async (_req, res) => {
-  let apiConfigured = false;
-  try {
-    await loadApiKey();
-    apiConfigured = true;
-  } catch {
-    // fall through
-  }
-  res.json({ configured: apiConfigured, workspace: rootPath });
+  const [anthropicOk, openaiOk] = await Promise.all([
+    loadApiKey().then(() => true).catch(() => false),
+    loadOpenAIKey().then(() => true).catch(() => false),
+  ]);
+  res.json({ configured: anthropicOk, providers: { anthropic: anthropicOk, openai: openaiOk }, workspace: rootPath });
 });
 
 router.post('/agent/chat', async (req, res) => {
-  const { messages, model, activeFile } = req.body as {
+  const { messages, model, provider, activeFile } = req.body as {
     messages?: { role: 'user' | 'assistant'; content: string }[];
     model?: string;
+    provider?: string;
     activeFile?: string | null;
   };
 
@@ -28,6 +27,7 @@ router.post('/agent/chat', async (req, res) => {
   }
 
   const selectedModel = model || 'claude-sonnet-4-6';
+  const selectedProvider = provider || 'anthropic';
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -35,28 +35,22 @@ router.post('/agent/chat', async (req, res) => {
   res.flushHeaders();
 
   const abortSignal = { aborted: false };
-  // Use res.on('close'), NOT req.on('close').
-  // req is an IncomingMessage (Readable). Express's JSON parser consumes the POST body
-  // immediately, which destroys the req stream and fires req's 'close' event — long
-  // before the client actually closes the SSE connection. res.on('close') fires only
-  // when the response channel is genuinely torn down (client navigates away, etc.).
   res.on('close', () => { abortSignal.aborted = true; });
 
   try {
-    const history: Anthropic.MessageParam[] = messages.map((m) => ({
-      role: m.role,
-      content: m.content,
-    }));
-    await runAgentLoop(history, selectedModel, res, abortSignal, activeFile ?? null);
+    if (selectedProvider === 'openai') {
+      await runOpenAIAgentLoop(messages, selectedModel, res, abortSignal, activeFile ?? null);
+    } else {
+      const history: Anthropic.MessageParam[] = messages.map(m => ({ role: m.role, content: m.content }));
+      await runAgentLoop(history, selectedModel, res, abortSignal, activeFile ?? null);
+    }
   } catch (err: unknown) {
     if (!abortSignal.aborted) {
       const msg = err instanceof Error ? err.message : 'Internal error';
       res.write(`event: error\ndata: ${JSON.stringify({ message: msg })}\n\n`);
     }
   } finally {
-    if (!abortSignal.aborted) {
-      res.end();
-    }
+    if (!abortSignal.aborted) res.end();
   }
 });
 

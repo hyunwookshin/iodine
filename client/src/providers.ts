@@ -29,16 +29,21 @@ export const PROVIDERS: Provider[] = [
       '  • Env var: ANTHROPIC_API_KEY\n\n' +
       'If you use Claude Code the key is already stored in ~/.anthropic/api_key.',
   },
-  // To add a new provider, append an entry here. No other file needs to change
-  // until the server-side integration is wired up.
+  {
+    id: 'openai',
+    label: 'OpenAI',
+    models: [
+      { id: 'gpt-4o', label: 'GPT-4o' },
+      { id: 'gpt-4o-mini', label: 'GPT-4o mini' },
+      { id: 'o3', label: 'o3' },
+      { id: 'o4-mini', label: 'o4-mini' },
+    ],
+    setupTitle: 'OpenAI API key',
+    setupInstructions: 'Set OPENAI_TOKEN in your environment:\n\n  export OPENAI_TOKEN=sk-...',
+  },
+  // To add Google Gemini, append an entry here — no other file needs to change
+  // until the server-side integration is wired up in server/src/services/geminiAgent.ts.
   //
-  // {
-  //   id: 'openai',
-  //   label: 'OpenAI',
-  //   models: [{ id: 'gpt-4o', label: 'GPT-4o' }],
-  //   setupTitle: 'OpenAI API key',
-  //   setupInstructions: 'Set OPENAI_API_KEY in your environment.',
-  // },
   // {
   //   id: 'google',
   //   label: 'Google',
