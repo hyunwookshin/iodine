@@ -4,6 +4,7 @@ import remarkGfm from 'remark-gfm';
 import { EditorTabs } from '../editor/EditorTabs';
 import { MonacoEditor } from '../editor/MonacoEditor';
 import { WelcomeScreen } from '../editor/WelcomeScreen';
+import { useFileDiff } from '../../hooks/useFileDiff';
 import type { OpenFile } from '../../types';
 
 interface EditorAreaProps {
@@ -25,6 +26,7 @@ function isPreviewable(path: string) {
 export const EditorArea = forwardRef<EditorAreaHandle, EditorAreaProps>(
   function EditorArea({ openFiles, activeFilePath, onTabClick, onTabClose, onContentChange }, ref) {
     const activeFile = openFiles.find(f => f.path === activeFilePath) ?? null;
+    const diffData = useFileDiff(activeFile?.path ?? null);
     const [preview, setPreview] = useState(false);
 
     // Reset to source mode when switching to a non-previewable file
@@ -116,6 +118,7 @@ export const EditorArea = forwardRef<EditorAreaHandle, EditorAreaProps>(
                 key={activeFile.path}
                 file={activeFile}
                 onContentChange={onContentChange}
+                diffData={diffData}
               />
             )
           ) : (

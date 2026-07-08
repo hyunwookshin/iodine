@@ -47,6 +47,13 @@ export async function putFileContent(path: string, content: string): Promise<voi
   });
 }
 
+export type DeletedBlock = { afterLine: number; lines: string[] };
+export type DiffData = { added: number[]; modified: number[]; deleted: DeletedBlock[] };
+
+export async function fetchFileDiff(filePath: string): Promise<DiffData> {
+  return request<DiffData>(`/api/git/diff?path=${encodeURIComponent(filePath)}`);
+}
+
 export type GitFileStatus = 'unstaged' | 'staged' | 'both';
 
 export async function fetchGitStatus(): Promise<Record<string, GitFileStatus>> {

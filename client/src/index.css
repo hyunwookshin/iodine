@@ -77,6 +77,36 @@ input {
   background: #555;
 }
 
+/* Git diff gutter decorations */
+.git-added-line   { background: rgba(46, 160, 67, 0.12) !important; }
+.git-modified-line { background: rgba(233, 180, 76, 0.12) !important; }
+
+.git-added-glyph,
+.git-modified-glyph,
+.git-deleted-glyph,
+.git-deleted-glyph-open {
+  width: 4px !important;
+  margin-left: 8px !important;
+  border-radius: 1px;
+}
+.git-added-glyph    { background: #2ea043 !important; }
+.git-modified-glyph { background: #e9b44c !important; }
+
+.git-deleted-glyph,
+.git-deleted-glyph-open {
+  background: transparent !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 14px !important;
+  margin-left: 2px !important;
+  color: #f44747;
+  font-size: 11px;
+  cursor: pointer;
+}
+.git-deleted-glyph::before    { content: '▸'; }
+.git-deleted-glyph-open::before { content: '▾'; }
+
 /* Markdown preview prose styles */
 .md-preview h1, .md-preview h2, .md-preview h3,
 .md-preview h4, .md-preview h5, .md-preview h6 {
