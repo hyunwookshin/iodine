@@ -2,11 +2,9 @@ import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
 import { buildTree, readFileContent, writeFileContent } from '../services/fileSystem';
+import { rootPath, setRootPath } from '../state';
 
 const router = Router();
-
-// Module-level workspace state (single-user local tool)
-let rootPath: string | null = null;
 
 router.get('/health', (_req, res) => {
   res.json({ ok: true });
@@ -22,8 +20,8 @@ router.post('/workspace/open', async (req, res) => {
     if (!stat.isDirectory()) {
       return res.status(400).json({ error: 'Path is not a directory' });
     }
-    rootPath = path.resolve(inputPath);
-    return res.json({ path: rootPath, name: path.basename(rootPath) });
+    setRootPath(path.resolve(inputPath));
+    return res.json({ path: rootPath, name: path.basename(rootPath!) });
   } catch {
     return res.status(400).json({ error: 'Path does not exist or is not accessible' });
   }
