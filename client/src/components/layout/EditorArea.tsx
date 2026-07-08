@@ -64,20 +64,23 @@ export const EditorArea = forwardRef<EditorAreaHandle, EditorAreaProps>(
               title={preview ? 'Switch to source' : 'Switch to preview'}
               style={{
                 position: 'absolute',
-                top: 8,
-                right: 16,
+                bottom: 20,
+                right: 20,
                 zIndex: 10,
-                padding: '3px 10px',
+                padding: '6px 14px',
                 fontSize: 12,
-                background: preview ? 'var(--color-accent, #569cd6)' : 'var(--color-bg-panel, #252526)',
-                color: preview ? '#fff' : 'var(--color-fg-muted, #858585)',
-                border: '1px solid var(--color-border, #3c3c3c)',
-                borderRadius: 4,
+                fontWeight: 600,
+                letterSpacing: '0.03em',
+                background: preview ? '#007acc' : '#3a3d41',
+                color: '#fff',
+                border: 'none',
+                borderRadius: 6,
                 cursor: 'pointer',
                 userSelect: 'none',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.5)',
               }}
             >
-              {preview ? 'Source' : 'Preview'}
+              {preview ? '⌨ Source' : '👁 Preview'}
             </button>
           )}
 
