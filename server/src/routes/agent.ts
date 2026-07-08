@@ -1,17 +1,19 @@
 import { Router } from 'express';
 import { loadApiKey, runAgentLoop } from '../services/anthropicAgent';
 import { loadOpenAIKey, runOpenAIAgentLoop } from '../services/openaiAgent';
+import { loadGeminiKey, runGeminiAgentLoop } from '../services/geminiAgent';
 import { rootPath } from '../state';
 import Anthropic from '@anthropic-ai/sdk';
 
 const router = Router();
 
 router.get('/agent/status', async (_req, res) => {
-  const [anthropicOk, openaiOk] = await Promise.all([
+  const [anthropicOk, openaiOk, geminiOk] = await Promise.all([
     loadApiKey().then(() => true).catch(() => false),
     loadOpenAIKey().then(() => true).catch(() => false),
+    loadGeminiKey().then(() => true).catch(() => false),
   ]);
-  res.json({ configured: anthropicOk, providers: { anthropic: anthropicOk, openai: openaiOk }, workspace: rootPath });
+  res.json({ configured: anthropicOk, providers: { anthropic: anthropicOk, openai: openaiOk, google: geminiOk }, workspace: rootPath });
 });
 
 router.post('/agent/chat', async (req, res) => {
@@ -40,6 +42,8 @@ router.post('/agent/chat', async (req, res) => {
   try {
     if (selectedProvider === 'openai') {
       await runOpenAIAgentLoop(messages, selectedModel, res, abortSignal, activeFile ?? null);
+    } else if (selectedProvider === 'google') {
+      await runGeminiAgentLoop(messages, selectedModel, res, abortSignal, activeFile ?? null);
     } else {
       const history: Anthropic.MessageParam[] = messages.map(m => ({ role: m.role, content: m.content }));
       await runAgentLoop(history, selectedModel, res, abortSignal, activeFile ?? null);

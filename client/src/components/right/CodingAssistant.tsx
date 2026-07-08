@@ -360,7 +360,7 @@ export function CodingAssistant({ workspacePath, activeFilePath, onWorkspaceOpen
             flexShrink: 0,
           }}
         >
-          No API key found. Add your key to <code style={{ fontSize: 11 }}>~/.anthropic/api_key</code> or set <code style={{ fontSize: 11 }}>ANTHROPIC_API_KEY</code>.
+          No {provider.label} API key configured. Click <strong>?</strong> above for setup instructions.
         </div>
       )}
 

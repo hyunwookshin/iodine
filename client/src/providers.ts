@@ -41,16 +41,17 @@ export const PROVIDERS: Provider[] = [
     setupTitle: 'OpenAI API key',
     setupInstructions: 'Set OPENAI_TOKEN in your environment:\n\n  export OPENAI_TOKEN=sk-...',
   },
-  // To add Google Gemini, append an entry here — no other file needs to change
-  // until the server-side integration is wired up in server/src/services/geminiAgent.ts.
-  //
-  // {
-  //   id: 'google',
-  //   label: 'Google',
-  //   models: [{ id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' }],
-  //   setupTitle: 'Google AI API key',
-  //   setupInstructions: 'Set GOOGLE_API_KEY in your environment.',
-  // },
+  {
+    id: 'google',
+    label: 'Google',
+    models: [
+      { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
+      { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
+      { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
+    ],
+    setupTitle: 'Google AI API key',
+    setupInstructions: 'Set GEMINI_API_KEY in your environment:\n\n  export GEMINI_API_KEY=AIza...',
+  },
 ];
 
 export const DEFAULT_PROVIDER = PROVIDERS[0];
