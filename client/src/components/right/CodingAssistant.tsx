@@ -148,11 +148,13 @@ function MessageBubble({ msg, isLast }: { msg: UIMessage; isLast: boolean }) {
 interface CodingAssistantProps {
   /** Current server-side workspace path (from WorkbenchLayout). Null when not set. */
   workspacePath: string | null;
+  /** Path of the file currently open in the editor. Null when no file is open. */
+  activeFilePath: string | null;
   /** Called when the user sets a workspace via the inline input in this panel. */
   onWorkspaceOpen: (path: string) => void;
 }
 
-export function CodingAssistant({ workspacePath, onWorkspaceOpen }: CodingAssistantProps) {
+export function CodingAssistant({ workspacePath, activeFilePath, onWorkspaceOpen }: CodingAssistantProps) {
   const { uiMessages, isLoading, model, setModel, sendMessage, clearMessages } = useCodingAssistant();
   const [input, setInput] = useState('');
   const [apiConfigured, setApiConfigured] = useState<boolean | null>(null);
@@ -197,7 +199,7 @@ export function CodingAssistant({ workspacePath, onWorkspaceOpen }: CodingAssist
     const text = input.trim();
     if (!text || isLoading) return;
     setInput('');
-    sendMessage(text);
+    sendMessage(text, activeFilePath);
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {

@@ -161,13 +161,16 @@ export async function runAgentLoop(
   model: string,
   res: Response,
   abortSignal: { aborted: boolean },
+  activeFile: string | null = null,
 ) {
   const apiKey = await loadApiKey();
   const client = new Anthropic({ apiKey });
 
   const workspaceInfo = rootPath ? `Workspace: ${rootPath}` : 'No workspace is currently open.';
+  const activeFileInfo = activeFile ? `The user currently has this file open in the editor: ${activeFile}` : '';
   const system = `You are a coding assistant with access to the user's project files.
 ${workspaceInfo}
+${activeFileInfo}
 
 You can read, write, list, and search files. When modifying files, read them first.
 Be concise. Show diffs or full updated files when making changes.`;

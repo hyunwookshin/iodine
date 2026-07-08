@@ -17,9 +17,10 @@ router.get('/agent/status', async (_req, res) => {
 });
 
 router.post('/agent/chat', async (req, res) => {
-  const { messages, model } = req.body as {
+  const { messages, model, activeFile } = req.body as {
     messages?: { role: 'user' | 'assistant'; content: string }[];
     model?: string;
+    activeFile?: string | null;
   };
 
   if (!messages || !Array.isArray(messages)) {
@@ -46,7 +47,7 @@ router.post('/agent/chat', async (req, res) => {
       role: m.role,
       content: m.content,
     }));
-    await runAgentLoop(history, selectedModel, res, abortSignal);
+    await runAgentLoop(history, selectedModel, res, abortSignal, activeFile ?? null);
   } catch (err: unknown) {
     if (!abortSignal.aborted) {
       const msg = err instanceof Error ? err.message : 'Internal error';

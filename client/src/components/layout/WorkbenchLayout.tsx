@@ -117,6 +117,7 @@ export function WorkbenchLayout() {
         <RightPanel
           width={rightPanelWidth}
           workspacePath={workspacePath}
+          activeFilePath={activeFilePath}
           onWorkspaceOpen={handleWorkspaceOpen}
         />
       </div>

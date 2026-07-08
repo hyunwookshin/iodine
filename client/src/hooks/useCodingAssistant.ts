@@ -19,7 +19,7 @@ export function useCodingAssistant() {
   const [isLoading, setIsLoading] = useState(false);
   const [model, setModel] = useState<string>(SONNET_MODELS[0].id);
 
-  const sendMessage = useCallback(async (text: string) => {
+  const sendMessage = useCallback(async (text: string, activeFilePath?: string | null) => {
     if (!text.trim() || isLoading) return;
 
     const userMsg: UIMessage = { id: uid(), role: 'user', content: text };
@@ -36,7 +36,7 @@ export function useCodingAssistant() {
       const response = await fetch(`${API_BASE}/api/agent/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: newHistory, model }),
+        body: JSON.stringify({ messages: newHistory, model, activeFile: activeFilePath ?? null }),
       });
 
       if (!response.ok || !response.body) {

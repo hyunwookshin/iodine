@@ -7,10 +7,11 @@ type RightTab = 'simulation' | 'assistant';
 interface RightPanelProps {
   width: number;
   workspacePath: string | null;
+  activeFilePath: string | null;
   onWorkspaceOpen: (path: string) => void;
 }
 
-export function RightPanel({ width, workspacePath, onWorkspaceOpen }: RightPanelProps) {
+export function RightPanel({ width, workspacePath, activeFilePath, onWorkspaceOpen }: RightPanelProps) {
   const [activeTab, setActiveTab] = useState<RightTab>('assistant');
 
   return (
@@ -65,7 +66,7 @@ export function RightPanel({ width, workspacePath, onWorkspaceOpen }: RightPanel
       {/* Tab content */}
       {activeTab === 'simulation'
         ? <SimulationPanel />
-        : <CodingAssistant workspacePath={workspacePath} onWorkspaceOpen={onWorkspaceOpen} />
+        : <CodingAssistant workspacePath={workspacePath} activeFilePath={activeFilePath} onWorkspaceOpen={onWorkspaceOpen} />
       }
     </div>
   );
