@@ -9,6 +9,7 @@ interface SidebarProps {
   activeFilePath: string | null;
   onWorkspaceOpen: (path: string) => void;
   onFileClick: (node: FileNode) => void;
+  localTree?: FileNode | null;
 }
 
 export function Sidebar({
@@ -18,6 +19,7 @@ export function Sidebar({
   activeFilePath,
   onWorkspaceOpen,
   onFileClick,
+  localTree,
 }: SidebarProps) {
   return (
     <div
@@ -37,6 +39,7 @@ export function Sidebar({
           activeFilePath={activeFilePath}
           onWorkspaceOpen={onWorkspaceOpen}
           onFileClick={onFileClick}
+          localTree={localTree}
         />
       ) : (
         <SourceControlPanel />

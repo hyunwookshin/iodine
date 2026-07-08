@@ -36,6 +36,14 @@ export function useOpenFiles() {
   const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
   // Track in-flight opens to prevent duplicate fetches
   const openingPaths = useRef<Set<string>>(new Set());
+  // Holds local File objects when a project was opened via the directory picker.
+  // Using a ref avoids recreating openFile/saveFile callbacks when the map changes.
+  const localFileMapRef = useRef<Map<string, File> | null>(null);
+
+  /** Called from WorkbenchLayout when the user opens a local project via the menu bar. */
+  const setLocalFileMap = useCallback((map: Map<string, File> | null) => {
+    localFileMapRef.current = map;
+  }, []);
 
   const openFile = useCallback(async (node: FileNode) => {
     if (node.type === 'directory') return;
@@ -54,7 +62,16 @@ export function useOpenFiles() {
     openingPaths.current.add(node.path);
 
     try {
-      const content = await fetchFileContent(node.path);
+      let content: string;
+      const localFile = localFileMapRef.current?.get(node.path);
+      if (localFile) {
+        // Local project opened via browser directory picker — read from File object
+        content = await localFile.text();
+      } else {
+        // Server-backed workspace — read from Express API
+        content = await fetchFileContent(node.path);
+      }
+
       const newFile: OpenFile = {
         path: node.path,
         name: node.name,
@@ -73,7 +90,7 @@ export function useOpenFiles() {
     } finally {
       openingPaths.current.delete(node.path);
     }
-  }, []);
+  }, []); // stable — localFileMapRef is accessed via ref, not closure
 
   const updateContent = useCallback((filePath: string, newContent: string) => {
     setOpenFiles(prev =>
@@ -90,6 +107,14 @@ export function useOpenFiles() {
     setOpenFiles(prev => {
       const file = prev.find(f => f.path === filePath);
       if (!file || !file.isDirty) return prev;
+
+      if (localFileMapRef.current?.has(filePath)) {
+        // Local project opened via browser picker — no write-back (File API is read-only
+        // for <input webkitdirectory>). Mark saved in-memory so the dirty indicator clears.
+        return prev.map(f =>
+          f.path === filePath ? { ...f, savedContent: f.content, isDirty: false } : f
+        );
+      }
 
       putFileContent(filePath, file.content)
         .then(() => {
@@ -131,5 +156,6 @@ export function useOpenFiles() {
     updateContent,
     saveFile,
     closeFile,
+    setLocalFileMap,
   };
 }

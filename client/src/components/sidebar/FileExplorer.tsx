@@ -9,6 +9,7 @@ interface FileExplorerProps {
   activeFilePath: string | null;
   onWorkspaceOpen: (path: string) => void;
   onFileClick: (node: FileNode) => void;
+  localTree?: FileNode | null;
 }
 
 export function FileExplorer({
@@ -16,8 +17,9 @@ export function FileExplorer({
   activeFilePath,
   onWorkspaceOpen,
   onFileClick,
+  localTree,
 }: FileExplorerProps) {
-  const { tree, expandedPaths, toggleExpand, loading, error, refetch } = useFileTree(workspacePath);
+  const { tree, expandedPaths, toggleExpand, loading, error, refetch } = useFileTree(workspacePath, localTree);
   const [inputPath, setInputPath] = useState('');
   const [inputVisible, setInputVisible] = useState(false);
   const [openError, setOpenError] = useState<string | null>(null);
@@ -91,7 +93,7 @@ export function FileExplorer({
 
       {/* Content */}
       <div style={{ flex: 1, overflow: 'auto' }}>
-        {!workspacePath ? (
+        {!workspacePath && !localTree ? (
           <div
             style={{
               display: 'flex',
