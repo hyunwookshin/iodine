@@ -70,10 +70,13 @@ iodine/
         ├── state.ts             # Shared mutable state: rootPath (persisted to ~/.iodine/workspace)
         ├── routes/
         │   ├── files.ts         # Route handlers for file/workspace endpoints
-        │   └── agent.ts         # POST /api/agent/chat (SSE), GET /api/agent/status
+        │   └── agent.ts         # POST /api/agent/chat (SSE), GET /api/agent/status; dispatches by provider
         └── services/
             ├── fileSystem.ts    # Pure FS operations + path traversal guard
-            └── anthropicAgent.ts # API key loading, tool execution, agentic loop
+            ├── fileTools.ts     # Shared tool schemas + executeTool() used by all agent services
+            ├── anthropicAgent.ts # Anthropic agentic loop (@anthropic-ai/sdk)
+            ├── openaiAgent.ts   # OpenAI agentic loop (openai SDK)
+            └── geminiAgent.ts   # Google Gemini agentic loop (@google/genai SDK)
 ```
 
 ## API Endpoints
@@ -87,8 +90,8 @@ iodine/
 | `GET` | `/api/files/tree` | Full directory tree from workspace root |
 | `GET` | `/api/files/content?path=` | Read a file's text content |
 | `PUT` | `/api/files/content` | Write a file `{ path, content }` |
-| `GET` | `/api/agent/status` | `{ configured: true/false }` — API key present? |
-| `POST` | `/api/agent/chat` | SSE stream: `{ messages, model }` → text deltas + tool events |
+| `GET` | `/api/agent/status` | `{ providers: { anthropic, openai, google } }` — per-provider key status |
+| `POST` | `/api/agent/chat` | SSE stream: `{ messages, model, provider, activeFile }` → text deltas + tool events |
 
 All file reads and writes are validated against the workspace root to prevent path traversal.
 
@@ -124,27 +127,37 @@ The browser's `<input webkitdirectory>` API intentionally withholds the absolute
 
 ## Coding Assistant
 
-### API Key
+The Coding Assistant supports three AI providers. Select a provider and model from the dropdowns in the tab header. Click **?** to see API key setup instructions for the selected provider.
 
-The server reads the key in this order:
+### Providers and API Keys
 
-1. `~/.anthropic/api_key` (file, trimmed) — where Claude Code stores its key
-2. `ANTHROPIC_API_KEY` environment variable
-3. Error if neither is found (UI shows a warning banner)
+| Provider | Key source | Models |
+|----------|-----------|--------|
+| **Anthropic** | `~/.anthropic/api_key` or `ANTHROPIC_API_KEY` | Claude Sonnet 4.6 / 4.5 / 3.7 |
+| **OpenAI** | `OPENAI_TOKEN` env var | GPT-4o, GPT-4o mini, o3, o4-mini |
+| **Google** | `GEMINI_API_KEY` env var | Gemini 2.5 Flash / Pro, 2.0 Flash |
+
+For Anthropic, the key file is checked first (`~/.anthropic/api_key`), then the env var. If Claude Code is installed, its key is reused automatically.
+
+The UI shows a warning banner when the selected provider's key is not configured.
+
+Provider and model lists are defined in `client/src/providers.ts`. Adding a new provider requires only a new entry there plus a matching agent service on the server.
 
 ### Agentic Loop
 
-The loop runs entirely server-side (`server/src/services/anthropicAgent.ts`). The client receives only SSE events:
+The loop runs entirely server-side (one service per provider). All three share the same tool layer (`fileTools.ts`). The client receives only SSE events:
 
 | SSE event | Payload | Meaning |
 |-----------|---------|---------|
 | `text_delta` | `{ text }` | Streamed text token |
-| `tool_call` | `{ id, name, input }` | Claude is invoking a tool |
+| `tool_call` | `{ id, name, input }` | Model is invoking a tool |
 | `tool_result` | `{ tool_use_id, name, preview, error }` | Tool finished |
 | `done` | `{}` | Turn complete |
 | `error` | `{ message }` | Server-side error |
 
-### Tools Available to Claude
+### Shared File Tools
+
+Defined in `server/src/services/fileTools.ts`; used by all three agent services:
 
 | Tool | What it does |
 |------|-------------|
@@ -155,15 +168,9 @@ The loop runs entirely server-side (`server/src/services/anthropicAgent.ts`). Th
 
 All tools fail with a clear error if no workspace is set — they do not fall back to `process.cwd()`.
 
-### Models
+### Active File Context
 
-Selectable via dropdown in the Coding Assistant tab:
-
-| Model ID | Label |
-|----------|-------|
-| `claude-sonnet-4-6` | Claude Sonnet 4.6 (default) |
-| `claude-sonnet-4-5` | Claude Sonnet 4.5 |
-| `claude-3-7-sonnet-20250219` | Claude Sonnet 3.7 |
+The path of the file currently open in the editor is sent with every chat request as `activeFile`. Each agent service adds it to its system prompt so the model knows what the user is looking at.
 
 ### SSE and the Vite Proxy
 
@@ -177,7 +184,7 @@ Non-streaming requests (file tree, file content, workspace, status) continue to 
 |-------|-----------|
 | Frontend | React 18, TypeScript, Vite |
 | Code editor | Monaco Editor (`@monaco-editor/react`) |
-| AI API | Anthropic SDK (`@anthropic-ai/sdk`) |
+| AI APIs | `@anthropic-ai/sdk`, `openai`, `@google/genai` |
 | Backend | Node.js, Express 4, TypeScript |
 | Dev runner | `tsx watch` (server), Vite HMR (client) |
 | Monorepo | npm workspaces + `concurrently` |
