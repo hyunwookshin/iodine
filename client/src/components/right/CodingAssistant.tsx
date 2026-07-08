@@ -1,6 +1,12 @@
 import { useState, useEffect, useRef, KeyboardEvent } from 'react';
 import { useCodingAssistant } from '../../hooks/useCodingAssistant';
+import { openWorkspace } from '../../api/files';
 import { UIMessage, UIBlock, SONNET_MODELS } from '../../types';
+
+// Go directly to Express for SSE — Vite proxy closes the backend connection prematurely.
+// See DEBUGGING.md for details. Non-streaming requests (workspace, status) use relative
+// URLs through the Vite proxy as normal.
+const API_BASE = import.meta.env.DEV ? 'http://localhost:3001' : '';
 
 function ToolBlock({ block }: { block: UIBlock & { type: 'tool' } }) {
   const [expanded, setExpanded] = useState(false);
@@ -126,19 +132,47 @@ function MessageBubble({ msg, isLast }: { msg: UIMessage; isLast: boolean }) {
   );
 }
 
-export function CodingAssistant() {
+interface CodingAssistantProps {
+  /** Current server-side workspace path (from WorkbenchLayout). Null when not set. */
+  workspacePath: string | null;
+  /** Called when the user sets a workspace via the inline input in this panel. */
+  onWorkspaceOpen: (path: string) => void;
+}
+
+export function CodingAssistant({ workspacePath, onWorkspaceOpen }: CodingAssistantProps) {
   const { uiMessages, isLoading, model, setModel, sendMessage, clearMessages } = useCodingAssistant();
   const [input, setInput] = useState('');
   const [apiConfigured, setApiConfigured] = useState<boolean | null>(null);
+  const [wsInput, setWsInput] = useState('');
+  const [wsOpening, setWsOpening] = useState(false);
+  const [wsError, setWsError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // Check only API key on mount — workspace status comes via the workspacePath prop
   useEffect(() => {
-    const apiBase = import.meta.env.DEV ? 'http://localhost:3001' : '';
-    fetch(`${apiBase}/api/agent/status`, { method: 'GET' })
+    fetch(`${API_BASE}/api/agent/status`, { method: 'GET' })
       .then(r => r.json())
       .then(data => setApiConfigured(data.configured))
       .catch(() => setApiConfigured(false));
   }, []);
+
+  // Set workspace via the inline input — updates server state and notifies the parent
+  const handleSetWorkspace = async () => {
+    if (!wsInput.trim()) return;
+    setWsOpening(true);
+    setWsError(null);
+    try {
+      const result = await openWorkspace(wsInput.trim());
+      if (result.path) {
+        onWorkspaceOpen(result.path);
+        setWsInput('');
+      }
+    } catch (err) {
+      setWsError(err instanceof Error ? err.message : 'Failed to open folder');
+    } finally {
+      setWsOpening(false);
+    }
+  };
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -224,7 +258,7 @@ export function CodingAssistant() {
       {apiConfigured === false && (
         <div
           style={{
-            margin: 8,
+            margin: '8px 8px 0',
             padding: '8px 10px',
             background: '#f487710a',
             border: '1px solid #f4877140',
@@ -235,6 +269,84 @@ export function CodingAssistant() {
           }}
         >
           No API key found. Add your key to <code style={{ fontSize: 11 }}>~/.anthropic/api_key</code> or set <code style={{ fontSize: 11 }}>ANTHROPIC_API_KEY</code>.
+        </div>
+      )}
+
+      {/* Workspace not configured — file tools won't work */}
+      {apiConfigured === true && !workspacePath && (
+        <div
+          style={{
+            margin: '8px 8px 0',
+            padding: '8px 10px',
+            background: '#e7c5470a',
+            border: '1px solid #e7c54740',
+            borderRadius: 4,
+            fontSize: 12,
+            color: '#e7c547',
+            flexShrink: 0,
+          }}
+        >
+          <div style={{ marginBottom: 6 }}>
+            No workspace set. Enter an absolute path so the assistant can read and write files.
+          </div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <input
+              type="text"
+              value={wsInput}
+              onChange={e => setWsInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') handleSetWorkspace(); }}
+              placeholder="/absolute/path/to/project"
+              style={{
+                flex: 1,
+                background: '#3c3c3c',
+                border: '1px solid #e7c54760',
+                borderRadius: 3,
+                color: 'var(--color-text-primary)',
+                padding: '4px 7px',
+                fontSize: 12,
+                outline: 'none',
+              }}
+            />
+            <button
+              onClick={handleSetWorkspace}
+              disabled={wsOpening || !wsInput.trim()}
+              style={{
+                background: '#e7c547',
+                color: '#1e1e1e',
+                borderRadius: 3,
+                padding: '4px 10px',
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: wsOpening || !wsInput.trim() ? 'default' : 'pointer',
+                opacity: wsOpening || !wsInput.trim() ? 0.6 : 1,
+              }}
+            >
+              {wsOpening ? '…' : 'Open'}
+            </button>
+          </div>
+          {wsError && <div style={{ marginTop: 4, color: '#f48771', fontSize: 11 }}>{wsError}</div>}
+        </div>
+      )}
+
+      {/* Current workspace indicator */}
+      {workspacePath && (
+        <div
+          style={{
+            margin: '6px 8px 0',
+            padding: '4px 8px',
+            background: '#ffffff06',
+            border: '1px solid var(--color-border)',
+            borderRadius: 3,
+            fontSize: 11,
+            color: 'var(--color-text-secondary)',
+            flexShrink: 0,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+          title={workspacePath}
+        >
+          {workspacePath}
         </div>
       )}
 

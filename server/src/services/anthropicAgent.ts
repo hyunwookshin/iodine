@@ -23,7 +23,7 @@ export async function loadApiKey(): Promise<string> {
 async function searchFiles(query: string, searchPath?: string): Promise<string> {
   const base = searchPath
     ? path.resolve(searchPath)
-    : rootPath || process.cwd();
+    : rootPath!;
 
   const results: string[] = [];
 
@@ -82,7 +82,8 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
     }
 
     if (name === 'list_directory') {
-      const dirPath = (input.path as string | undefined) || rootPath || '.';
+      const dirPath = (input.path as string | undefined) || rootPath;
+      if (!dirPath) return { content: 'No workspace open', preview: 'No workspace open', error: true };
       const tree = await buildTree(dirPath, 0, 3);
       const content = JSON.stringify(tree, null, 2);
       return { content, preview: content.slice(0, 200), error: false };
@@ -91,6 +92,7 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
     if (name === 'search_files') {
       const query = input.query as string;
       const searchPath = input.path as string | undefined;
+      if (!searchPath && !rootPath) return { content: 'No workspace open', preview: 'No workspace open', error: true };
       const content = await searchFiles(query, searchPath);
       return { content, preview: content.slice(0, 200), error: false };
     }

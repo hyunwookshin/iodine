@@ -21,6 +21,14 @@ export async function getWorkspace(): Promise<WorkspaceInfo> {
   return request<WorkspaceInfo>('/api/workspace');
 }
 
+export async function findWorkspace(name: string): Promise<WorkspaceInfo> {
+  return request<WorkspaceInfo>('/api/workspace/find', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  });
+}
+
 export async function fetchFileTree(): Promise<FileNode> {
   const data = await request<{ tree: FileNode }>('/api/files/tree');
   return data.tree;

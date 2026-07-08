@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 import { buildTree, readFileContent, writeFileContent } from '../services/fileSystem';
 import { rootPath, setRootPath } from '../state';
 
@@ -25,6 +26,35 @@ router.post('/workspace/open', async (req, res) => {
   } catch {
     return res.status(400).json({ error: 'Path does not exist or is not accessible' });
   }
+});
+
+router.post('/workspace/find', async (req, res) => {
+  const { name } = req.body as { name?: string };
+  if (!name) return res.status(400).json({ error: 'name is required' });
+
+  const home = os.homedir();
+
+  // First: check direct child of home (~/name)
+  const direct = path.join(home, name);
+  try {
+    const stat = await fs.promises.stat(direct);
+    if (stat.isDirectory()) return res.json({ path: direct });
+  } catch { /* continue */ }
+
+  // Second: scan all subdirectories of home one level deep (~/*/name)
+  try {
+    const homeDirs = await fs.promises.readdir(home, { withFileTypes: true });
+    for (const entry of homeDirs) {
+      if (!entry.isDirectory() || entry.name.startsWith('.')) continue;
+      const candidate = path.join(home, entry.name, name);
+      try {
+        const stat = await fs.promises.stat(candidate);
+        if (stat.isDirectory()) return res.json({ path: candidate });
+      } catch { /* continue */ }
+    }
+  } catch { /* continue */ }
+
+  return res.json({ path: null });
 });
 
 router.get('/workspace', (_req, res) => {

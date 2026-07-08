@@ -72,3 +72,162 @@ These four data points together pinpointed that:
 - The server saw disconnect before the Anthropic call (not an API issue).
 - `req.on('close')` was the false-positive disconnect trigger.
 - The Vite proxy was separately closing the backend connection.
+
+---
+
+## Workspace State Lost on Server Restart
+
+### Symptom
+
+After successfully opening a workspace and verifying it worked, the Coding Assistant would
+show "No workspace open" after a server restart. The left sidebar also lost its file tree.
+`tsx watch` restarts the server automatically when any server-side file is edited.
+
+### Root Cause
+
+`rootPath` is a module-level `export let` variable in `server/src/state.ts`. When
+`tsx watch` detects a file change and restarts the Node process, all in-memory state
+resets. The React client still held the old `workspacePath` in its own state, creating a
+split-brain situation: client thought workspace was set, server did not.
+
+Suspicion initially fell on ESM live-binding semantics (does `import { rootPath }` in
+another module see the updated value after `setRootPath()` is called?). This was tested
+and confirmed to work correctly — `tsx` does handle `export let` as a live binding. The
+real issue was process restart, not live bindings.
+
+### Fix
+
+Persist the workspace path to disk in `server/src/state.ts`:
+
+```typescript
+const PERSIST_FILE = path.join(os.homedir(), '.iodine', 'workspace');
+
+function loadPersistedPath(): string | null {
+  try {
+    const saved = fs.readFileSync(PERSIST_FILE, 'utf-8').trim();
+    if (saved && fs.existsSync(saved)) return saved;
+  } catch { /* no persisted workspace */ }
+  return null;
+}
+
+export let rootPath: string | null = loadPersistedPath();
+
+export function setRootPath(p: string) {
+  rootPath = p;
+  try {
+    fs.mkdirSync(path.dirname(PERSIST_FILE), { recursive: true });
+    fs.writeFileSync(PERSIST_FILE, p, 'utf-8');
+  } catch { /* ignore write errors */ }
+}
+```
+
+On server startup, the workspace is restored from `~/.iodine/workspace` (if the path
+still exists on disk). `WorkbenchLayout` also calls `GET /api/workspace` on mount and
+hydrates its `workspacePath` state, so the UI stays in sync after a hot restart.
+
+---
+
+## Coding Assistant "No workspace" Warning Not Updating
+
+### Symptom
+
+Even after setting a workspace via the sidebar or Coding Assistant inline input, the
+"No workspace open" warning in the Coding Assistant panel persisted.
+
+### Root Cause
+
+The `CodingAssistant` component was fetching workspace status independently from the
+server on mount (`GET /api/agent/status` returned `workspace: rootPath`). This gave a
+snapshot at mount time, not a live value. Changes made by other parts of the UI (sidebar
+`openWorkspace`, menu bar) did not propagate to the Coding Assistant's local state.
+
+### Fix
+
+Remove the workspace fetch from `CodingAssistant`. Instead, thread `workspacePath` as a
+prop from `WorkbenchLayout` → `RightPanel` → `CodingAssistant`. Since `WorkbenchLayout`
+owns the single source of truth for `workspacePath`, all panels stay in sync
+automatically.
+
+```
+WorkbenchLayout (owns workspacePath state)
+  └── RightPanel (props: workspacePath, onWorkspaceOpen)
+        └── CodingAssistant (props: workspacePath, onWorkspaceOpen)
+```
+
+The warning condition is simply `!workspacePath` — no server fetch needed.
+
+---
+
+## Agent Tools Defaulting to Server Working Directory
+
+### Symptom
+
+When no workspace was open, asking the Coding Assistant to list files or search code
+would silently list/search the server's working directory (`process.cwd()`, typically the
+repo root) instead of returning a clear error.
+
+### Root Cause
+
+The tool implementations in `anthropicAgent.ts` had fallback logic:
+
+```typescript
+// list_directory
+const dirPath = (input.path as string | undefined) || rootPath || '.';
+
+// search_files
+const searchPath = (input.path as string | undefined) || rootPath || process.cwd();
+```
+
+Claude would get back results from the wrong location with no indication that the
+workspace wasn't set, leading to confusing responses.
+
+### Fix
+
+Remove the fallbacks. Return an explicit error when `rootPath` is null:
+
+```typescript
+if (name === 'list_directory') {
+  const dirPath = (input.path as string | undefined) || rootPath;
+  if (!dirPath) return { content: 'No workspace open', preview: 'No workspace open', error: true };
+  // ...
+}
+```
+
+This surfaces the missing-workspace condition clearly to both Claude and the user.
+
+---
+
+## Browser File Picker Cannot Provide Absolute Path
+
+### Symptom
+
+After switching the "Open Project" menu entry to use `<input webkitdirectory>` (OS folder
+picker), the server had no way to know the absolute path of the selected folder. The
+browser only exposes relative paths like `"myproject/src/index.ts"` via
+`file.webkitRelativePath`.
+
+### Root Cause
+
+This is an intentional browser security restriction. The File API and `webkitdirectory`
+deliberately withhold the host filesystem path. `showDirectoryPicker()` (File System
+Access API) provides the handle but still not the raw absolute path in all environments,
+and is not supported in Firefox.
+
+### Fix
+
+Server-side path detection via `POST /api/workspace/find`:
+
+1. Client extracts root folder name from the first `webkitRelativePath` (everything before
+   the first `/`).
+2. Client sends `POST /api/workspace/find { name: "myproject" }`.
+3. Server searches `~/myproject` (direct), then scans all non-hidden subdirectories of `~`
+   for `~/*/myproject` (one level deep).
+4. If found, returns `{ path: "/absolute/path/to/myproject" }`.
+5. Client calls `POST /api/workspace/open` with the resolved path to officially set the
+   workspace.
+6. If not found, a fallback dialog appears with the folder name pre-filled so the user
+   can type the full absolute path.
+
+The one-level-deep scan of `~` (step 3) covers the common convention of grouping projects
+under a single directory (e.g. `~/wses/`, `~/code/`, `~/work/`) without requiring the
+user to configure anything.

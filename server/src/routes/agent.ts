@@ -1,16 +1,19 @@
 import { Router } from 'express';
 import { loadApiKey, runAgentLoop } from '../services/anthropicAgent';
+import { rootPath } from '../state';
 import Anthropic from '@anthropic-ai/sdk';
 
 const router = Router();
 
 router.get('/agent/status', async (_req, res) => {
+  let apiConfigured = false;
   try {
     await loadApiKey();
-    res.json({ configured: true });
+    apiConfigured = true;
   } catch {
-    res.json({ configured: false });
+    // fall through
   }
+  res.json({ configured: apiConfigured, workspace: rootPath });
 });
 
 router.post('/agent/chat', async (req, res) => {

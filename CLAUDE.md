@@ -27,7 +27,7 @@ iodine/
 ├── tsconfig.base.json        # Shared TypeScript config
 │
 ├── client/                   # React + TypeScript frontend (Vite)
-│   ├── vite.config.ts        # Proxies /api to localhost:3001 (note: SSE bypasses proxy — see below)
+│   ├── vite.config.ts        # Proxies /api to localhost:3001 (note: SSE bypasses proxy — see DEBUGGING.md)
 │   ├── index.html
 │   └── src/
 │       ├── main.tsx          # React entry point
@@ -35,23 +35,21 @@ iodine/
 │       ├── index.css         # Global resets + CSS variables (dark theme)
 │       ├── types/index.ts    # Shared types: FileNode, OpenFile, UIMessage, UIBlock, etc.
 │       ├── api/files.ts      # Typed fetch wrappers for file/workspace endpoints
-│       ├── utils/
-│       │   └── localFileTree.ts      # Builds FileNode tree from browser FileList (webkitdirectory)
 │       ├── hooks/
-│       │   ├── useFileTree.ts        # Directory tree state + expand/collapse (server or local)
-│       │   ├── useOpenFiles.ts       # Open tabs, dirty tracking, save logic (server or local)
+│       │   ├── useFileTree.ts        # Directory tree state + expand/collapse
+│       │   ├── useOpenFiles.ts       # Open tabs, dirty tracking, save logic
 │       │   └── useCodingAssistant.ts # SSE streaming chat state + message history
 │       └── components/
 │           ├── layout/
 │           │   ├── WorkbenchLayout.tsx   # Root layout, panel widths, Ctrl+S handler
-│           │   ├── MenuBar.tsx           # Top menu bar — File > Open Project
+│           │   ├── MenuBar.tsx           # Top menu bar — File > Open Project (browser picker + server find)
 │           │   ├── ActivityBar.tsx       # Left icon strip (Explorer / SCM toggle)
 │           │   ├── Sidebar.tsx           # Panel host — renders active view
 │           │   ├── EditorArea.tsx        # Tab bar + Monaco editor
 │           │   ├── RightPanel.tsx        # Tab bar: Simulation | Coding Assistant
 │           │   └── ResizeDivider.tsx     # Draggable column resize handle
 │           ├── sidebar/
-│           │   ├── FileExplorer.tsx      # Open Folder UI + file tree (server or local)
+│           │   ├── FileExplorer.tsx      # Open Folder UI + file tree
 │           │   ├── FileTreeNode.tsx      # Recursive tree node component
 │           │   └── SourceControlPanel.tsx # SCM placeholder
 │           ├── editor/
@@ -69,7 +67,7 @@ iodine/
     └── src/
         ├── index.ts              # Entry point — listens on port 3001
         ├── app.ts               # Express app factory (CORS, JSON, routes)
-        ├── state.ts             # Shared mutable state: rootPath
+        ├── state.ts             # Shared mutable state: rootPath (persisted to ~/.iodine/workspace)
         ├── routes/
         │   ├── files.ts         # Route handlers for file/workspace endpoints
         │   └── agent.ts         # POST /api/agent/chat (SSE), GET /api/agent/status
@@ -85,6 +83,7 @@ iodine/
 | `GET` | `/api/health` | Health check |
 | `POST` | `/api/workspace/open` | Set workspace root `{ path }` |
 | `GET` | `/api/workspace` | Get current workspace root |
+| `POST` | `/api/workspace/find` | Search for a directory by name `{ name }` → `{ path }` |
 | `GET` | `/api/files/tree` | Full directory tree from workspace root |
 | `GET` | `/api/files/content?path=` | Read a file's text content |
 | `PUT` | `/api/files/content` | Write a file `{ path, content }` |
@@ -95,45 +94,33 @@ All file reads and writes are validated against the workspace root to prevent pa
 
 ## Key Behaviors
 
-- **Open Project (menu bar)**: Click **File → Open Project…** in the top menu bar. A native browser directory picker opens. The selected folder's tree populates the left pane immediately — no server involved (files are read client-side via the browser File API). Editing works; saves are in-memory only (the browser `<input webkitdirectory>` API does not grant write-back access to disk).
-- **Open Folder (sidebar)**: Click the folder icon in the left sidebar, type an absolute path, press Enter or click Open. This sets the server-side workspace root — required for the Coding Assistant's file tools (`read_file`, `write_file`, etc.) to work. Saves write to disk via the Express API.
+- **Open Project (menu bar)**: Click **File → Open Project…** to open the OS directory picker. The browser provides the folder name (not the absolute path — this is a browser security restriction). The client sends the folder name to `POST /api/workspace/find`, which searches `~/`, `~/*/` (one level of home subdirs) for a directory with that name. If found, the absolute path is confirmed via `POST /api/workspace/open`. If not found, a fallback dialog appears with the folder name pre-filled so the user can type the full path.
+- **Open Folder (sidebar)**: Click the folder icon in the left sidebar and type an absolute path directly. Same `POST /api/workspace/open` call under the hood.
 - **Open a file**: Click any file in the tree. It opens as a tab in the editor.
 - **Save**: `Ctrl+S` / `Cmd+S`. An amber dot on the tab indicates unsaved changes.
+- **Workspace persistence**: The server writes the workspace path to `~/.iodine/workspace` on every `setRootPath()` call and reads it back on startup. Workspace survives `tsx watch` server restarts triggered by file saves during development.
 - **Resize panels**: Drag the thin dividers between the sidebar, editor, and right panel.
 - **Switch sidebar views**: Click the branch icon in the activity bar to switch between Explorer and Source Control.
-- **Coding Assistant**: Click the "Coding Assistant" tab in the right panel. Requires an Anthropic API key (see below). Enter sends a message; Shift+Enter inserts a newline. Chat history persists until the page is refreshed or the ✕ button is clicked.
+- **Coding Assistant**: Click the "Coding Assistant" tab in the right panel. Requires an Anthropic API key (see below). Enter sends a message; Shift+Enter inserts a newline. Chat history persists until the page is refreshed.
 
 ## Menu Bar — File > Open Project
 
 ### How It Works
 
-The top 30px `MenuBar` component renders a "File" dropdown. "Open Project…" triggers a hidden `<input type="file">` with the `webkitdirectory` attribute set (via `setAttribute` in a `useEffect` to avoid a TypeScript JSX error). The browser presents its native folder-picker dialog.
+1. User clicks **File → Open Project…** → OS directory picker opens (`<input webkitdirectory>`).
+2. Browser returns a `FileList`. The client extracts the root folder name from the first file's `webkitRelativePath` (e.g. `"myproject/src/index.ts"` → `"myproject"`).
+3. Client sends `POST /api/workspace/find { name: "myproject" }`.
+4. Server searches `~/myproject`, then all `~/*/myproject` (one level deep in home). Returns `{ path: "/Users/you/code/myproject" }` or `{ path: null }`.
+5. If found: client calls `POST /api/workspace/open { path: "..." }` to register it, then updates UI.
+6. If not found: fallback dialog shows with the folder name pre-filled for manual absolute path entry.
 
-On selection, the `FileList` is passed to `buildLocalFileTree` (`client/src/utils/localFileTree.ts`), which:
+### Why Not Use `showDirectoryPicker()`?
 
-1. Iterates all `File` objects and reads `file.webkitRelativePath` (e.g. `"myproject/src/index.ts"`).
-2. Reconstructs the directory hierarchy into a `FileNode` tree using that path as the node's stable `path` key.
-3. Sorts each level: directories first, then alphabetically.
-4. Returns `{ tree: FileNode, fileMap: Map<path, File> }`.
+The File System Access API (`showDirectoryPicker()`) gives the absolute path but is not supported in Firefox. `webkitdirectory` + server-side search was used instead for cross-browser compatibility.
 
-The tree is stored as `localTree` state in `WorkbenchLayout` and threaded down through `Sidebar → FileExplorer → useFileTree`. The file map is stored in a `useRef` inside `useOpenFiles` (via `setLocalFileMap`) so the `openFile` callback doesn't need to be recreated.
+### Why the Server Search Is Needed
 
-### Two Workspace Modes
-
-| | Local (menu bar) | Server (sidebar text input) |
-|---|---|---|
-| Opens via | Browser directory picker | Absolute path → `POST /api/workspace/open` |
-| File tree | Built in-browser from `FileList` | Fetched from `GET /api/files/tree` |
-| File content | `File.text()` (browser API) | `GET /api/files/content` |
-| Save | In-memory only (no disk write) | `PUT /api/files/content` → Express |
-| AI agent tools | ✗ (server has no path) | ✓ |
-| Works in Firefox | ✓ (`webkitdirectory` supported) | ✓ |
-
-The two modes are mutually exclusive — opening a project via the menu bar clears `workspacePath`, and opening a folder via the sidebar clears `localTree`.
-
-### Browser Compatibility
-
-`webkitdirectory` is non-standard but supported in all major browsers (Chrome, Firefox, Safari, Edge). `showDirectoryPicker()` (File System Access API) was not used because it is not supported in Firefox.
+The browser's `<input webkitdirectory>` API intentionally withholds the absolute filesystem path for security reasons. Only relative paths within the selection are exposed via `webkitRelativePath`. The server-side search is the bridge that converts the folder name back to an absolute path the server can use.
 
 ## Coding Assistant
 
@@ -166,6 +153,8 @@ The loop runs entirely server-side (`server/src/services/anthropicAgent.ts`). Th
 | `list_directory(path?)` | Builds a directory tree (depth 3) |
 | `search_files(query, path?)` | Grep-like text search across workspace files |
 
+All tools fail with a clear error if no workspace is set — they do not fall back to `process.cwd()`.
+
 ### Models
 
 Selectable via dropdown in the Coding Assistant tab:
@@ -178,7 +167,7 @@ Selectable via dropdown in the Coding Assistant tab:
 
 ### SSE and the Vite Proxy
 
-The Coding Assistant's `fetch` calls go **directly to `http://localhost:3001`** in development, bypassing the Vite proxy. This is intentional — Vite's proxy (`http-proxy`) closes its backend connection shortly after forwarding the first SSE chunk, causing `res.on('close')` to fire on the Express side and aborting the agent loop before the Anthropic API is ever called. See `DEBUGGING.md` for full details.
+The Coding Assistant's `fetch` calls go **directly to `http://localhost:3001`** in development, bypassing the Vite proxy. This is intentional — Vite's proxy closes its backend connection shortly after forwarding the first SSE chunk, aborting the agent loop. See `DEBUGGING.md` for full details.
 
 Non-streaming requests (file tree, file content, workspace, status) continue to go through the Vite proxy at `/api/*` as normal.
 

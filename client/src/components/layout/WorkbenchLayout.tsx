@@ -6,9 +6,8 @@ import { EditorArea, EditorAreaHandle } from './EditorArea';
 import { RightPanel } from './RightPanel';
 import { ResizeDivider } from './ResizeDivider';
 import { useOpenFiles } from '../../hooks/useOpenFiles';
-import { buildLocalFileTree } from '../../utils/localFileTree';
 import { getWorkspace } from '../../api/files';
-import type { FileNode, SidebarView } from '../../types';
+import type { SidebarView } from '../../types';
 
 const SIDEBAR_DEFAULT = 240;
 const RIGHT_PANEL_DEFAULT = 280;
@@ -22,20 +21,17 @@ export function WorkbenchLayout() {
   const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT);
   const [rightPanelWidth, setRightPanelWidth] = useState(RIGHT_PANEL_DEFAULT);
   const [workspacePath, setWorkspacePath] = useState<string | null>(null);
-  const [localTree, setLocalTree] = useState<FileNode | null>(null);
 
   const editorAreaRef = useRef<EditorAreaHandle>(null);
 
   const {
     openFiles,
-    activeFile,
     activeFilePath,
     setActiveFilePath,
     openFile,
     updateContent,
     saveFile,
     closeFile,
-    setLocalFileMap,
   } = useOpenFiles();
 
   // Restore workspace from server on mount
@@ -61,23 +57,12 @@ export function WorkbenchLayout() {
     setActiveView(view);
   }, []);
 
-  /** Called when the user picks a project via File > Open Project in the menu bar. */
-  const handleOpenProject = useCallback((files: FileList) => {
-    const { tree, fileMap } = buildLocalFileTree(files);
-    setLocalTree(tree);
-    setLocalFileMap(fileMap);
-    // Clear server workspace — the local tree takes over the explorer
-    setWorkspacePath(null);
-    setActiveView('explorer');
-  }, [setLocalFileMap]);
-
-  /** Called when the user opens a server-backed workspace via the sidebar text input. */
+  /** Shared handler — opens a server-side workspace from any entrypoint
+   *  (menu bar, sidebar, or Coding Assistant inline input). */
   const handleWorkspaceOpen = useCallback((path: string) => {
     setWorkspacePath(path);
-    // Clear any previously loaded local tree
-    setLocalTree(null);
-    setLocalFileMap(null);
-  }, [setLocalFileMap]);
+    setActiveView('explorer');
+  }, []);
 
   return (
     <div
@@ -90,7 +75,7 @@ export function WorkbenchLayout() {
         background: 'var(--color-bg-workbench)',
       }}
     >
-      <MenuBar onOpenProject={handleOpenProject} />
+      <MenuBar onOpenProject={handleWorkspaceOpen} />
 
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         <ActivityBar activeView={activeView} onViewChange={handleViewChange} />
@@ -102,7 +87,6 @@ export function WorkbenchLayout() {
           activeFilePath={activeFilePath}
           onWorkspaceOpen={handleWorkspaceOpen}
           onFileClick={openFile}
-          localTree={localTree}
         />
 
         <ResizeDivider
@@ -130,7 +114,11 @@ export function WorkbenchLayout() {
           side="right"
         />
 
-        <RightPanel width={rightPanelWidth} />
+        <RightPanel
+          width={rightPanelWidth}
+          workspacePath={workspacePath}
+          onWorkspaceOpen={handleWorkspaceOpen}
+        />
       </div>
     </div>
   );

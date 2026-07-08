@@ -4,7 +4,13 @@ import { CodingAssistant } from '../right/CodingAssistant';
 
 type RightTab = 'simulation' | 'assistant';
 
-export function RightPanel({ width }: { width: number }) {
+interface RightPanelProps {
+  width: number;
+  workspacePath: string | null;
+  onWorkspaceOpen: (path: string) => void;
+}
+
+export function RightPanel({ width, workspacePath, onWorkspaceOpen }: RightPanelProps) {
   const [activeTab, setActiveTab] = useState<RightTab>('assistant');
 
   return (
@@ -57,7 +63,10 @@ export function RightPanel({ width }: { width: number }) {
       </div>
 
       {/* Tab content */}
-      {activeTab === 'simulation' ? <SimulationPanel /> : <CodingAssistant />}
+      {activeTab === 'simulation'
+        ? <SimulationPanel />
+        : <CodingAssistant workspacePath={workspacePath} onWorkspaceOpen={onWorkspaceOpen} />
+      }
     </div>
   );
 }
