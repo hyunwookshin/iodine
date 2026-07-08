@@ -10,7 +10,7 @@ import { getWorkspace } from '../../api/files';
 import type { SidebarView } from '../../types';
 
 const SIDEBAR_DEFAULT = 240;
-const RIGHT_PANEL_DEFAULT = 280;
+const RIGHT_PANEL_DEFAULT = 400;
 const SIDEBAR_MIN = 140;
 const SIDEBAR_MAX = 600;
 const RIGHT_MIN = 180;
