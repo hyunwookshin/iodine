@@ -45,7 +45,7 @@ iodine/
 │           │   ├── MenuBar.tsx           # Top menu bar — File > Open Project (browser picker + server find)
 │           │   ├── ActivityBar.tsx       # Left icon strip (Explorer / SCM toggle)
 │           │   ├── Sidebar.tsx           # Panel host — renders active view
-│           │   ├── EditorArea.tsx        # Tab bar + Monaco editor
+│           │   ├── EditorArea.tsx        # Tab bar + Monaco editor + Preview toggle for .md/.html
 │           │   ├── RightPanel.tsx        # Tab bar: Simulation | Coding Assistant
 │           │   └── ResizeDivider.tsx     # Draggable column resize handle
 │           ├── sidebar/
@@ -105,6 +105,7 @@ All file reads and writes are validated against the workspace root to prevent pa
 - **Resize panels**: Drag the thin dividers between the sidebar, editor, and right panel.
 - **Switch sidebar views**: Click the branch icon in the activity bar to switch between Explorer and Source Control.
 - **Coding Assistant**: Click the "Coding Assistant" tab in the right panel. Requires an Anthropic API key (see below). Enter sends a message; Shift+Enter inserts a newline. Chat history persists until the page is refreshed.
+- **File preview**: When a `.md` or `.html` file is active, a floating **Preview** button appears in the upper-right corner of the editor. Clicking it renders the file — markdown is rendered with `react-markdown` + `remark-gfm` (dark-themed prose styles), HTML is rendered in a sandboxed `<iframe>`. Clicking **Source** returns to the Monaco editor. Switching to a non-previewable file automatically resets to source mode.
 
 ## Menu Bar — File > Open Project
 
