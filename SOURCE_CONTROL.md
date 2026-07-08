@@ -1,47 +1,31 @@
 # Source Control Integration
 
-Iodine displays live git status indicators directly in the file explorer tree, giving a quick visual summary of what has changed since the last commit.
+Iodine provides two layers of live git integration: **file tree status indicators** (showing which files have changed) and **inline editor diff decorations** (showing exactly which lines changed, with expandable deleted-line views).
 
-## Visual Indicators
+---
+
+## File Tree Status Indicators
+
+Files in the explorer are styled to reflect their git index and working tree state.
 
 | State | Appearance | Meaning |
 |---|---|---|
-| Modified, not staged | **Bold** | File has unsaved-to-git changes in the working tree |
-| Staged | Underlined | File has been `git add`-ed to the index |
-| Staged + further modified | **Bold + underlined** | File is staged but has additional unstaged changes on top |
+| Modified, not staged | **Bold** | Working tree has changes not yet `git add`-ed |
+| Staged | Underlined | File is in the index (`git add`-ed) |
+| Staged + further modified | **Bold + underlined** | Staged, but additional working tree changes on top |
 | Clean | Normal | No changes relative to HEAD |
 
-Untracked (`??`) files are not highlighted — only files that git is already tracking.
+Untracked (`??`) files are not highlighted — only already-tracked files.
 
-## Polling Behavior
+### How It Works
 
-The file tree refreshes git status:
+**Server: `GET /api/git/status`** (`server/src/routes/files.ts`)
 
-- Every **3 seconds** automatically
-- Immediately when the **browser window regains focus**
-- When the **workspace is changed**
+1. Runs `git rev-parse --show-toplevel` to find the true repo root (handles workspaces that are subdirectories of a larger repo).
+2. Runs `git status --porcelain` for compact machine-readable output.
+3. Parses each line — column 1 (`X`) is the index state, column 2 (`Y`) is the working tree state. A non-space, non-`?` character means that side has changes. Rename lines use the destination path.
+4. Returns absolute paths mapped to `'staged'`, `'unstaged'`, or `'both'`. Returns `{ status: {} }` if the workspace is not a git repo.
 
-This means the indicators update within a few seconds of running `git add`, `git commit`, or editing a file outside the IDE.
-
-## How It Works
-
-### Server: `GET /api/git/status`
-
-Located in `server/src/routes/files.ts`. When called:
-
-1. Runs `git rev-parse --show-toplevel` in the workspace root to find the true git repository root (handles workspaces that are subdirectories of a repo).
-2. Runs `git status --porcelain` to get a compact machine-readable status.
-3. Parses each line:
-   - Column 1 (`X`) — index/staged status
-   - Column 2 (`Y`) — working tree/unstaged status
-   - A character other than space or `?` in `X` means the file is staged.
-   - A character other than space or `?` in `Y` means the file has unstaged changes.
-   - Rename lines (`old -> new`) use the destination path.
-4. Returns absolute paths mapped to `'staged'`, `'unstaged'`, or `'both'`.
-
-If the workspace is not a git repository (or git is not installed), the endpoint returns `{ status: {} }` without an error — the file tree simply shows no indicators.
-
-**Response shape:**
 ```json
 {
   "status": {
@@ -52,17 +36,13 @@ If the workspace is not a git repository (or git is not installed), the endpoint
 }
 ```
 
-### Client: `useGitStatus` hook (`client/src/hooks/useGitStatus.ts`)
+**Client: `useGitStatus` hook** (`client/src/hooks/useGitStatus.ts`)
 
-```
-useGitStatus(workspacePath) → Record<string, 'unstaged' | 'staged' | 'both'>
-```
+Polls `GET /api/git/status` every 3 seconds and on `window focus`. Returns a `Record<string, GitFileStatus>` keyed by absolute path. Resets to `{}` when no workspace is open.
 
-Calls `fetchGitStatus()` from `api/files.ts`, stores the result in state, and sets up a 3-second polling interval plus a `window focus` listener. Both are cleaned up on unmount. Returns an empty object when no workspace is open or when the fetch fails.
+**Client: rendering** (`FileTreeNode.tsx`)
 
-### Client: rendering (`FileTreeNode.tsx`)
-
-The `gitStatus` map is threaded from `FileExplorer` → `FileTreeNode` (and down recursively to all child nodes). Each node looks up its absolute path in the map and applies inline styles to the filename `<span>`:
+`gitStatus` is threaded from `FileExplorer` → `FileTreeNode` and recursively to all children. Each node looks up its path in the map and applies inline styles:
 
 | Value | `fontWeight` | `textDecoration` |
 |---|---|---|
@@ -70,10 +50,88 @@ The `gitStatus` map is threaded from `FileExplorer` → `FileTreeNode` (and down
 | `'staged'` | — | `underline` |
 | `'both'` | `bold` | `underline` |
 
-## Adding More Indicators
+---
 
-To show additional states (e.g. untracked files, merge conflicts, deleted files):
+## Inline Editor Diff Decorations
 
-1. Extend the `GitFileStatus` type in `client/src/api/files.ts` and `client/src/hooks/useGitStatus.ts`.
-2. Update the porcelain parser in `server/src/routes/files.ts` to emit the new value (e.g. detect `??` lines for untracked).
-3. Add the corresponding style branch in `FileTreeNode.tsx`.
+When a file is open in the Monaco editor, changed lines are decorated in real time based on `git diff HEAD`.
+
+### Visual Key
+
+| Decoration | Gutter | Line background | Meaning |
+|---|---|---|---|
+| Added | Green bar (`#2ea043`) | Green tint | Line exists in working tree but not in HEAD |
+| Modified | Yellow bar (`#e9b44c`) | Yellow tint | Line exists in both but content has changed |
+| Deleted | Red `▸` glyph | — | Lines were removed; click glyph to expand |
+
+Clicking a **`▸`** glyph toggles an inline view zone showing the deleted lines in red below the marker. Click **`▾`** to collapse it. All three types also appear as colored marks in the scrollbar **overview ruler**.
+
+### How It Works
+
+**Server: `GET /api/git/diff?path=`** (`server/src/routes/files.ts`)
+
+Runs `git diff HEAD -- <file>` via `execFile` (no shell injection risk). The response is parsed by `parseDiff()`:
+
+- Each hunk header (`@@`) sets the current new-file line counter.
+- Contiguous blocks of `−`/`+` lines are classified as a *change block*:
+  - Only `+` lines → **added** (each line recorded individually)
+  - Only `−` lines → **deleted** block (content preserved, position = after current new line)
+  - Mixed `−` and `+` → first `min(m, p)` additions are **modified**; extra additions are **added**; extra deletions form an additional **deleted** block
+
+```json
+{
+  "added":    [5, 6],
+  "modified": [12],
+  "deleted":  [{ "afterLine": 8, "lines": ["old line content"] }]
+}
+```
+
+Returns `{ added: [], modified: [], deleted: [] }` if the file is untracked, clean, or git is unavailable.
+
+**Client: `useFileDiff` hook** (`client/src/hooks/useFileDiff.ts`)
+
+Fetches `GET /api/git/diff` for the currently active file path. Polls every 3 seconds and on `window focus`. Returns `DiffData | null`.
+
+**Client: `MonacoEditor`** (`client/src/components/editor/MonacoEditor.tsx`)
+
+Decorations are applied via the Monaco `deltaDecorations` API after the editor mounts. Key implementation details:
+
+- `onMount` captures the editor and monaco instances in refs and fires a state flag (`mounted`) to trigger the decoration effect.
+- A `diffDataRef` ref keeps the glyph-click handler pointing at the latest diff data without re-subscribing.
+- Expanded deleted blocks are tracked in a `Set<number>` (keyed by `afterLine`). State resets when the active file changes.
+- Glyph clicks are detected via `editor.onMouseDown` checking `MouseTargetType.GUTTER_GLYPH_MARGIN`, then matched to a deleted block by line number.
+- Expanded blocks are rendered as Monaco **ViewZones** (`editor.changeViewZones`) — DOM nodes inserted as virtual lines in the editor, styled with red text and a red left border.
+
+**CSS** (`client/src/index.css`)
+
+`.git-added-glyph`, `.git-modified-glyph`, `.git-deleted-glyph`, `.git-deleted-glyph-open` — gutter bar/icon styles. `.git-added-line`, `.git-modified-line` — 12% opacity background tints.
+
+---
+
+## Polling Summary
+
+Both features share the same refresh strategy:
+
+| Trigger | Status indicators | Diff decorations |
+|---|---|---|
+| Interval | Every 3 s | Every 3 s |
+| Window focus | Yes | Yes |
+| Workspace change | Yes (hook re-runs) | Yes (file path changes) |
+| File switch | — | Yes (hook re-runs on new path) |
+
+---
+
+## Extending
+
+### Add more file tree states (e.g. untracked files)
+
+1. Extend `GitFileStatus` in `client/src/api/files.ts` and `client/src/hooks/useGitStatus.ts`.
+2. Update the porcelain parser in `server/src/routes/files.ts` (detect `??` lines).
+3. Add a style branch in `FileTreeNode.tsx`.
+
+### Add more diff decoration types (e.g. conflict markers)
+
+1. Extend `DiffResult` / `DiffData` types in `server/src/routes/files.ts` and `client/src/api/files.ts`.
+2. Update `parseDiff()` on the server.
+3. Add decoration entries in the `useEffect` inside `MonacoEditor.tsx`.
+4. Add CSS classes in `index.css`.
