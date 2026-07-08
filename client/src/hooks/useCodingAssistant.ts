@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
-import { UIMessage, UIBlock, HistoryMessage, SONNET_MODELS } from '../types';
+import { UIMessage, UIBlock, HistoryMessage } from '../types';
+import { PROVIDERS, DEFAULT_PROVIDER, DEFAULT_MODEL } from '../providers';
 
 function uid() {
   return Math.random().toString(36).slice(2);
@@ -17,7 +18,18 @@ export function useCodingAssistant() {
   const [uiMessages, setUiMessages] = useState<UIMessage[]>([]);
   const [history, setHistory] = useState<HistoryMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [model, setModel] = useState<string>(SONNET_MODELS[0].id);
+  const [provider, setProviderState] = useState(DEFAULT_PROVIDER);
+  const [model, setModelState] = useState<string>(DEFAULT_MODEL);
+
+  const setProvider = useCallback((providerId: string) => {
+    const p = PROVIDERS.find(p => p.id === providerId) ?? DEFAULT_PROVIDER;
+    setProviderState(p);
+    setModelState(p.models[0].id); // reset to first model of new provider
+  }, []);
+
+  const setModel = useCallback((modelId: string) => {
+    setModelState(modelId);
+  }, []);
 
   const sendMessage = useCallback(async (text: string, activeFilePath?: string | null) => {
     if (!text.trim() || isLoading) return;
@@ -36,7 +48,7 @@ export function useCodingAssistant() {
       const response = await fetch(`${API_BASE}/api/agent/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: newHistory, model, activeFile: activeFilePath ?? null }),
+        body: JSON.stringify({ messages: newHistory, model, provider: provider.id, activeFile: activeFilePath ?? null }),
       });
 
       if (!response.ok || !response.body) {
@@ -144,12 +156,12 @@ export function useCodingAssistant() {
     } finally {
       setIsLoading(false);
     }
-  }, [history, isLoading, model]);
+  }, [history, isLoading, model, provider]);
 
   const clearMessages = useCallback(() => {
     setUiMessages([]);
     setHistory([]);
   }, []);
 
-  return { uiMessages, isLoading, model, setModel, sendMessage, clearMessages };
+  return { uiMessages, isLoading, provider, setProvider, model, setModel, sendMessage, clearMessages };
 }

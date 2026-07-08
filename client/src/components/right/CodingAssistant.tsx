@@ -3,7 +3,8 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useCodingAssistant } from '../../hooks/useCodingAssistant';
 import { openWorkspace } from '../../api/files';
-import { UIMessage, UIBlock, SONNET_MODELS } from '../../types';
+import { UIMessage, UIBlock } from '../../types';
+import { PROVIDERS } from '../../providers';
 
 // Go directly to Express for SSE — Vite proxy closes the backend connection prematurely.
 // See DEBUGGING.md for details. Non-streaming requests (workspace, status) use relative
@@ -155,9 +156,10 @@ interface CodingAssistantProps {
 }
 
 export function CodingAssistant({ workspacePath, activeFilePath, onWorkspaceOpen }: CodingAssistantProps) {
-  const { uiMessages, isLoading, model, setModel, sendMessage, clearMessages } = useCodingAssistant();
+  const { uiMessages, isLoading, provider, setProvider, model, setModel, sendMessage, clearMessages } = useCodingAssistant();
   const [input, setInput] = useState('');
   const [apiConfigured, setApiConfigured] = useState<boolean | null>(null);
+  const [showHelp, setShowHelp] = useState(false);
   const [wsInput, setWsInput] = useState('');
   const [wsOpening, setWsOpening] = useState(false);
   const [wsError, setWsError] = useState<string | null>(null);
@@ -238,23 +240,40 @@ export function CodingAssistant({ workspacePath, activeFilePath, onWorkspaceOpen
         .md-code-inline { background: #ffffff12; border-radius: 3px; padding: 1px 4px; font-size: 12px; font-family: monospace; }
       `}</style>
 
-      {/* Model bar */}
+      {/* Model / provider bar */}
       <div
         style={{
-          height: 36,
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'space-between',
           padding: '0 10px',
-          borderBottom: '1px solid var(--color-border)',
+          borderBottom: showHelp ? 'none' : '1px solid var(--color-border)',
           flexShrink: 0,
-          gap: 8,
+          gap: 6,
+          height: 36,
         }}
       >
+        {/* Provider selector — single entry now, becomes a dropdown when more providers are added */}
+        {PROVIDERS.length === 1 ? (
+          <span style={{ fontSize: 11, color: 'var(--color-text-secondary)', flexShrink: 0 }}>
+            {provider.label}
+          </span>
+        ) : (
+          <select
+            value={provider.id}
+            onChange={e => setProvider(e.target.value)}
+            style={{ background: 'var(--color-bg-sidebar)', border: '1px solid var(--color-border)', borderRadius: 3, color: 'var(--color-text-primary)', fontSize: 11, padding: '2px 4px', cursor: 'pointer' }}
+          >
+            {PROVIDERS.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
+          </select>
+        )}
+
+        {/* Model selector */}
         <select
           value={model}
           onChange={e => setModel(e.target.value)}
           style={{
+            flex: 1,
+            minWidth: 0,
             background: 'var(--color-bg-sidebar)',
             border: '1px solid var(--color-border)',
             borderRadius: 3,
@@ -264,30 +283,67 @@ export function CodingAssistant({ workspacePath, activeFilePath, onWorkspaceOpen
             cursor: 'pointer',
           }}
         >
-          {SONNET_MODELS.map(m => (
+          {provider.models.map(m => (
             <option key={m.id} value={m.id}>{m.label}</option>
           ))}
         </select>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ fontSize: 10, color: 'var(--color-text-secondary)' }}>Anthropic</span>
-          {uiMessages.length > 0 && (
-            <button
-              onClick={clearMessages}
-              style={{
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                color: 'var(--color-text-secondary)',
-                fontSize: 10,
-                padding: '2px 4px',
-              }}
-              title="Clear chat"
-            >
-              ✕
-            </button>
-          )}
-        </div>
+
+        {/* Help button */}
+        <button
+          onClick={() => setShowHelp(v => !v)}
+          title="API key setup"
+          style={{
+            width: 18,
+            height: 18,
+            borderRadius: '50%',
+            border: '1px solid var(--color-border)',
+            background: showHelp ? 'var(--color-bg-hover)' : 'none',
+            color: 'var(--color-text-secondary)',
+            fontSize: 11,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+            fontWeight: 600,
+            lineHeight: 1,
+          }}
+        >
+          ?
+        </button>
+
+        {/* Clear chat */}
+        {uiMessages.length > 0 && (
+          <button
+            onClick={clearMessages}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-secondary)', fontSize: 10, padding: '2px 4px', flexShrink: 0 }}
+            title="Clear chat"
+          >
+            ✕
+          </button>
+        )}
       </div>
+
+      {/* Help popover */}
+      {showHelp && (
+        <div
+          style={{
+            margin: '0 0 0 0',
+            padding: '10px 12px',
+            background: '#ffffff06',
+            borderBottom: '1px solid var(--color-border)',
+            fontSize: 12,
+            flexShrink: 0,
+          }}
+        >
+          <div style={{ fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 6 }}>
+            {provider.setupTitle}
+          </div>
+          <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'inherit', color: 'var(--color-text-secondary)', fontSize: 12, lineHeight: 1.6 }}>
+            {provider.setupInstructions}
+          </pre>
+        </div>
+      )}
 
       {/* API not configured warning */}
       {apiConfigured === false && (
