@@ -42,7 +42,7 @@ export function Sidebar({
           localTree={localTree}
         />
       ) : (
-        <SourceControlPanel />
+        <SourceControlPanel workspacePath={workspacePath} />
       )}
     </div>
   );

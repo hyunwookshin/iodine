@@ -237,4 +237,121 @@ router.get('/git/status', async (_req, res) => {
   }
 });
 
+// --- Source Control operations ---
+
+type ChangeStatus = 'M' | 'A' | 'D' | 'R' | 'C' | 'U' | '??';
+interface GitChange { path: string; relPath: string; status: ChangeStatus; }
+
+async function resolveRepoRoot(cwd: string): Promise<string> {
+  const { stdout } = await execFileAsync('git', ['rev-parse', '--show-toplevel'], { cwd });
+  return stdout.trim();
+}
+
+router.get('/git/changes', async (_req, res) => {
+  if (!rootPath) return res.json({ branch: '', staged: [], unstaged: [] });
+
+  try {
+    const repoRoot = await resolveRepoRoot(rootPath);
+    const { stdout: branchOut } = await execFileAsync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: rootPath });
+    const branch = branchOut.trim();
+    const { stdout } = await execFileAsync('git', ['status', '--porcelain'], { cwd: rootPath });
+
+    const staged: GitChange[] = [];
+    const unstaged: GitChange[] = [];
+
+    for (const line of stdout.split('\n')) {
+      if (line.length < 3) continue;
+      const X = line[0];
+      const Y = line[1];
+      let relPath = line.slice(3).trim();
+      if (relPath.includes(' -> ')) relPath = relPath.split(' -> ')[1];
+      const absPath = path.join(repoRoot, relPath);
+
+      if (X === '?' && Y === '?') {
+        unstaged.push({ path: absPath, relPath, status: '??' });
+      } else {
+        if (X !== ' ') staged.push({ path: absPath, relPath, status: X as ChangeStatus });
+        if (Y !== ' ') unstaged.push({ path: absPath, relPath, status: Y as ChangeStatus });
+      }
+    }
+
+    return res.json({ branch, staged, unstaged });
+  } catch {
+    return res.json({ branch: '', staged: [], unstaged: [] });
+  }
+});
+
+router.post('/git/stage', async (req, res) => {
+  if (!rootPath) return res.status(400).json({ error: 'No workspace open' });
+  const { relPath } = req.body as { relPath?: string };
+  if (!relPath) return res.status(400).json({ error: 'relPath is required' });
+  try {
+    const repoRoot = await resolveRepoRoot(rootPath);
+    const absPath = path.resolve(path.join(repoRoot, relPath));
+    await execFileAsync('git', ['add', '--', absPath], { cwd: rootPath });
+    return res.json({ ok: true });
+  } catch (err: unknown) {
+    return res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+router.post('/git/unstage', async (req, res) => {
+  if (!rootPath) return res.status(400).json({ error: 'No workspace open' });
+  const { relPath } = req.body as { relPath?: string };
+  if (!relPath) return res.status(400).json({ error: 'relPath is required' });
+  try {
+    const repoRoot = await resolveRepoRoot(rootPath);
+    const absPath = path.resolve(path.join(repoRoot, relPath));
+    await execFileAsync('git', ['restore', '--staged', '--', absPath], { cwd: rootPath });
+    return res.json({ ok: true });
+  } catch (err: unknown) {
+    return res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+router.post('/git/stage-all', async (_req, res) => {
+  if (!rootPath) return res.status(400).json({ error: 'No workspace open' });
+  try {
+    await execFileAsync('git', ['add', '-A'], { cwd: rootPath });
+    return res.json({ ok: true });
+  } catch (err: unknown) {
+    return res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+router.post('/git/discard', async (req, res) => {
+  if (!rootPath) return res.status(400).json({ error: 'No workspace open' });
+  const { relPath, isUntracked } = req.body as { relPath?: string; isUntracked?: boolean };
+  if (!relPath) return res.status(400).json({ error: 'relPath is required' });
+  try {
+    const repoRoot = await resolveRepoRoot(rootPath);
+    const absPath = path.resolve(path.join(repoRoot, relPath));
+    // Guard against path traversal
+    if (!absPath.startsWith(repoRoot + path.sep) && absPath !== repoRoot) {
+      return res.status(400).json({ error: 'Path outside repository' });
+    }
+    if (isUntracked) {
+      await fs.promises.unlink(absPath);
+    } else {
+      await execFileAsync('git', ['restore', '--', absPath], { cwd: rootPath });
+    }
+    return res.json({ ok: true });
+  } catch (err: unknown) {
+    return res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+router.post('/git/commit', async (req, res) => {
+  if (!rootPath) return res.status(400).json({ error: 'No workspace open' });
+  const { message } = req.body as { message?: string };
+  if (!message?.trim()) return res.status(400).json({ error: 'message is required' });
+  try {
+    await execFileAsync('git', ['commit', '-m', message], { cwd: rootPath });
+    return res.json({ ok: true });
+  } catch (err: unknown) {
+    const e = err as { stderr?: string; message: string };
+    return res.status(500).json({ error: e.stderr ?? e.message });
+  }
+});
+
 export default router;

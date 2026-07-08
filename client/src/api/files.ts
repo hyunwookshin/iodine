@@ -60,3 +60,43 @@ export async function fetchGitStatus(): Promise<Record<string, GitFileStatus>> {
   const data = await request<{ status: Record<string, GitFileStatus> }>('/api/git/status');
   return data.status;
 }
+
+export type ChangeStatus = 'M' | 'A' | 'D' | 'R' | 'C' | 'U' | '??';
+export interface GitChange { path: string; relPath: string; status: ChangeStatus; }
+export interface GitChanges { branch: string; staged: GitChange[]; unstaged: GitChange[]; }
+
+export async function fetchGitChanges(): Promise<GitChanges> {
+  return request<GitChanges>('/api/git/changes');
+}
+
+export async function stageFile(relPath: string): Promise<void> {
+  await request('/api/git/stage', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ relPath }),
+  });
+}
+
+export async function unstageFile(relPath: string): Promise<void> {
+  await request('/api/git/unstage', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ relPath }),
+  });
+}
+
+export async function stageAll(): Promise<void> {
+  await request('/api/git/stage-all', { method: 'POST' });
+}
+
+export async function discardFile(relPath: string, isUntracked: boolean): Promise<void> {
+  await request('/api/git/discard', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ relPath, isUntracked }),
+  });
+}
+
+export async function commitChanges(message: string): Promise<void> {
+  await request('/api/git/commit', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message }),
+  });
+}
