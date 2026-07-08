@@ -1,6 +1,92 @@
 # Source Control Integration
 
-Iodine provides two layers of live git integration: **file tree status indicators** (showing which files have changed) and **inline editor diff decorations** (showing exactly which lines changed, with expandable deleted-line views).
+Iodine provides three layers of live git integration: a **Source Control panel** (stage, unstage, commit, and discard changes), **file tree status indicators** (showing which files have changed), and **inline editor diff decorations** (showing exactly which lines changed, with expandable deleted-line views).
+
+---
+
+## Source Control Panel
+
+The left sidebar's Source Control view provides a full commit workflow: browse staged and unstaged changes, stage or unstage individual files, discard changes, and commit — all without leaving the IDE.
+
+### Layout
+
+```
+┌──────────────────────────────────────────┐
+│ SOURCE CONTROL              ⊕ main       │  ← header with branch name
+├──────────────────────────────────────────┤
+│ Message (Ctrl+Enter to commit)           │  ← commit textarea
+│                                          │
+│ [Commit]  [Stage All]                    │  ← Commit disabled until staged + message
+├──────────────────────────────────────────┤
+│ ▾ STAGED CHANGES (2)                     │  ← collapsible, count in parens
+│   foo.ts              src/components  M  │  ← hover reveals action icons
+│   bar.ts                             A  │
+├──────────────────────────────────────────┤
+│ ▾ CHANGES (3)                            │
+│   baz.ts              src/utils      M  │
+│   newfile.ts                         U  │  ← U = untracked
+└──────────────────────────────────────────┘
+```
+
+Hovering a file row replaces the status badge with two icon buttons:
+
+| Button | Staged section | Changes section |
+|--------|---------------|-----------------|
+| `↺` | Discard staged version (runs `git restore --staged` then `git restore`) | Discard working tree changes (or delete untracked file) |
+| `−` / `+` | Unstage (`git restore --staged`) | Stage (`git add`) |
+
+Discarding always shows a confirmation dialog. For untracked files the dialog warns that the file will be deleted.
+
+### Status Badge Colors
+
+| Code | Label | Color | Meaning |
+|------|-------|-------|---------|
+| `M` | M | Amber `#e9b44c` | Modified |
+| `A` | A | Green `#73c991` | Added (new tracked file) |
+| `D` | D | Red `#f44747` | Deleted |
+| `R` | R | Blue `#569cd6` | Renamed |
+| `??` | U | Green `#73c991` | Untracked |
+
+### How It Works
+
+**Server: `GET /api/git/changes`** (`server/src/routes/files.ts`)
+
+1. Resolves `repoRoot` via `git rev-parse --show-toplevel`.
+2. Gets the current branch via `git rev-parse --abbrev-ref HEAD`.
+3. Runs `git status --porcelain` and splits lines into `staged` (non-space `X`) and `unstaged` (non-space `Y`). Untracked (`??`) lines go into `unstaged`.
+4. Returns absolute paths, repo-relative paths, and single-character status codes.
+
+```json
+{
+  "branch": "main",
+  "staged":   [{ "path": "/abs/…/foo.ts", "relPath": "src/foo.ts", "status": "M" }],
+  "unstaged": [{ "path": "/abs/…/bar.ts", "relPath": "src/bar.ts", "status": "??" }]
+}
+```
+
+**Server: mutation endpoints** (`server/src/routes/files.ts`)
+
+All use `execFileAsync` (no shell injection) and resolve absolute paths from `repoRoot + relPath` before passing to git.
+
+| Method | Path | Git command |
+|--------|------|-------------|
+| `POST` | `/api/git/stage` | `git add -- <absPath>` |
+| `POST` | `/api/git/unstage` | `git restore --staged -- <absPath>` |
+| `POST` | `/api/git/stage-all` | `git add -A` |
+| `POST` | `/api/git/discard` | `git restore -- <absPath>` (or `fs.unlink` for untracked) |
+| `POST` | `/api/git/commit` | `git commit -m <message>` |
+
+All mutation endpoints require `{ relPath }` in the request body (except `stage-all` and `commit`). `discard` also accepts `{ isUntracked: boolean }` to select the delete path.
+
+**Client: `useSourceControl` hook** (`client/src/hooks/useSourceControl.ts`)
+
+Polls `GET /api/git/changes` every 3 seconds and on `window focus`. Returns `{ branch, staged, unstaged, loaded, loading, commitMessage, setCommitMessage, stage, unstage, stageAllChanges, discard, commit }`.
+
+The `loaded` flag distinguishes "not yet fetched" from "no branch" (not a git repo), preventing a flash of the "Not a git repository" message on first load.
+
+**Client: `SourceControlPanel`** (`client/src/components/sidebar/SourceControlPanel.tsx`)
+
+Receives `workspacePath` from `Sidebar`. Renders the commit area and two `ChangeSection` sub-components. File rows use per-row `hovered` state (via `onMouseEnter`/`onMouseLeave`) to toggle between the status badge and action buttons.
 
 ---
 
@@ -110,14 +196,14 @@ Decorations are applied via the Monaco `deltaDecorations` API after the editor m
 
 ## Polling Summary
 
-Both features share the same refresh strategy:
+All three features share the same refresh strategy:
 
-| Trigger | Status indicators | Diff decorations |
-|---|---|---|
-| Interval | Every 3 s | Every 3 s |
-| Window focus | Yes | Yes |
-| Workspace change | Yes (hook re-runs) | Yes (file path changes) |
-| File switch | — | Yes (hook re-runs on new path) |
+| Trigger | SCM panel | Status indicators | Diff decorations |
+|---|---|---|---|
+| Interval | Every 3 s | Every 3 s | Every 3 s |
+| Window focus | Yes | Yes | Yes |
+| Workspace change | Yes (hook re-runs) | Yes (hook re-runs) | Yes (file path changes) |
+| File switch | — | — | Yes (hook re-runs on new path) |
 
 ---
 
@@ -126,7 +212,7 @@ Both features share the same refresh strategy:
 ### Add more file tree states (e.g. untracked files)
 
 1. Extend `GitFileStatus` in `client/src/api/files.ts` and `client/src/hooks/useGitStatus.ts`.
-2. Update the porcelain parser in `server/src/routes/files.ts` (detect `??` lines).
+2. Update the porcelain parser in `server/src/routes/files.ts` (`/git/status` route, detect `??` lines).
 3. Add a style branch in `FileTreeNode.tsx`.
 
 ### Add more diff decoration types (e.g. conflict markers)
@@ -135,3 +221,9 @@ Both features share the same refresh strategy:
 2. Update `parseDiff()` on the server.
 3. Add decoration entries in the `useEffect` inside `MonacoEditor.tsx`.
 4. Add CSS classes in `index.css`.
+
+### Add more SCM actions (e.g. push, pull, stash)
+
+1. Add a new endpoint in `server/src/routes/files.ts` using `execFileAsync('git', [...])`.
+2. Add a typed wrapper in `client/src/api/files.ts`.
+3. Expose the action from `useSourceControl` and wire it to a button in `SourceControlPanel.tsx`.

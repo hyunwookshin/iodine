@@ -38,6 +38,9 @@ iodine/
 │       ├── hooks/
 │       │   ├── useFileTree.ts        # Directory tree state + expand/collapse
 │       │   ├── useOpenFiles.ts       # Open tabs, dirty tracking, save logic
+│       │   ├── useGitStatus.ts       # Polls /api/git/status for file tree badges
+│       │   ├── useFileDiff.ts        # Polls /api/git/diff for editor decorations
+│       │   ├── useSourceControl.ts   # Polls /api/git/changes + stage/commit actions
 │       │   └── useCodingAssistant.ts # SSE streaming chat state + message history
 │       └── components/
 │           ├── layout/
@@ -51,7 +54,7 @@ iodine/
 │           ├── sidebar/
 │           │   ├── FileExplorer.tsx      # Open Folder UI + file tree
 │           │   ├── FileTreeNode.tsx      # Recursive tree node component
-│           │   └── SourceControlPanel.tsx # SCM placeholder
+│           │   └── SourceControlPanel.tsx # SCM panel: branch, commit, staged/unstaged lists
 │           ├── editor/
 │           │   ├── EditorTabs.tsx        # Tab strip with dirty indicator
 │           │   ├── MonacoEditor.tsx      # @monaco-editor/react wrapper
@@ -90,10 +93,18 @@ iodine/
 | `GET` | `/api/files/tree` | Full directory tree from workspace root |
 | `GET` | `/api/files/content?path=` | Read a file's text content |
 | `PUT` | `/api/files/content` | Write a file `{ path, content }` |
+| `GET` | `/api/git/status` | `{ status: { absPath: 'staged'\|'unstaged'\|'both' } }` — for file tree badges |
+| `GET` | `/api/git/diff?path=` | `{ added, modified, deleted }` — unified diff parsed for editor decorations |
+| `GET` | `/api/git/changes` | `{ branch, staged, unstaged }` — full change list for SCM panel |
+| `POST` | `/api/git/stage` | Stage a file `{ relPath }` |
+| `POST` | `/api/git/unstage` | Unstage a file `{ relPath }` |
+| `POST` | `/api/git/stage-all` | Stage all changes |
+| `POST` | `/api/git/discard` | Discard changes `{ relPath, isUntracked }` |
+| `POST` | `/api/git/commit` | Commit staged changes `{ message }` |
 | `GET` | `/api/agent/status` | `{ providers: { anthropic, openai, google } }` — per-provider key status |
 | `POST` | `/api/agent/chat` | SSE stream: `{ messages, model, provider, activeFile }` → text deltas + tool events |
 
-All file reads and writes are validated against the workspace root to prevent path traversal.
+All file reads and writes are validated against the workspace root to prevent path traversal. Git mutation endpoints resolve absolute paths from `repoRoot + relPath` and use `execFileAsync` (no shell injection risk).
 
 ## Key Behaviors
 
@@ -104,6 +115,7 @@ All file reads and writes are validated against the workspace root to prevent pa
 - **Workspace persistence**: The server writes the workspace path to `~/.iodine/workspace` on every `setRootPath()` call and reads it back on startup. Workspace survives `tsx watch` server restarts triggered by file saves during development.
 - **Resize panels**: Drag the thin dividers between the sidebar, editor, and right panel.
 - **Switch sidebar views**: Click the branch icon in the activity bar to switch between Explorer and Source Control.
+- **Source Control panel**: Click the branch icon in the activity bar. Shows the current branch, a commit textarea (Ctrl+Enter to commit), a Stage All button, and collapsible "Staged Changes" / "Changes" sections. Hover a file row to reveal stage/unstage (`+`/`−`) and discard (`↺`) buttons. Untracked files show as `U`. Discard always confirms; deleting an untracked file warns explicitly.
 - **Coding Assistant**: Click the "Coding Assistant" tab in the right panel. Requires an Anthropic API key (see below). Enter sends a message; Shift+Enter inserts a newline. Chat history persists until the page is refreshed.
 - **File preview**: When a `.md` or `.html` file is active, a floating **Preview** button appears in the upper-right corner of the editor. Clicking it renders the file — markdown is rendered with `react-markdown` + `remark-gfm` (dark-themed prose styles), HTML is rendered in a sandboxed `<iframe>`. Clicking **Source** returns to the Monaco editor. Switching to a non-previewable file automatically resets to source mode.
 
