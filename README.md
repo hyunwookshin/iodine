@@ -4,6 +4,10 @@
 
 AI-powered performance simulation tool for frontend development.
 
+## Screenshots
+
+![Iodine IDE](images/screenshot_1.png)
+
 ## Use Cases
 
 * User experience study
@@ -25,4 +29,3 @@ AI-powered performance simulation tool for frontend development.
 * HTTP/HTTPS
 * gRPC
 * LLM APIs
-
