@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef, KeyboardEvent } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { useCodingAssistant } from '../../hooks/useCodingAssistant';
 import { openWorkspace } from '../../api/files';
 import { UIMessage, UIBlock, SONNET_MODELS } from '../../types';
@@ -111,11 +113,22 @@ function MessageBubble({ msg, isLast }: { msg: UIMessage; isLast: boolean }) {
           if (block.type === 'text') {
             const showCursor = isStreaming && isLast && i === msg.blocks.length - 1;
             return (
-              <div
-                key={i}
-                style={{ fontSize: 13, color: 'var(--color-text-primary)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', marginBottom: 4 }}
-              >
-                {block.content}
+              <div key={i} className="md-body">
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={{
+                    code({ className, children, ...props }) {
+                      const isBlock = className?.startsWith('language-');
+                      return isBlock ? (
+                        <pre className="md-pre"><code className={className} {...props}>{children}</code></pre>
+                      ) : (
+                        <code className="md-code-inline" {...props}>{children}</code>
+                      );
+                    },
+                  }}
+                >
+                  {block.content}
+                </ReactMarkdown>
                 {showCursor && (
                   <span style={{ animation: 'blink 1s step-end infinite', opacity: 1 }}>▌</span>
                 )}
@@ -201,6 +214,26 @@ export function CodingAssistant({ workspacePath, onWorkspaceOpen }: CodingAssist
           0%, 100% { opacity: 1; }
           50% { opacity: 0; }
         }
+        .md-body { font-size: 13px; color: var(--color-text-primary); line-height: 1.6; word-break: break-word; margin-bottom: 4px; }
+        .md-body > *:first-child { margin-top: 0; }
+        .md-body > *:last-child { margin-bottom: 0; }
+        .md-body h1, .md-body h2, .md-body h3, .md-body h4 { font-weight: 600; margin: 10px 0 4px; }
+        .md-body h1 { font-size: 16px; }
+        .md-body h2 { font-size: 14px; }
+        .md-body h3, .md-body h4 { font-size: 13px; }
+        .md-body p { margin: 4px 0; }
+        .md-body ul, .md-body ol { margin: 4px 0; padding-left: 18px; }
+        .md-body li { margin: 2px 0; }
+        .md-body strong { font-weight: 600; }
+        .md-body em { font-style: italic; }
+        .md-body blockquote { border-left: 3px solid var(--color-border); margin: 6px 0; padding: 2px 10px; color: var(--color-text-secondary); }
+        .md-body hr { border: none; border-top: 1px solid var(--color-border); margin: 8px 0; }
+        .md-body a { color: #4fc1ff; text-decoration: underline; }
+        .md-body table { border-collapse: collapse; font-size: 12px; margin: 6px 0; width: 100%; }
+        .md-body th, .md-body td { border: 1px solid var(--color-border); padding: 4px 8px; text-align: left; }
+        .md-body th { background: #ffffff0a; font-weight: 600; }
+        .md-pre { background: #1e1e1e; border: 1px solid var(--color-border); border-radius: 4px; padding: 8px 10px; overflow-x: auto; margin: 6px 0; font-size: 12px; font-family: monospace; white-space: pre; }
+        .md-code-inline { background: #ffffff12; border-radius: 3px; padding: 1px 4px; font-size: 12px; font-family: monospace; }
       `}</style>
 
       {/* Model bar */}
