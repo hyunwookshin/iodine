@@ -77,7 +77,7 @@ function ToolBlock({ block }: { block: UIBlock & { type: 'tool' } }) {
   );
 }
 
-function MessageBubble({ msg, isLast }: { msg: UIMessage; isLast: boolean }) {
+function MessageBubble({ msg, isLast, providerLabel }: { msg: UIMessage; isLast: boolean; providerLabel: string }) {
   if (msg.role === 'user') {
     return (
       <div style={{ marginBottom: 12 }}>
@@ -107,7 +107,7 @@ function MessageBubble({ msg, isLast }: { msg: UIMessage; isLast: boolean }) {
   return (
     <div style={{ marginBottom: 12 }}>
       <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 4, fontWeight: 600 }}>
-        Claude
+        {providerLabel}
       </div>
       <div>
         {msg.blocks.map((block, i) => {
@@ -471,7 +471,7 @@ export function CodingAssistant({ workspacePath, activeFilePath, onWorkspaceOpen
           </div>
         )}
         {uiMessages.map((msg, i) => (
-          <MessageBubble key={msg.id} msg={msg} isLast={i === uiMessages.length - 1} />
+          <MessageBubble key={msg.id} msg={msg} isLast={i === uiMessages.length - 1} providerLabel={provider.label} />
         ))}
       </div>
 

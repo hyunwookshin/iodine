@@ -54,5 +54,5 @@ export const PROVIDERS: Provider[] = [
   },
 ];
 
-export const DEFAULT_PROVIDER = PROVIDERS[0];
-export const DEFAULT_MODEL = PROVIDERS[0].models[0].id;
+export const DEFAULT_PROVIDER = PROVIDERS[1];
+export const DEFAULT_MODEL = PROVIDERS[1].models[0].id;
