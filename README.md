@@ -9,8 +9,10 @@ A built-in **Coding Assistant**, powered by your choice of AI provider (Anthropi
 ## Screenshots
 
 ![Iodine IDE — Editor and Coding Assistant](images/screenshot_1.png)
+*Figure 1: Iodine IDE showcasing the main editor interface along with the AI-powered Coding Assistant in action.*
 
 ![Iodine IDE — System View](images/screenshot_2.png)
+*Figure 2: System View depicting the interactive architecture graph generation feature.*
 
 ## Features
 
