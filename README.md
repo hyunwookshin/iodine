@@ -18,6 +18,7 @@ A built-in **Coding Assistant**, powered by your choice of AI provider (Anthropi
 - 📂 **File preview** — Render `.md` (with GitHub Flavored Markdown) and `.html` files inline
 - 🔌 **Simulation panel** — Placeholder for planned network mocking and throttling features
 - 💾 **Workspace persistence** — The last opened folder is remembered across server restarts
+- 🌐 **System View** — Interactive SVG graph editor for system architecture diagrams. Hit **⚡ Generate** and the AI explores your workspace with file tools, reads key files, and builds a graph from what it actually finds — no prompt needed. Nodes are draggable; pan and zoom with mouse. Stored in `~/.iodine/<workspace-hash>/system-graph.json`.
 
 ## Use Cases
 
@@ -31,7 +32,8 @@ A built-in **Coding Assistant**, powered by your choice of AI provider (Anthropi
 1. Open a local project folder via **File → Open Project** or the sidebar **Open Folder** button.
 2. The AI agent reads your source code and can automatically swap API endpoints to point to `localhost`.
 3. A lightweight local Express server mocks delays, throttling, errors, and other backend behaviors.
-4. Developers can create **checkpoints** to save and restore the local simulation environment.
+4. Switch to the **System View** tab and click **⚡ Generate** — the AI reads your actual files and builds an interactive architecture graph.
+5. Developers can create **checkpoints** to save and restore the local simulation environment.
 
 ## Tech Stack
 
@@ -63,7 +65,7 @@ iodine/
 │           ├── layout/       # WorkbenchLayout, MenuBar, ActivityBar, Sidebar, EditorArea, RightPanel
 │           ├── sidebar/      # FileExplorer, FileTreeNode, SourceControlPanel
 │           ├── editor/       # EditorTabs, MonacoEditor, WelcomeScreen
-│           └── right/        # SimulationPanel, CodingAssistant
+│           └── right/        # SimulationPanel, CodingAssistant, SystemView
 │
 └── server/                   # Node.js + Express backend — http://localhost:3001
     └── src/
@@ -71,7 +73,7 @@ iodine/
         ├── state.ts          # Shared mutable state: rootPath (persisted to ~/.iodine/workspace)
         ├── routes/
         │   ├── files.ts      # File system + workspace + git endpoints
-        │   └── agent.ts      # POST /api/agent/chat (SSE streaming), GET /api/agent/status
+        │   └── agent.ts      # POST /api/agent/chat, POST /api/system-graph/generate (SSE), GET /api/agent/status
         └── services/
             ├── fileSystem.ts     # Pure FS operations + path traversal guard
             ├── fileTools.ts      # Shared tool schemas + executeTool() for all agents
@@ -158,6 +160,9 @@ All three providers share the same tool layer and can perform:
 | `POST` | `/api/git/commit` | Commit staged changes `{ message }` |
 | `GET` | `/api/agent/status` | Per-provider API key status |
 | `POST` | `/api/agent/chat` | SSE stream: AI chat with tool use |
+| `GET` | `/api/system-graph` | Load saved architecture graph for current workspace |
+| `PUT` | `/api/system-graph` | Save architecture graph for current workspace |
+| `POST` | `/api/system-graph/generate` | SSE stream: agentic graph generation (reads workspace) |
 
 ## What Do You Plan to Support?
 
