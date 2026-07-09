@@ -132,10 +132,10 @@ export async function fetchGitBranches(): Promise<GitBranches> {
   return request<GitBranches>('/api/git/branches');
 }
 
-export async function checkoutBranch(branch: string): Promise<void> {
+export async function checkoutBranch(branch: string, detach = false): Promise<void> {
   await request('/api/git/checkout', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ branch }),
+    body: JSON.stringify({ branch, detach }),
   });
 }
 

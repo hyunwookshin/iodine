@@ -87,23 +87,44 @@ export function useSourceControl(workspacePath: string | null) {
     await refresh();
   };
 
+  // Shared stash-or-abort guard used before any checkout
+  const guardChanges = async (label: string): Promise<boolean> => {
+    const hasChanges = staged.length > 0 || unstaged.length > 0;
+    if (!hasChanges) return true;
+    const ok = window.confirm(
+      `You have uncommitted changes.\n\nCommit or stash them before switching.\n\nOK = Stash and switch to ${label}\nCancel = Abort`,
+    );
+    if (!ok) return false;
+    try {
+      await stashChanges();
+      return true;
+    } catch (err: unknown) {
+      window.alert(`Failed to stash changes:\n${(err as Error).message}`);
+      return false;
+    }
+  };
+
   // Checkout a branch, stashing uncommitted changes first if needed
   const checkout = async (targetBranch: string) => {
-    const hasChanges = staged.length > 0 || unstaged.length > 0;
-    if (hasChanges) {
-      const ok = window.confirm(
-        `You have uncommitted changes.\n\nStash them and switch to '${targetBranch}'?\n\nOK = Stash and switch\nCancel = Abort`,
-      );
-      if (!ok) return;
-      try {
-        await stashChanges();
-      } catch (err: unknown) {
-        window.alert(`Failed to stash changes:\n${(err as Error).message}`);
-        return;
-      }
-    }
+    if (!await guardChanges(`'${targetBranch}'`)) return;
     try {
       await checkoutBranch(targetBranch);
+    } catch (err: unknown) {
+      window.alert(`Checkout failed:\n${(err as Error).message}`);
+      return;
+    }
+    await refresh();
+  };
+
+  // Checkout a specific commit (detached HEAD), stashing changes first if needed
+  const checkoutCommit = async (hash: string, shortHash: string) => {
+    if (!await guardChanges(`commit ${shortHash}`)) return;
+    const ok = window.confirm(
+      `Checkout commit ${shortHash}?\n\nYou will be in 'detached HEAD' state — commits made here won't belong to any branch unless you create one.`,
+    );
+    if (!ok) return;
+    try {
+      await checkoutBranch(hash, true /* detach */);
     } catch (err: unknown) {
       window.alert(`Checkout failed:\n${(err as Error).message}`);
       return;
@@ -132,6 +153,6 @@ export function useSourceControl(workspacePath: string | null) {
     branch, staged, unstaged, commits, localBranches, remoteBranches,
     loaded, loading, commitMessage, setCommitMessage,
     pushStatus, pushError,
-    stage, unstage, stageAllChanges, discard, commit, checkout, push,
+    stage, unstage, stageAllChanges, discard, commit, checkout, checkoutCommit, push,
   };
 }

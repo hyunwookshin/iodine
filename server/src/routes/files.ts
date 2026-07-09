@@ -430,11 +430,13 @@ router.get('/git/branches', async (_req, res) => {
 
 router.post('/git/checkout', async (req, res) => {
   if (!rootPath) return res.status(400).json({ error: 'No workspace open' });
-  const { branch } = req.body as { branch?: string };
+  const { branch, detach } = req.body as { branch?: string; detach?: boolean };
   if (!branch) return res.status(400).json({ error: 'branch is required' });
   try {
-    // 'git switch <branch>' auto-creates a local tracking branch if only a remote one exists
-    await execFileAsync('git', ['switch', branch], { cwd: rootPath });
+    // detach=true → 'git switch --detach <hash>' for commit checkout (detached HEAD)
+    // detach=false → 'git switch <branch>' (auto-creates local tracking branch if needed)
+    const args = detach ? ['switch', '--detach', branch] : ['switch', branch];
+    await execFileAsync('git', args, { cwd: rootPath });
     return res.json({ ok: true });
   } catch (err: unknown) {
     const e = err as { stderr?: string; message: string };
