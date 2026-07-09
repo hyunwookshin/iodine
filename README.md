@@ -22,7 +22,29 @@ A built-in **Coding Assistant**, powered by your choice of AI provider (Anthropi
 - 📂 **File preview** — Render `.md` (with GitHub Flavored Markdown) and `.html` files inline
 - 🔌 **Simulation panel** — Placeholder for planned network mocking and throttling features
 - 💾 **Workspace persistence** — The last opened folder is remembered across server restarts
-- 🌐 **System View** — Interactive SVG graph editor for system architecture diagrams. Hit **⚡ Generate** and the AI explores your workspace with file tools, reads key files, and builds a graph from what it actually finds — no prompt needed. Nodes are draggable; pan and zoom with mouse. Stored in `~/.iodine/<workspace-hash>/system-graph.json`.
+- 🌐 **System View** — Interactive SVG graph editor for system architecture diagrams. Hit **⚡ Generate** and the AI explores your workspace with file tools, reads key files, and builds a graph from what it actually finds — no prompt needed. Nodes are draggable; pan and zoom with mouse. Diagram data is auto-saved to `~/.iodine/<workspace-hash>/system-graph.json`.
+
+## System View 📈
+
+Think of System View as "interactive documentation" that stays in-sync with the real code that is on disk.
+
+What you will find on the screen:
+
+| Area | Purpose |
+|------|---------|
+| Toolbar (top-left) | – **⚡ Generate** &nbsp;Run the AI agent and let it discover components, pages, APIs, databases, queues, etc.<br>– **＋ Node** &nbsp;Add a blank node manually.<br>– **🔗 Link** &nbsp;Draw an edge between two selected nodes.<br>– **🗑️ Delete** &nbsp;Remove selected nodes / edges. |
+| Canvas | Interactive SVG/HTML layer powered by D3.  Nodes are draggable, selectable, and have smart snapping for edges.  Mouse-wheel to zoom, right-drag to pan. |
+| Inspector (right sidebar) | Edit the selected node: label, kind (UI, API, DB, Cache, Worker, External), colour, and arbitrary key-value metadata (e.g. URL, repo link, tech).  For edges you can choose request type (REST/gRPC/Event) and latency. |
+| Mini-map (bottom-right) | Bird’s-eye overview that shows where you are when zoomed in. |
+
+Additional capabilities:
+
+* 🧠 **AI-assisted updates** – After the initial generate you can re-run the agent and it will reconcile manual edits with new discoveries instead of overwriting everything.
+* 💾 **Auto-save** – Every change is persisted to `~/.iodine/<workspace-hash>/system-graph.json` so the diagram re-appears exactly as you left it.
+* 📤 **Export** – Click the download icon to export the canvas as PNG or SVG for slide decks or wikis.
+* 🔒 **Isolated storage** – Because the JSON file lives in your home folder (outside the repo), it will **not** be committed to source control unless you copy it in manually. This keeps private architecture details out of pull requests by default.
+
+> The goal is to remove the drift between architecture docs and reality.  Your diagram is always only one click away from reflecting the true state of the repository.
 
 ## Use Cases
 
