@@ -101,6 +101,11 @@ iodine/
 | `POST` | `/api/git/stage-all` | Stage all changes |
 | `POST` | `/api/git/discard` | Discard changes `{ relPath, isUntracked }` |
 | `POST` | `/api/git/commit` | Commit staged changes `{ message }` |
+| `GET` | `/api/git/log` | Last 80 commits with hash, message, author, date, refs — for History section |
+| `GET` | `/api/git/branches` | `{ local, remote }` — branch lists with current-branch indicator and upstream |
+| `POST` | `/api/git/checkout` | Checkout a branch or commit `{ branch, detach? }` — `detach: true` → `git switch --detach` |
+| `POST` | `/api/git/stash` | Stash working tree changes |
+| `POST` | `/api/git/push` | Push current branch to origin (`--set-upstream origin HEAD`) |
 | `GET` | `/api/agent/status` | `{ providers: { anthropic, openai, google } }` — per-provider key status |
 | `POST` | `/api/agent/chat` | SSE stream: `{ messages, model, provider, activeFile }` → text deltas + tool events |
 
@@ -115,7 +120,7 @@ All file reads and writes are validated against the workspace root to prevent pa
 - **Workspace persistence**: The server writes the workspace path to `~/.iodine/workspace` on every `setRootPath()` call and reads it back on startup. Workspace survives `tsx watch` server restarts triggered by file saves during development.
 - **Resize panels**: Drag the thin dividers between the sidebar, editor, and right panel.
 - **Switch sidebar views**: Click the branch icon in the activity bar to switch between Explorer and Source Control.
-- **Source Control panel**: Click the branch icon in the activity bar. Shows the current branch, a commit textarea (Ctrl+Enter to commit), a Stage All button, and collapsible "Staged Changes" / "Changes" sections. Hover a file row to reveal stage/unstage (`+`/`−`) and discard (`↺`) buttons. Untracked files show as `U`. Discard always confirms; deleting an untracked file warns explicitly.
+- **Source Control panel**: Click the branch icon in the activity bar. Shows the current branch, a commit textarea (Ctrl+Enter to commit), a Stage All button, and collapsible "Staged Changes" / "Changes" sections. Hover a file row to reveal stage/unstage (`+`/`−`) and discard (`↺`) buttons. Untracked files show as `U`. Discard always confirms; deleting an untracked file warns explicitly. Below the working-tree changes: **Local Branches** (click to checkout), **Remote Branches** (collapsed by default; click to checkout the corresponding local branch), and **History** (last 80 commits with ref badges — click any non-HEAD commit to check it out in detached HEAD state). A **↑ push** button in the header pushes to `origin HEAD`. All checkout and push actions guard against uncommitted changes: if any exist, a dialog offers to stash first (OK) or abort (Cancel).
 - **Coding Assistant**: Click the "Coding Assistant" tab in the right panel. Requires an Anthropic API key (see below). Enter sends a message; Shift+Enter inserts a newline. Chat history persists until the page is refreshed.
 - **File preview**: When a `.md` or `.html` file is active, a floating **Preview** button appears in the upper-right corner of the editor. Clicking it renders the file — markdown is rendered with `react-markdown` + `remark-gfm` (dark-themed prose styles), HTML is rendered in a sandboxed `<iframe>`. Clicking **Source** returns to the Monaco editor. Switching to a non-previewable file automatically resets to source mode.
 
