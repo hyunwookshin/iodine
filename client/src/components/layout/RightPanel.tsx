@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { SimulationPanel } from '../right/SimulationPanel';
 import { CodingAssistant } from '../right/CodingAssistant';
 import { SystemView } from '../right/SystemView';
+import { PROVIDERS, DEFAULT_PROVIDER, DEFAULT_MODEL } from '../../providers';
+import type { Provider } from '../../providers';
 
 type RightTab = 'simulation' | 'assistant' | 'system';
 
@@ -14,6 +16,15 @@ interface RightPanelProps {
 
 export function RightPanel({ width, workspacePath, activeFilePath, onWorkspaceOpen }: RightPanelProps) {
   const [activeTab, setActiveTab] = useState<RightTab>('assistant');
+
+  // Provider/model — shared across Coding Assistant and System View
+  const [provider, setProviderState] = useState<Provider>(DEFAULT_PROVIDER);
+  const [model, setModel] = useState<string>(DEFAULT_MODEL);
+  const setProvider = (id: string) => {
+    const p = PROVIDERS.find(p => p.id === id) ?? DEFAULT_PROVIDER;
+    setProviderState(p);
+    setModel(p.models[0].id);
+  };
 
   return (
     <div
@@ -67,8 +78,9 @@ export function RightPanel({ width, workspacePath, activeFilePath, onWorkspaceOp
 
       {/* Tab content */}
       {activeTab === 'simulation' ? <SimulationPanel /> :
-       activeTab === 'system'     ? <SystemView workspacePath={workspacePath} /> :
-       <CodingAssistant workspacePath={workspacePath} activeFilePath={activeFilePath} onWorkspaceOpen={onWorkspaceOpen} />
+       activeTab === 'system'     ? <SystemView workspacePath={workspacePath} provider={provider} model={model} /> :
+       <CodingAssistant workspacePath={workspacePath} activeFilePath={activeFilePath} onWorkspaceOpen={onWorkspaceOpen}
+         provider={provider} model={model} setProvider={setProvider} setModel={setModel} />
       }
     </div>
   );

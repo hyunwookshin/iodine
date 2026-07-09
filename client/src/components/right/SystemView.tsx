@@ -2,6 +2,9 @@ import { useState, useEffect, useRef, useCallback, MouseEvent as RMouseEvent, Wh
 import Editor from '@monaco-editor/react';
 import { useSystemGraph } from '../../hooks/useSystemGraph';
 import type { SystemGraph, GraphNode, GraphEdge } from '../../api/files';
+import type { Provider } from '../../providers';
+
+const API_BASE = import.meta.env.DEV ? 'http://localhost:3001' : '';
 
 // ── Node geometry ─────────────────────────────────────────────────────────────
 const NW = 132;  // node width
@@ -193,9 +196,11 @@ const SAMPLE_JSON = JSON.stringify({
 
 interface SystemViewProps {
   workspacePath: string | null;
+  provider: Provider;
+  model: string;
 }
 
-export function SystemView({ workspacePath }: SystemViewProps) {
+export function SystemView({ workspacePath, provider, model }: SystemViewProps) {
   const { graph: savedGraph, loaded, saving, saveError, save } = useSystemGraph(workspacePath);
 
   const [localGraph, setLocalGraph] = useState<SystemGraph>({ nodes: [], edges: [] });
@@ -203,6 +208,10 @@ export function SystemView({ workspacePath }: SystemViewProps) {
   const [jsonText, setJsonText]     = useState(SAMPLE_JSON);
   const [jsonError, setJsonError]   = useState<string | null>(null);
   const [dirty, setDirty]           = useState(false);
+
+  // Generate state
+  const [generating, setGenerating] = useState(false);
+  const [genActivity, setGenActivity] = useState<string>('');
 
   // SVG pan / zoom / drag
   const svgRef  = useRef<SVGSVGElement>(null);
@@ -316,6 +325,76 @@ export function SystemView({ workspacePath }: SystemViewProps) {
     });
   };
 
+  // ── Generate graph by exploring the workspace ─────────────────────────────
+  const handleGenerate = useCallback(async () => {
+    if (generating || !workspacePath) return;
+    setGenerating(true);
+    setGenActivity('Starting…');
+    setJsonError(null);
+    let accumulated = '';
+
+    try {
+      const resp = await fetch(`${API_BASE}/api/system-graph/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model, provider: provider.id }),
+      });
+      if (!resp.ok || !resp.body) throw new Error(`HTTP ${resp.status}`);
+
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const parts = buf.split('\n\n');
+        buf = parts.pop() ?? '';
+        for (const part of parts) {
+          let eventName = '', dataStr = '';
+          for (const line of part.split('\n')) {
+            if (line.startsWith('event: ')) eventName = line.slice(7).trim();
+            else if (line.startsWith('data: ')) dataStr = line.slice(6).trim();
+          }
+          if (!dataStr) continue;
+          let payload: Record<string, unknown>;
+          try { payload = JSON.parse(dataStr); } catch { continue; }
+
+          if (eventName === 'text_delta') {
+            accumulated += payload.text as string;
+          } else if (eventName === 'tool_call') {
+            const name = payload.name as string;
+            const input = payload.input as Record<string, unknown>;
+            const arg = (Object.values(input)[0] as string) ?? '';
+            const icon = name === 'list_directory' ? '📂' : name === 'read_file' ? '📄' : '🔍';
+            setGenActivity(`${icon} ${arg || name}`);
+          } else if (eventName === 'done') {
+            const clean = accumulated.replace(/^```[a-z]*\n?/i, '').replace(/\n?```$/i, '').trim();
+            try {
+              const parsed = JSON.parse(clean) as SystemGraph;
+              const g = ensurePositions(parsed);
+              setLocalGraph(g);
+              setJsonText(JSON.stringify(g, null, 2));
+              setView('graph');
+              setDirty(true);
+              setJsonError(null);
+            } catch (e) {
+              setJsonError(`Generated JSON is invalid: ${(e as Error).message}`);
+            }
+          } else if (eventName === 'error') {
+            setJsonError(payload.message as string);
+          }
+        }
+      }
+    } catch (e) {
+      setJsonError((e as Error).message);
+    } finally {
+      setGenerating(false);
+      setGenActivity('');
+    }
+  }, [generating, workspacePath, model, provider]);
+
   // ── Build posMap for rendering ─────────────────────────────────────────────
   const posMap: PosMap = {};
   for (const n of localGraph.nodes) posMap[n.id] = { x: n.x ?? 0, y: n.y ?? 0 };
@@ -356,6 +435,15 @@ export function SystemView({ workspacePath }: SystemViewProps) {
         )}
 
         <button
+          style={{ ...btnBase, color: generating ? undefined : '#c8a870', borderColor: generating ? undefined : '#c8a87040' }}
+          onClick={handleGenerate}
+          disabled={generating || !workspacePath}
+          title={workspacePath ? 'Explore workspace and generate graph with AI' : 'Open a workspace first'}
+        >
+          {generating ? '… Analyzing' : '⚡ Generate'}
+        </button>
+
+        <button
           style={{ ...btnBase, color: dirty ? '#4ec9b0' : undefined, borderColor: dirty ? '#4ec9b040' : undefined }}
           onClick={doSave}
           disabled={saving || (!dirty && view !== 'json')}
@@ -364,6 +452,18 @@ export function SystemView({ workspacePath }: SystemViewProps) {
           {saving ? '…' : '✓ Save'}
         </button>
       </div>
+
+      {/* Activity status while generating */}
+      {generating && genActivity && (
+        <div style={{
+          padding: '4px 10px', borderBottom: '1px solid var(--color-border)',
+          background: '#c8a87008', flexShrink: 0,
+          fontSize: 11, color: 'var(--color-text-secondary)',
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>
+          {genActivity}
+        </div>
+      )}
 
       {/* JSON error banner */}
       {jsonError && (

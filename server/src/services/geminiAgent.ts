@@ -73,6 +73,7 @@ export async function runGeminiAgentLoop(
   res: Response,
   abortSignal: { aborted: boolean },
   activeFile: string | null = null,
+  customSystemPrompt?: string,
 ) {
   const apiKey = await loadGeminiKey();
   const ai = new GoogleGenAI({ apiKey });
@@ -90,7 +91,7 @@ export async function runGeminiAgentLoop(
       model,
       contents: history,
       config: {
-        systemInstruction: buildSystemInstruction(activeFile),
+        systemInstruction: customSystemPrompt ?? buildSystemInstruction(activeFile),
         tools: [{ functionDeclarations: FUNCTION_DECLARATIONS }],
       },
     });

@@ -38,12 +38,13 @@ export async function runOpenAIAgentLoop(
   res: Response,
   abortSignal: { aborted: boolean },
   activeFile: string | null = null,
+  customSystemPrompt?: string,
 ) {
   const apiKey = await loadOpenAIKey();
   const client = new OpenAI({ apiKey });
 
   const history: OpenAI.ChatCompletionMessageParam[] = [
-    { role: 'system', content: buildSystemPrompt(activeFile) },
+    { role: 'system', content: customSystemPrompt ?? buildSystemPrompt(activeFile) },
     ...messages.map(m => ({ role: m.role, content: m.content })),
   ];
 

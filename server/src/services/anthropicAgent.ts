@@ -36,13 +36,14 @@ export async function runAgentLoop(
   res: Response,
   abortSignal: { aborted: boolean },
   activeFile: string | null = null,
+  customSystemPrompt?: string,
 ) {
   const apiKey = await loadApiKey();
   const client = new Anthropic({ apiKey });
 
   const workspaceInfo = rootPath ? `Workspace: ${rootPath}` : 'No workspace is currently open.';
   const activeFileInfo = activeFile ? `The user currently has this file open in the editor: ${activeFile}` : '';
-  const system = `You are a coding assistant with access to the user's project files.
+  const system = customSystemPrompt ?? `You are a coding assistant with access to the user's project files.
 ${workspaceInfo}
 ${activeFileInfo}
 

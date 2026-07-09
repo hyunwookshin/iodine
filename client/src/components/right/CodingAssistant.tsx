@@ -5,6 +5,7 @@ import { useCodingAssistant } from '../../hooks/useCodingAssistant';
 import { openWorkspace } from '../../api/files';
 import { UIMessage, UIBlock } from '../../types';
 import { PROVIDERS } from '../../providers';
+import type { Provider } from '../../providers';
 
 // Go directly to Express for SSE — Vite proxy closes the backend connection prematurely.
 // See DEBUGGING.md for details. Non-streaming requests (workspace, status) use relative
@@ -147,16 +148,17 @@ function MessageBubble({ msg, isLast, providerLabel }: { msg: UIMessage; isLast:
 }
 
 interface CodingAssistantProps {
-  /** Current server-side workspace path (from WorkbenchLayout). Null when not set. */
   workspacePath: string | null;
-  /** Path of the file currently open in the editor. Null when no file is open. */
   activeFilePath: string | null;
-  /** Called when the user sets a workspace via the inline input in this panel. */
   onWorkspaceOpen: (path: string) => void;
+  provider: Provider;
+  model: string;
+  setProvider: (id: string) => void;
+  setModel: (id: string) => void;
 }
 
-export function CodingAssistant({ workspacePath, activeFilePath, onWorkspaceOpen }: CodingAssistantProps) {
-  const { uiMessages, isLoading, provider, setProvider, model, setModel, sendMessage, clearMessages } = useCodingAssistant();
+export function CodingAssistant({ workspacePath, activeFilePath, onWorkspaceOpen, provider, model, setProvider, setModel }: CodingAssistantProps) {
+  const { uiMessages, isLoading, sendMessage, clearMessages } = useCodingAssistant(provider, model);
   const [input, setInput] = useState('');
   const [providerStatus, setProviderStatus] = useState<Record<string, boolean>>({});
   const [showHelp, setShowHelp] = useState(false);

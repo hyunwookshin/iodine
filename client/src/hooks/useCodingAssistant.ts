@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { UIMessage, UIBlock, HistoryMessage } from '../types';
-import { PROVIDERS, DEFAULT_PROVIDER, DEFAULT_MODEL } from '../providers';
+import type { Provider } from '../providers';
 
 function uid() {
   return Math.random().toString(36).slice(2);
@@ -14,22 +14,10 @@ function uid() {
 // Non-streaming endpoints (/api/files/*, /api/agent/status) still go through the proxy.
 const API_BASE = import.meta.env.DEV ? 'http://localhost:3001' : '';
 
-export function useCodingAssistant() {
+export function useCodingAssistant(provider: Provider, model: string) {
   const [uiMessages, setUiMessages] = useState<UIMessage[]>([]);
   const [history, setHistory] = useState<HistoryMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [provider, setProviderState] = useState(DEFAULT_PROVIDER);
-  const [model, setModelState] = useState<string>(DEFAULT_MODEL);
-
-  const setProvider = useCallback((providerId: string) => {
-    const p = PROVIDERS.find(p => p.id === providerId) ?? DEFAULT_PROVIDER;
-    setProviderState(p);
-    setModelState(p.models[0].id); // reset to first model of new provider
-  }, []);
-
-  const setModel = useCallback((modelId: string) => {
-    setModelState(modelId);
-  }, []);
 
   const sendMessage = useCallback(async (text: string, activeFilePath?: string | null) => {
     if (!text.trim() || isLoading) return;
@@ -163,5 +151,5 @@ export function useCodingAssistant() {
     setHistory([]);
   }, []);
 
-  return { uiMessages, isLoading, provider, setProvider, model, setModel, sendMessage, clearMessages };
+  return { uiMessages, isLoading, sendMessage, clearMessages };
 }
