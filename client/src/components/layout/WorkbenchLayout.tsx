@@ -6,6 +6,7 @@ import { EditorArea, EditorAreaHandle } from './EditorArea';
 import { RightPanel } from './RightPanel';
 import { ResizeDivider } from './ResizeDivider';
 import { useOpenFiles } from '../../hooks/useOpenFiles';
+import { useFileWatcher } from '../../hooks/useFileWatcher';
 import { getWorkspace } from '../../api/files';
 import type { SidebarView } from '../../types';
 
@@ -32,7 +33,10 @@ export function WorkbenchLayout() {
     updateContent,
     saveFile,
     closeFile,
+    refreshFile,
   } = useOpenFiles();
+
+  useFileWatcher(workspacePath, refreshFile);
 
   // Restore workspace from server on mount
   useEffect(() => {

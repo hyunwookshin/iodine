@@ -39,6 +39,9 @@ export function useOpenFiles() {
   // Holds local File objects when a project was opened via the directory picker.
   // Using a ref avoids recreating openFile/saveFile callbacks when the map changes.
   const localFileMapRef = useRef<Map<string, File> | null>(null);
+  // Mirror of openFiles for stable callbacks that don't need it as a dependency
+  const openFilesRef = useRef<OpenFile[]>([]);
+  openFilesRef.current = openFiles;
 
   /** Called from WorkbenchLayout when the user opens a local project via the menu bar. */
   const setLocalFileMap = useCallback((map: Map<string, File> | null) => {
@@ -130,6 +133,23 @@ export function useOpenFiles() {
     });
   }, []);
 
+  /** Re-fetches a file from disk if it's open and not dirty (called by file watcher). */
+  const refreshFile = useCallback((absPath: string) => {
+    const file = openFilesRef.current.find(f => f.path === absPath);
+    if (!file || file.isDirty || localFileMapRef.current?.has(absPath)) return;
+    fetchFileContent(absPath)
+      .then(content => {
+        setOpenFiles(prev =>
+          prev.map(f =>
+            f.path === absPath && !f.isDirty
+              ? { ...f, content, savedContent: content }
+              : f
+          )
+        );
+      })
+      .catch(() => { /* file deleted or unreadable — leave editor as-is */ });
+  }, []); // stable: reads state via ref, writes via functional setState
+
   const closeFile = useCallback((filePath: string) => {
     setOpenFiles(prev => {
       const idx = prev.findIndex(f => f.path === filePath);
@@ -156,6 +176,7 @@ export function useOpenFiles() {
     updateContent,
     saveFile,
     closeFile,
+    refreshFile,
     setLocalFileMap,
   };
 }

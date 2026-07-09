@@ -468,6 +468,63 @@ router.post('/git/push', async (_req, res) => {
   }
 });
 
+// ── File watcher (SSE) ────────────────────────────────────────────────────────
+
+router.get('/files/watch', (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  if (!rootPath) {
+    // No workspace yet — keep connection alive; client will reconnect when workspace opens
+    const ping = setInterval(() => res.write(': ping\n\n'), 15000);
+    res.on('close', () => clearInterval(ping));
+    return;
+  }
+
+  const watchRoot = rootPath;
+  const debounceMap = new Map<string, ReturnType<typeof setTimeout>>();
+
+  let watcher: fs.FSWatcher;
+  try {
+    watcher = fs.watch(watchRoot, { recursive: true }, (_eventType, filename) => {
+      if (!filename) return;
+      // Skip noise from git internals and dependency directories
+      if (filename.startsWith('.git' + path.sep) || filename.startsWith('node_modules' + path.sep)) return;
+
+      const absPath = path.join(watchRoot, filename);
+      const existing = debounceMap.get(absPath);
+      if (existing) clearTimeout(existing);
+      debounceMap.set(absPath, setTimeout(() => {
+        debounceMap.delete(absPath);
+        // Only emit for files, not directories
+        fs.promises.stat(absPath)
+          .then(stat => {
+            if (stat.isFile()) res.write(`event: file-changed\ndata: ${JSON.stringify({ path: absPath })}\n\n`);
+          })
+          .catch(() => {
+            // File deleted — still notify so editor can react
+            res.write(`event: file-changed\ndata: ${JSON.stringify({ path: absPath })}\n\n`);
+          });
+      }, 150));
+    });
+  } catch {
+    res.write(`event: error\ndata: ${JSON.stringify({ message: 'fs.watch not supported' })}\n\n`);
+    res.end();
+    return;
+  }
+
+  const ping = setInterval(() => res.write(': ping\n\n'), 15000);
+
+  res.on('close', () => {
+    watcher.close();
+    clearInterval(ping);
+    for (const t of debounceMap.values()) clearTimeout(t);
+    debounceMap.clear();
+  });
+});
+
 // ── System graph ──────────────────────────────────────────────────────────────
 
 function graphFilePath(root: string): string {
