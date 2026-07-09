@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { SimulationPanel } from '../right/SimulationPanel';
 import { CodingAssistant } from '../right/CodingAssistant';
+import { SystemView } from '../right/SystemView';
 
-type RightTab = 'simulation' | 'assistant';
+type RightTab = 'simulation' | 'assistant' | 'system';
 
 interface RightPanelProps {
   width: number;
@@ -39,6 +40,7 @@ export function RightPanel({ width, workspacePath, activeFilePath, onWorkspaceOp
         {([
           { id: 'simulation', label: 'Simulation' },
           { id: 'assistant', label: 'Coding Assistant' },
+          { id: 'system', label: 'System View' },
         ] as { id: RightTab; label: string }[]).map(tab => (
           <button
             key={tab.id}
@@ -64,9 +66,9 @@ export function RightPanel({ width, workspacePath, activeFilePath, onWorkspaceOp
       </div>
 
       {/* Tab content */}
-      {activeTab === 'simulation'
-        ? <SimulationPanel />
-        : <CodingAssistant workspacePath={workspacePath} activeFilePath={activeFilePath} onWorkspaceOpen={onWorkspaceOpen} />
+      {activeTab === 'simulation' ? <SimulationPanel /> :
+       activeTab === 'system'     ? <SystemView workspacePath={workspacePath} /> :
+       <CodingAssistant workspacePath={workspacePath} activeFilePath={activeFilePath} onWorkspaceOpen={onWorkspaceOpen} />
       }
     </div>
   );

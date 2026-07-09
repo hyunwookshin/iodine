@@ -2,6 +2,7 @@ import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import crypto from 'crypto';
 import { exec, execFile } from 'child_process';
 import { promisify } from 'util';
 import { buildTree, readFileContent, writeFileContent } from '../services/fileSystem';
@@ -465,6 +466,32 @@ router.post('/git/push', async (_req, res) => {
     const e = err as { stderr?: string; message: string };
     return res.status(500).json({ error: e.stderr ?? e.message });
   }
+});
+
+// ── System graph ──────────────────────────────────────────────────────────────
+
+function graphFilePath(root: string): string {
+  const md5 = crypto.createHash('md5').update(root).digest('hex');
+  return path.join(os.homedir(), '.iodine', md5, 'system-graph.json');
+}
+
+router.get('/system-graph', async (_req, res) => {
+  if (!rootPath) return res.json({ graph: null });
+  try {
+    const data = await fs.promises.readFile(graphFilePath(rootPath), 'utf-8');
+    return res.json({ graph: JSON.parse(data) });
+  } catch {
+    return res.json({ graph: null });
+  }
+});
+
+router.put('/system-graph', async (req, res) => {
+  if (!rootPath) return res.status(400).json({ error: 'No workspace open' });
+  const { graph } = req.body as { graph: unknown };
+  const fp = graphFilePath(rootPath);
+  await fs.promises.mkdir(path.dirname(fp), { recursive: true });
+  await fs.promises.writeFile(fp, JSON.stringify(graph, null, 2), 'utf-8');
+  return res.json({ ok: true });
 });
 
 export default router;

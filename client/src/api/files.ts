@@ -146,3 +146,37 @@ export async function stashChanges(): Promise<void> {
 export async function pushBranch(): Promise<void> {
   await request('/api/git/push', { method: 'POST' });
 }
+
+export interface GraphNode {
+  id: string;
+  name: string;
+  subname?: string;
+  color?: string;
+  x?: number;
+  y?: number;
+}
+
+export interface GraphEdge {
+  source: string;
+  target: string;
+  type: 'directed' | 'bidirectional' | 'undirected';
+  label?: string;
+}
+
+export interface SystemGraph {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+}
+
+export async function fetchSystemGraph(): Promise<SystemGraph | null> {
+  const data = await request<{ graph: SystemGraph | null }>('/api/system-graph');
+  return data.graph;
+}
+
+export async function putSystemGraph(graph: SystemGraph): Promise<void> {
+  await request('/api/system-graph', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ graph }),
+  });
+}
