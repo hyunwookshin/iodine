@@ -2,7 +2,7 @@
 
 ## What This Is
 
-A web-based IDE shell for the Iodine project. Developers can open a local folder, browse its file tree, and read/edit files in a Monaco-powered code editor. The right panel has two tabs: **Simulation** (placeholder for planned network mocking / throttling features) and **Coding Assistant** (a streaming Claude-powered chat that can read, write, and search files in the open workspace).
+A web-based IDE shell for the Iodine project. Developers can open a local folder, browse its file tree, and read/edit files in a Monaco-powered code editor. The right panel has three tabs: **Simulation** (placeholder for planned network mocking / throttling features), **Coding Assistant** (a streaming chat powered by Claude, GPT, or Gemini that can read, write, and search files in the open workspace), and **System View** (an interactive SVG graph editor for architecture diagrams, with an AI-powered Generate button that explores the workspace with file tools).
 
 ## How to Start
 
@@ -41,7 +41,8 @@ iodine/
 │       │   ├── useGitStatus.ts       # Polls /api/git/status for file tree badges
 │       │   ├── useFileDiff.ts        # Polls /api/git/diff for editor decorations
 │       │   ├── useSourceControl.ts   # Polls /api/git/changes + stage/commit actions
-│       │   └── useCodingAssistant.ts # SSE streaming chat state + message history
+│       │   ├── useCodingAssistant.ts # SSE streaming chat state + message history
+│       │   └── useSystemGraph.ts     # Load/save system-graph.json for current workspace
 │       └── components/
 │           ├── layout/
 │           │   ├── WorkbenchLayout.tsx   # Root layout, panel widths, Ctrl+S handler
@@ -49,7 +50,7 @@ iodine/
 │           │   ├── ActivityBar.tsx       # Left icon strip (Explorer / SCM toggle)
 │           │   ├── Sidebar.tsx           # Panel host — renders active view
 │           │   ├── EditorArea.tsx        # Tab bar + Monaco editor + Preview toggle for .md/.html
-│           │   ├── RightPanel.tsx        # Tab bar: Simulation | Coding Assistant
+│           │   ├── RightPanel.tsx        # Tab bar: Simulation | Coding Assistant | System View; owns provider/model state
 │           │   └── ResizeDivider.tsx     # Draggable column resize handle
 │           ├── sidebar/
 │           │   ├── FileExplorer.tsx      # Open Folder UI + file tree
@@ -61,7 +62,8 @@ iodine/
 │           │   └── WelcomeScreen.tsx     # Shown when no file is open
 │           └── right/
 │               ├── SimulationPanel.tsx   # Simulation tab content (placeholder)
-│               └── CodingAssistant.tsx   # Coding Assistant chat UI
+│               ├── CodingAssistant.tsx   # Coding Assistant chat UI
+│               └── SystemView.tsx        # SVG graph editor + AI generate (agentic loop)
 │
 ├── images/                   # Screenshots and visual assets for documentation
 ├── DEBUGGING.md              # Notes on non-obvious bugs encountered during development
@@ -73,7 +75,8 @@ iodine/
         ├── state.ts             # Shared mutable state: rootPath (persisted to ~/.iodine/workspace)
         ├── routes/
         │   ├── files.ts         # Route handlers for file/workspace endpoints
-        │   └── agent.ts         # POST /api/agent/chat (SSE), GET /api/agent/status; dispatches by provider
+        │   ├── files.ts         # Route handlers for file/workspace/git/system-graph endpoints
+│   └── agent.ts         # POST /api/agent/chat (SSE), POST /api/system-graph/generate (SSE), GET /api/agent/status
         └── services/
             ├── fileSystem.ts    # Pure FS operations + path traversal guard
             ├── fileTools.ts     # Shared tool schemas + executeTool() used by all agent services
@@ -108,6 +111,9 @@ iodine/
 | `POST` | `/api/git/push` | Push current branch to origin (`--set-upstream origin HEAD`) |
 | `GET` | `/api/agent/status` | `{ providers: { anthropic, openai, google } }` — per-provider key status |
 | `POST` | `/api/agent/chat` | SSE stream: `{ messages, model, provider, activeFile }` → text deltas + tool events |
+| `GET` | `/api/system-graph` | Load `~/.iodine/<md5(workspace)>/system-graph.json` |
+| `PUT` | `/api/system-graph` | Save system graph for current workspace |
+| `POST` | `/api/system-graph/generate` | SSE stream: agentic graph generation — explores workspace with file tools, emits `text_delta` / `tool_call` / `tool_result` / `done` |
 
 All file reads and writes are validated against the workspace root to prevent path traversal. Git mutation endpoints resolve absolute paths from `repoRoot + relPath` and use `execFileAsync` (no shell injection risk).
 
@@ -121,7 +127,8 @@ All file reads and writes are validated against the workspace root to prevent pa
 - **Resize panels**: Drag the thin dividers between the sidebar, editor, and right panel.
 - **Switch sidebar views**: Click the branch icon in the activity bar to switch between Explorer and Source Control.
 - **Source Control panel**: Click the branch icon in the activity bar. Shows the current branch, a commit textarea (Ctrl+Enter to commit), a Stage All button, and collapsible "Staged Changes" / "Changes" sections. Hover a file row to reveal stage/unstage (`+`/`−`) and discard (`↺`) buttons. Untracked files show as `U`. Discard always confirms; deleting an untracked file warns explicitly. Below the working-tree changes: **Local Branches** (click to checkout), **Remote Branches** (collapsed by default; click to checkout the corresponding local branch), and **History** (last 80 commits with ref badges — click any non-HEAD commit to check it out in detached HEAD state). A **↑ push** button in the header pushes to `origin HEAD`. All checkout and push actions guard against uncommitted changes: if any exist, a dialog offers to stash first (OK) or abort (Cancel).
-- **Coding Assistant**: Click the "Coding Assistant" tab in the right panel. Requires an Anthropic API key (see below). Enter sends a message; Shift+Enter inserts a newline. Chat history persists until the page is refreshed.
+- **Coding Assistant**: Click the "Coding Assistant" tab in the right panel. Select a provider and model from the dropdowns (shared with System View). Enter sends; Shift+Enter inserts a newline. Chat history persists until the page is refreshed.
+- **System View**: Click the "System View" tab. The graph is stored in `~/.iodine/<md5(workspacePath)>/system-graph.json` — persisted per workspace but not in git. Click **⚡ Generate** to run the agentic loop: the model uses `list_directory` and `read_file` tools to explore the real workspace and outputs a JSON architecture graph. A status bar shows which file is being scanned. Switch between **Graph** (interactive SVG) and **JSON** (Monaco editor) views. Nodes are draggable; scroll to zoom, drag background to pan. **↺ Layout** re-runs force-directed layout. **✓ Save** persists to disk.
 - **File preview**: When a `.md` or `.html` file is active, a floating **Preview** button appears in the upper-right corner of the editor. Clicking it renders the file — markdown is rendered with `react-markdown` + `remark-gfm` (dark-themed prose styles), HTML is rendered in a sandboxed `<iframe>`. Clicking **Source** returns to the Monaco editor. Switching to a non-previewable file automatically resets to source mode.
 
 ## Menu Bar — File > Open Project
@@ -195,6 +202,43 @@ The path of the file currently open in the editor is sent with every chat reques
 The Coding Assistant's `fetch` calls go **directly to `http://localhost:3001`** in development, bypassing the Vite proxy. This is intentional — Vite's proxy closes its backend connection shortly after forwarding the first SSE chunk, aborting the agent loop. See `DEBUGGING.md` for full details.
 
 Non-streaming requests (file tree, file content, workspace, status) continue to go through the Vite proxy at `/api/*` as normal.
+
+## System View
+
+The System View tab renders and edits architecture diagrams stored as JSON. Graph files live at `~/.iodine/<md5(workspacePath)>/system-graph.json` — scoped per workspace, never committed to git.
+
+### JSON Schema
+
+```json
+{
+  "nodes": [
+    { "id": "api", "name": "API", "subname": "Express/3001", "color": "#2e5e2e", "x": 320, "y": 240 }
+  ],
+  "edges": [
+    { "source": "client", "target": "api", "type": "bidirectional", "label": "HTTP" }
+  ]
+}
+```
+
+Edge types: `directed` (→), `bidirectional` (↔), `undirected` (dashed, no arrows).
+
+### AI Generate
+
+Clicking **⚡ Generate** calls `POST /api/system-graph/generate` with the current `provider` and `model`. The server runs the full agentic loop (same loop as the Coding Assistant) with a custom system prompt instructing the model to:
+1. Use `list_directory` and `read_file` tools to explore the actual workspace.
+2. Read key files: `package.json`, `README`, entry points, config, service definitions.
+3. Output **only** a JSON object matching the graph schema above — no prose, no fences.
+
+The `customSystemPrompt` parameter was added to `runAgentLoop`, `runOpenAIAgentLoop`, and `runGeminiAgentLoop` to support this. The provider/model state is owned by `RightPanel` and shared between both the Coding Assistant and System View tabs.
+
+### SVG Renderer
+
+Key implementation details in `SystemView.tsx`:
+
+- `rectEdgePt(fx, fy, tx, ty)` — clips edge endpoints to node rectangle boundaries so arrowheads sit flush at node edges.
+- `autoLayout(nodes, edges)` — 300-iteration spring-force layout (repulsion + spring attraction + gravity); only runs for nodes that have no saved position.
+- SVG markers: `arrow-bidi-rev` uses `orient="auto"` (not `orient="auto-start-reverse"`) with a backward-pointing path so the arrowhead tip is at `refX="0"` and the body extends toward the target.
+- Coordinate transform: `svgCoord(clientX, clientY)` accounts for current `pan` and `scale` to convert mouse events to graph space.
 
 ## Tech Stack
 

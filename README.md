@@ -8,7 +8,9 @@ A built-in **Coding Assistant**, powered by your choice of AI provider (Anthropi
 
 ## Screenshots
 
-![Iodine IDE](images/screenshot_1.png)
+![Iodine IDE — Editor and Coding Assistant](images/screenshot_1.png)
+
+![Iodine IDE — System View](images/screenshot_2.png)
 
 ## Features
 
