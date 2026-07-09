@@ -6,6 +6,10 @@
 
 A built-in **Coding Assistant**, powered by your choice of AI provider (Anthropic Claude, OpenAI GPT, or Google Gemini), can read, write, and search files in your workspace to help you automate changes like swapping API endpoints, scaffolding loading states, or debugging frontend issues.
 
+## Demo Video
+
+For a visual demonstration of Iodine IDE in action, check out our [YouTube demo](https://youtube.com/watch?v=4uRyc2Wuvy4).
+
 ## Screenshots
 
 ![Iodine IDE — Editor and Coding Assistant](images/screenshot_1.png)
