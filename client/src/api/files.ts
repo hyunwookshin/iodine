@@ -47,6 +47,11 @@ export async function putFileContent(path: string, content: string): Promise<voi
   });
 }
 
+/** Returns the URL to stream an image file from the server. */
+export function getImageUrl(path: string): string {
+  return `/api/files/image?path=${encodeURIComponent(path)}`;
+}
+
 export type DeletedBlock = { afterLine: number; lines: string[] };
 export type DiffData = { added: number[]; modified: number[]; deleted: DeletedBlock[] };
 

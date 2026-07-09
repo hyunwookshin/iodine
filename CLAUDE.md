@@ -49,16 +49,17 @@ iodine/
 │           │   ├── MenuBar.tsx           # Top menu bar — File > Open Project (browser picker + server find)
 │           │   ├── ActivityBar.tsx       # Left icon strip (Explorer / SCM toggle)
 │           │   ├── Sidebar.tsx           # Panel host — renders active view
-│           │   ├── EditorArea.tsx        # Tab bar + Monaco editor + Preview toggle for .md/.html
+│           │   ├── EditorArea.tsx        # Tab bar + Monaco editor + Preview toggle for .md/.html + ImageViewer for images
 │           │   ├── RightPanel.tsx        # Tab bar: Simulation | Coding Assistant | System View; owns provider/model state
 │           │   └── ResizeDivider.tsx     # Draggable column resize handle
 │           ├── sidebar/
 │           │   ├── FileExplorer.tsx      # Open Folder UI + file tree
-│           │   ├── FileTreeNode.tsx      # Recursive tree node component
+│           │   ├── FileTreeNode.tsx      # Recursive tree node — shows image icon (🏔) for .png/.jpg/.jpeg files
 │           │   └── SourceControlPanel.tsx # SCM panel: branch, commit, staged/unstaged lists
 │           ├── editor/
 │           │   ├── EditorTabs.tsx        # Tab strip with dirty indicator
 │           │   ├── MonacoEditor.tsx      # @monaco-editor/react wrapper
+│           │   ├── ImageViewer.tsx       # Renders .png/.jpg/.jpeg files with zoom controls (± buttons, click % to reset)
 │           │   └── WelcomeScreen.tsx     # Shown when no file is open
 │           └── right/
 │               ├── SimulationPanel.tsx   # Simulation tab content (placeholder)
@@ -74,9 +75,8 @@ iodine/
         ├── app.ts               # Express app factory (CORS, JSON, routes)
         ├── state.ts             # Shared mutable state: rootPath (persisted to ~/.iodine/workspace)
         ├── routes/
-        │   ├── files.ts         # Route handlers for file/workspace endpoints
         │   ├── files.ts         # Route handlers for file/workspace/git/system-graph endpoints
-│   └── agent.ts         # POST /api/agent/chat (SSE), POST /api/system-graph/generate (SSE), GET /api/agent/status
+        │   └── agent.ts         # POST /api/agent/chat (SSE), POST /api/system-graph/generate (SSE), GET /api/agent/status
         └── services/
             ├── fileSystem.ts    # Pure FS operations + path traversal guard
             ├── fileTools.ts     # Shared tool schemas + executeTool() used by all agent services
@@ -96,6 +96,7 @@ iodine/
 | `GET` | `/api/files/tree` | Full directory tree from workspace root |
 | `GET` | `/api/files/content?path=` | Read a file's text content |
 | `PUT` | `/api/files/content` | Write a file `{ path, content }` |
+| `GET` | `/api/files/image?path=` | Serve a binary image file (`image/png` or `image/jpeg`) — used by `ImageViewer` |
 | `GET` | `/api/git/status` | `{ status: { absPath: 'staged'\|'unstaged'\|'both' } }` — for file tree badges |
 | `GET` | `/api/git/diff?path=` | `{ added, modified, deleted }` — unified diff parsed for editor decorations |
 | `GET` | `/api/git/changes` | `{ branch, staged, unstaged }` — full change list for SCM panel |
@@ -130,6 +131,20 @@ All file reads and writes are validated against the workspace root to prevent pa
 - **Coding Assistant**: Click the "Coding Assistant" tab in the right panel. Select a provider and model from the dropdowns (shared with System View). Enter sends; Shift+Enter inserts a newline. Chat history persists until the page is refreshed.
 - **System View**: Click the "System View" tab. The graph is stored in `~/.iodine/<md5(workspacePath)>/system-graph.json` — persisted per workspace but not in git. Click **⚡ Generate** to run the agentic loop: the model uses `list_directory` and `read_file` tools to explore the real workspace and outputs a JSON architecture graph. A status bar shows which file is being scanned. Switch between **Graph** (interactive SVG) and **JSON** (Monaco editor) views. Nodes are draggable; scroll to zoom, drag background to pan. **↺ Layout** re-runs force-directed layout. **✓ Save** persists to disk.
 - **File preview**: When a `.md` or `.html` file is active, a floating **Preview** button appears in the upper-right corner of the editor. Clicking it renders the file — markdown is rendered with `react-markdown` + `remark-gfm` (dark-themed prose styles), HTML is rendered in a sandboxed `<iframe>`. Clicking **Source** returns to the Monaco editor. Switching to a non-previewable file automatically resets to source mode.
+- **Image viewer**: Clicking a `.png`, `.jpg`, or `.jpeg` file in the file tree opens it in a dedicated image viewer instead of the Monaco text editor. The file tree shows a distinct landscape-picture icon (light blue) for image files so they are visually distinguishable. The viewer displays the image centred on a dark canvas with zoom controls (`−` / `+` buttons, click the `%` label to reset to 100%). Images are fetched from `GET /api/files/image?path=` which streams the raw binary with the correct `Content-Type` header and a `no-store` cache policy. The `isImage` flag on `OpenFile` prevents diff decorations and dirty-save logic from running for image tabs.
+
+## Image Viewer — Implementation Details
+
+| Layer | File | Role |
+|-------|------|------|
+| File tree icon | `FileTreeNode.tsx` | Detects `.png`/`.jpg`/`.jpeg` by extension; renders `ImageFileIcon` (SVG landscape) in light blue (`#89d4f5`) instead of the generic file icon |
+| Open logic | `useOpenFiles.ts` → `isImageFile()` | Sets `isImage: true`, skips text fetch; stores empty `content` string |
+| Routing | `EditorArea.tsx` | Checks `activeFile.isImage`; renders `<ImageViewer>` instead of `<MonacoEditor>` |
+| Viewer UI | `ImageViewer.tsx` | Toolbar with filename + zoom controls; scrollable canvas; `transform: scale()` zoom; `pixelated` rendering above 2× |
+| Server endpoint | `server/src/routes/files.ts` → `GET /api/files/image` | Path-traversal guard; reads binary with `fs.promises.readFile`; serves with `image/png` or `image/jpeg` MIME type |
+| URL helper | `api/files.ts` → `getImageUrl()` | Builds the query-param URL consumed by `<img src>` in `ImageViewer` |
+
+To add support for more image types (e.g. `.gif`, `.webp`, `.svg`): add the extension to `IMAGE_EXTENSIONS` in both `useOpenFiles.ts` and `FileTreeNode.tsx`, and add the MIME mapping to `IMAGE_MIME` in `server/src/routes/files.ts`.
 
 ## Menu Bar — File > Open Project
 

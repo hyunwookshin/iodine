@@ -12,6 +12,7 @@ export interface OpenFile {
   savedContent: string;
   isDirty: boolean;
   language: string;
+  isImage?: boolean;
 }
 
 export type SidebarView = 'explorer' | 'scm';

@@ -4,6 +4,7 @@ import remarkGfm from 'remark-gfm';
 import { EditorTabs } from '../editor/EditorTabs';
 import { MonacoEditor } from '../editor/MonacoEditor';
 import { WelcomeScreen } from '../editor/WelcomeScreen';
+import { ImageViewer } from '../editor/ImageViewer';
 import { useFileDiff } from '../../hooks/useFileDiff';
 import type { OpenFile } from '../../types';
 
@@ -26,7 +27,7 @@ function isPreviewable(path: string) {
 export const EditorArea = forwardRef<EditorAreaHandle, EditorAreaProps>(
   function EditorArea({ openFiles, activeFilePath, onTabClick, onTabClose, onContentChange }, ref) {
     const activeFile = openFiles.find(f => f.path === activeFilePath) ?? null;
-    const diffData = useFileDiff(activeFile?.path ?? null);
+    const diffData = useFileDiff(activeFile?.isImage ? null : (activeFile?.path ?? null));
     const [preview, setPreview] = useState(false);
 
     // Reset to source mode when switching to a non-previewable file
@@ -40,7 +41,7 @@ export const EditorArea = forwardRef<EditorAreaHandle, EditorAreaProps>(
       },
     }));
 
-    const showToggle = !!activeFile && isPreviewable(activeFile.path);
+    const showToggle = !!activeFile && !activeFile.isImage && isPreviewable(activeFile.path);
 
     return (
       <div
@@ -87,7 +88,9 @@ export const EditorArea = forwardRef<EditorAreaHandle, EditorAreaProps>(
           )}
 
           {activeFile ? (
-            preview && isPreviewable(activeFile.path) ? (
+            activeFile.isImage ? (
+              <ImageViewer path={activeFile.path} name={activeFile.name} />
+            ) : preview && isPreviewable(activeFile.path) ? (
               activeFile.path.endsWith('.md') ? (
                 <div
                   className="md-preview"

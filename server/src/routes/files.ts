@@ -81,6 +81,12 @@ function parseDiff(diffOutput: string): DiffResult {
   return { added, modified, deleted };
 }
 
+const IMAGE_MIME: Record<string, string> = {
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+};
+
 const router = Router();
 
 router.get('/health', (_req, res) => {
@@ -190,6 +196,43 @@ router.put('/files/content', async (req, res) => {
     return res.status(500).json({ error: 'Failed to write file' });
   }
 });
+
+// ── Image viewer ──────────────────────────────────────────────────────────────
+
+router.get('/files/image', async (req, res) => {
+  if (!rootPath) {
+    return res.status(400).json({ error: 'No workspace open' });
+  }
+  const filePath = req.query.path as string;
+  if (!filePath) {
+    return res.status(400).json({ error: 'path query param is required' });
+  }
+
+  // Resolve and guard against path traversal
+  const resolved = path.resolve(filePath);
+  if (!resolved.startsWith(rootPath + path.sep) && resolved !== rootPath) {
+    return res.status(400).json({ error: 'Path outside workspace' });
+  }
+
+  const ext = resolved.split('.').pop()?.toLowerCase() ?? '';
+  const mime = IMAGE_MIME[ext];
+  if (!mime) {
+    return res.status(400).json({ error: 'Unsupported image type' });
+  }
+
+  try {
+    const data = await fs.promises.readFile(resolved);
+    res.setHeader('Content-Type', mime);
+    res.setHeader('Cache-Control', 'no-store');
+    return res.send(data);
+  } catch (err: unknown) {
+    const e = err as NodeJS.ErrnoException;
+    if (e.code === 'ENOENT') return res.status(404).json({ error: 'File not found' });
+    return res.status(500).json({ error: 'Failed to read image' });
+  }
+});
+
+// ── Git diff & status ─────────────────────────────────────────────────────────
 
 router.get('/git/diff', async (req, res) => {
   if (!rootPath) return res.json({ added: [], modified: [], deleted: [] });

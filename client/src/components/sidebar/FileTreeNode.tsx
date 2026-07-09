@@ -11,6 +11,16 @@ interface FileTreeNodeProps {
   gitStatus?: Record<string, GitFileStatus>;
 }
 
+const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg']);
+
+function getFileExtension(filename: string): string {
+  return filename.split('.').pop()?.toLowerCase() ?? '';
+}
+
+function isImageFile(filename: string): boolean {
+  return IMAGE_EXTENSIONS.has(getFileExtension(filename));
+}
+
 const ChevronRight = () => (
   <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" style={{ flexShrink: 0 }}>
     <path d="M4.5 2L8.5 6L4.5 10" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
@@ -39,6 +49,18 @@ const FileIcon = () => (
   </svg>
 );
 
+/** Image file icon — a small landscape-style picture frame with a sun and mountain. */
+const ImageFileIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style={{ flexShrink: 0 }}>
+    {/* Frame */}
+    <rect x="1" y="2" width="14" height="12" rx="1.5" ry="1.5" fill="none" stroke="currentColor" strokeWidth="1.2" />
+    {/* Sun circle */}
+    <circle cx="5" cy="6" r="1.5" />
+    {/* Mountain path */}
+    <path d="M1.5 12.5 L5.5 7.5 L8.5 10.5 L10.5 8 L14.5 12.5 Z" />
+  </svg>
+);
+
 export function FileTreeNode({
   node,
   depth,
@@ -51,6 +73,7 @@ export function FileTreeNode({
   const isExpanded = expandedPaths.has(node.path);
   const isActive = node.path === activeFilePath;
   const isDir = node.type === 'directory';
+  const isImage = !isDir && isImageFile(node.name);
 
   const gs = gitStatus[node.path];
   const nameFontWeight = (gs === 'unstaged' || gs === 'both') ? 'bold' : undefined;
@@ -103,8 +126,8 @@ export function FileTreeNode({
         ) : (
           <>
             <span style={{ width: 12, flexShrink: 0 }} />
-            <span style={{ color: '#c5c8c6', display: 'flex' }}>
-              <FileIcon />
+            <span style={{ color: isImage ? '#89d4f5' : '#c5c8c6', display: 'flex' }}>
+              {isImage ? <ImageFileIcon /> : <FileIcon />}
             </span>
           </>
         )}

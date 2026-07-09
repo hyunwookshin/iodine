@@ -24,11 +24,18 @@ const EXT_TO_LANGUAGE: Record<string, string> = {
   dockerfile: 'dockerfile',
 };
 
+const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg']);
+
 function detectLanguage(filename: string): string {
   const lower = filename.toLowerCase();
   if (lower === 'dockerfile') return 'dockerfile';
   const ext = filename.split('.').pop()?.toLowerCase() ?? '';
   return EXT_TO_LANGUAGE[ext] ?? 'plaintext';
+}
+
+function isImageFile(filename: string): boolean {
+  const ext = filename.split('.').pop()?.toLowerCase() ?? '';
+  return IMAGE_EXTENSIONS.has(ext);
 }
 
 export function useOpenFiles() {
@@ -65,6 +72,25 @@ export function useOpenFiles() {
     openingPaths.current.add(node.path);
 
     try {
+      // Image files are rendered directly via URL — no text content needed
+      if (isImageFile(node.name)) {
+        const newFile: OpenFile = {
+          path: node.path,
+          name: node.name,
+          content: '',
+          savedContent: '',
+          isDirty: false,
+          language: 'plaintext',
+          isImage: true,
+        };
+        setOpenFiles(prev => {
+          if (prev.some(f => f.path === node.path)) return prev;
+          return [...prev, newFile];
+        });
+        setActiveFilePath(node.path);
+        return;
+      }
+
       let content: string;
       const localFile = localFileMapRef.current?.get(node.path);
       if (localFile) {
@@ -136,7 +162,7 @@ export function useOpenFiles() {
   /** Re-fetches a file from disk if it's open and not dirty (called by file watcher). */
   const refreshFile = useCallback((absPath: string) => {
     const file = openFilesRef.current.find(f => f.path === absPath);
-    if (!file || file.isDirty || localFileMapRef.current?.has(absPath)) return;
+    if (!file || file.isDirty || file.isImage || localFileMapRef.current?.has(absPath)) return;
     fetchFileContent(absPath)
       .then(content => {
         setOpenFiles(prev =>
