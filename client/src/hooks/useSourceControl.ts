@@ -1,32 +1,48 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
-  fetchGitChanges,
+  fetchGitChanges, fetchGitLog, fetchGitBranches,
   stageFile, unstageFile, stageAll, discardFile, commitChanges,
+  checkoutBranch, stashChanges, pushBranch,
 } from '../api/files';
-import type { GitChange } from '../api/files';
+import type { GitChange, GitCommit, GitBranchInfo, GitBranches } from '../api/files';
 
-export type { GitChange };
+export type { GitChange, GitCommit, GitBranchInfo };
 
 export function useSourceControl(workspacePath: string | null) {
   const [branch, setBranch] = useState('');
   const [staged, setStaged] = useState<GitChange[]>([]);
   const [unstaged, setUnstaged] = useState<GitChange[]>([]);
+  const [commits, setCommits] = useState<GitCommit[]>([]);
+  const [localBranches, setLocalBranches] = useState<GitBranchInfo[]>([]);
+  const [remoteBranches, setRemoteBranches] = useState<GitBranches['remote']>([]);
   const [loaded, setLoaded] = useState(false);
   const [loading, setLoading] = useState(false);
   const [commitMessage, setCommitMessage] = useState('');
+  const [pushStatus, setPushStatus] = useState<null | 'pushing' | 'success' | 'error'>(null);
+  const [pushError, setPushError] = useState('');
 
   const refresh = useCallback(async () => {
     if (!workspacePath) {
-      setBranch(''); setStaged([]); setUnstaged([]); setLoaded(false);
+      setBranch(''); setStaged([]); setUnstaged([]);
+      setCommits([]); setLocalBranches([]); setRemoteBranches([]);
+      setLoaded(false);
       return;
     }
     try {
-      const data = await fetchGitChanges();
-      setBranch(data.branch);
-      setStaged(data.staged);
-      setUnstaged(data.unstaged);
+      const [changesData, logData, branchesData] = await Promise.all([
+        fetchGitChanges(),
+        fetchGitLog(),
+        fetchGitBranches(),
+      ]);
+      setBranch(changesData.branch);
+      setStaged(changesData.staged);
+      setUnstaged(changesData.unstaged);
+      setCommits(logData);
+      setLocalBranches(branchesData.local);
+      setRemoteBranches(branchesData.remote);
     } catch {
       setBranch(''); setStaged([]); setUnstaged([]);
+      setCommits([]); setLocalBranches([]); setRemoteBranches([]);
     } finally {
       setLoaded(true);
     }
@@ -71,9 +87,51 @@ export function useSourceControl(workspacePath: string | null) {
     await refresh();
   };
 
+  // Checkout a branch, stashing uncommitted changes first if needed
+  const checkout = async (targetBranch: string) => {
+    const hasChanges = staged.length > 0 || unstaged.length > 0;
+    if (hasChanges) {
+      const ok = window.confirm(
+        `You have uncommitted changes.\n\nStash them and switch to '${targetBranch}'?\n\nOK = Stash and switch\nCancel = Abort`,
+      );
+      if (!ok) return;
+      try {
+        await stashChanges();
+      } catch (err: unknown) {
+        window.alert(`Failed to stash changes:\n${(err as Error).message}`);
+        return;
+      }
+    }
+    try {
+      await checkoutBranch(targetBranch);
+    } catch (err: unknown) {
+      window.alert(`Checkout failed:\n${(err as Error).message}`);
+      return;
+    }
+    await refresh();
+  };
+
+  const push = async () => {
+    if (pushStatus === 'pushing') return;
+    setPushStatus('pushing');
+    setPushError('');
+    try {
+      await pushBranch();
+      setPushStatus('success');
+      await refresh();
+      setTimeout(() => setPushStatus(prev => prev === 'success' ? null : prev), 3000);
+    } catch (err: unknown) {
+      const msg = (err as Error).message;
+      setPushStatus('error');
+      setPushError(msg);
+      setTimeout(() => setPushStatus(prev => prev === 'error' ? null : prev), 6000);
+    }
+  };
+
   return {
-    branch, staged, unstaged, loaded, loading,
-    commitMessage, setCommitMessage,
-    stage, unstage, stageAllChanges, discard, commit,
+    branch, staged, unstaged, commits, localBranches, remoteBranches,
+    loaded, loading, commitMessage, setCommitMessage,
+    pushStatus, pushError,
+    stage, unstage, stageAllChanges, discard, commit, checkout, push,
   };
 }

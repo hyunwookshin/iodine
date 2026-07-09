@@ -354,4 +354,115 @@ router.post('/git/commit', async (req, res) => {
   }
 });
 
+// --- Git log and branch tree ---
+
+// Field separator unlikely to appear in git output values
+const GIT_SEP = '\x1f';
+
+router.get('/git/log', async (_req, res) => {
+  if (!rootPath) return res.json({ commits: [] });
+  try {
+    const fmt = `%H${GIT_SEP}%h${GIT_SEP}%P${GIT_SEP}%s${GIT_SEP}%an${GIT_SEP}%ar${GIT_SEP}%D`;
+    const { stdout } = await execFileAsync(
+      'git', ['log', '--all', `--format=${fmt}`, '--max-count=80'],
+      { cwd: rootPath },
+    );
+
+    const commits = stdout.trim().split('\n').filter(Boolean).map(line => {
+      const [hash, shortHash, parents, message, author, relativeDate, refsStr] = line.split(GIT_SEP);
+      // %D format: "HEAD -> main, origin/main, tag: v1.0"
+      const rawRefs = refsStr ? refsStr.split(',').map(r => r.trim()).filter(Boolean) : [];
+      const refs: string[] = [];
+      for (const r of rawRefs) {
+        if (r.startsWith('HEAD -> ')) {
+          refs.push('HEAD');
+          refs.push(r.slice('HEAD -> '.length));
+        } else if (r === 'HEAD') {
+          refs.push('HEAD');
+        } else {
+          refs.push(r);
+        }
+      }
+      return {
+        hash: hash ?? '',
+        shortHash: shortHash ?? '',
+        parentHashes: parents?.trim().split(' ').filter(Boolean) ?? [],
+        message: message ?? '',
+        author: author ?? '',
+        relativeDate: relativeDate ?? '',
+        refs,
+      };
+    });
+
+    return res.json({ commits });
+  } catch {
+    return res.json({ commits: [] });
+  }
+});
+
+router.get('/git/branches', async (_req, res) => {
+  if (!rootPath) return res.json({ local: [], remote: [] });
+  try {
+    const localFmt = `%(HEAD)${GIT_SEP}%(refname:short)${GIT_SEP}%(objectname:short)${GIT_SEP}%(upstream:short)`;
+    const { stdout: localOut } = await execFileAsync(
+      'git', ['branch', `--format=${localFmt}`],
+      { cwd: rootPath },
+    );
+    const local = localOut.trim().split('\n').filter(Boolean).map(line => {
+      const [head, name, hash, upstream] = line.split(GIT_SEP);
+      return { name: name ?? '', shortHash: hash ?? '', isCurrent: head === '*', upstream: upstream || null };
+    });
+
+    const remoteFmt = `%(refname:short)${GIT_SEP}%(objectname:short)`;
+    const { stdout: remoteOut } = await execFileAsync(
+      'git', ['branch', '-r', `--format=${remoteFmt}`],
+      { cwd: rootPath },
+    );
+    const remote = remoteOut.trim().split('\n').filter(Boolean)
+      .map(line => { const [name, hash] = line.split(GIT_SEP); return { name: name ?? '', shortHash: hash ?? '' }; })
+      .filter(b => !b.name.endsWith('/HEAD'));
+
+    return res.json({ local, remote });
+  } catch {
+    return res.json({ local: [], remote: [] });
+  }
+});
+
+router.post('/git/checkout', async (req, res) => {
+  if (!rootPath) return res.status(400).json({ error: 'No workspace open' });
+  const { branch } = req.body as { branch?: string };
+  if (!branch) return res.status(400).json({ error: 'branch is required' });
+  try {
+    // 'git switch <branch>' auto-creates a local tracking branch if only a remote one exists
+    await execFileAsync('git', ['switch', branch], { cwd: rootPath });
+    return res.json({ ok: true });
+  } catch (err: unknown) {
+    const e = err as { stderr?: string; message: string };
+    return res.status(500).json({ error: e.stderr ?? e.message });
+  }
+});
+
+router.post('/git/stash', async (_req, res) => {
+  if (!rootPath) return res.status(400).json({ error: 'No workspace open' });
+  try {
+    await execFileAsync('git', ['stash'], { cwd: rootPath });
+    return res.json({ ok: true });
+  } catch (err: unknown) {
+    const e = err as { stderr?: string; message: string };
+    return res.status(500).json({ error: e.stderr ?? e.message });
+  }
+});
+
+router.post('/git/push', async (_req, res) => {
+  if (!rootPath) return res.status(400).json({ error: 'No workspace open' });
+  try {
+    // --set-upstream establishes tracking if not yet configured
+    await execFileAsync('git', ['push', '--set-upstream', 'origin', 'HEAD'], { cwd: rootPath });
+    return res.json({ ok: true });
+  } catch (err: unknown) {
+    const e = err as { stderr?: string; message: string };
+    return res.status(500).json({ error: e.stderr ?? e.message });
+  }
+});
+
 export default router;

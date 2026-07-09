@@ -100,3 +100,49 @@ export async function commitChanges(message: string): Promise<void> {
     body: JSON.stringify({ message }),
   });
 }
+
+export interface GitCommit {
+  hash: string;
+  shortHash: string;
+  parentHashes: string[];
+  message: string;
+  author: string;
+  relativeDate: string;
+  refs: string[];   // e.g. ['HEAD', 'main', 'origin/main']
+}
+
+export interface GitBranchInfo {
+  name: string;
+  shortHash: string;
+  isCurrent: boolean;
+  upstream: string | null;
+}
+
+export interface GitBranches {
+  local: GitBranchInfo[];
+  remote: { name: string; shortHash: string }[];
+}
+
+export async function fetchGitLog(): Promise<GitCommit[]> {
+  const data = await request<{ commits: GitCommit[] }>('/api/git/log');
+  return data.commits;
+}
+
+export async function fetchGitBranches(): Promise<GitBranches> {
+  return request<GitBranches>('/api/git/branches');
+}
+
+export async function checkoutBranch(branch: string): Promise<void> {
+  await request('/api/git/checkout', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ branch }),
+  });
+}
+
+export async function stashChanges(): Promise<void> {
+  await request('/api/git/stash', { method: 'POST' });
+}
+
+export async function pushBranch(): Promise<void> {
+  await request('/api/git/push', { method: 'POST' });
+}
