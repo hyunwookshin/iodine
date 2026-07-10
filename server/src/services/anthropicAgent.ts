@@ -57,7 +57,8 @@ Be concise. Show diffs or full updated files when making changes.`;
 
     const stream = client.messages.stream({
       model,
-      max_tokens: 8096,
+      max_tokens: 16000,
+      thinking: { type: 'enabled', budget_tokens: 8000 },
       system,
       tools: TOOLS,
       messages: history,
@@ -65,11 +66,12 @@ Be concise. Show diffs or full updated files when making changes.`;
 
     for await (const event of stream) {
       if (abortSignal.aborted) return;
-      if (
-        event.type === 'content_block_delta' &&
-        event.delta.type === 'text_delta'
-      ) {
-        writeSSE(res, 'text_delta', { text: event.delta.text });
+      if (event.type === 'content_block_delta') {
+        if (event.delta.type === 'text_delta') {
+          writeSSE(res, 'text_delta', { text: event.delta.text });
+        } else if (event.delta.type === 'thinking_delta') {
+          writeSSE(res, 'thought_delta', { text: event.delta.thinking });
+        }
       }
     }
 
@@ -86,8 +88,12 @@ Be concise. Show diffs or full updated files when making changes.`;
       return;
     }
 
-    // Append assistant message
-    history.push({ role: 'assistant', content: finalMessage.content });
+    // Append assistant message — drop any thinking blocks with empty content
+    // (the API rejects them on subsequent turns when they have thinking: "")
+    const contentForHistory = finalMessage.content.filter(
+      b => b.type !== 'thinking' || (b as Anthropic.ThinkingBlock).thinking.length > 0
+    );
+    history.push({ role: 'assistant', content: contentForHistory });
 
     // Execute tools and collect results
     const toolResults: Anthropic.ToolResultBlockParam[] = [];

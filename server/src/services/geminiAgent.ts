@@ -87,12 +87,16 @@ export async function runGeminiAgentLoop(
   while (true) {
     if (abortSignal.aborted) return;
 
+    // Gemini 2.5 models support thinking; earlier models don't
+    const supportsThinking = model.includes('2.5');
+
     const stream = await ai.models.generateContentStream({
       model,
       contents: history,
       config: {
         systemInstruction: customSystemPrompt ?? buildSystemInstruction(activeFile),
         tools: [{ functionDeclarations: FUNCTION_DECLARATIONS }],
+        ...(supportsThinking ? { thinkingConfig: { thinkingBudget: 8000 } } : {}),
       },
     });
 
@@ -103,9 +107,17 @@ export async function runGeminiAgentLoop(
     for await (const chunk of stream) {
       if (abortSignal.aborted) return;
 
-      if (chunk.text) {
-        writeSSE(res, 'text_delta', { text: chunk.text });
-        assistantText += chunk.text;
+      // Iterate parts directly so we can distinguish thought vs answer text
+      const parts = chunk.candidates?.[0]?.content?.parts ?? [];
+      for (const part of parts) {
+        if (part.text) {
+          if ((part as { thought?: boolean }).thought) {
+            writeSSE(res, 'thought_delta', { text: part.text });
+          } else {
+            writeSSE(res, 'text_delta', { text: part.text });
+            assistantText += part.text;
+          }
+        }
       }
 
       if (chunk.functionCalls) {

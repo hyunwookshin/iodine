@@ -33,19 +33,23 @@ iodine/
 │       ├── main.tsx          # React entry point
 │       ├── App.tsx           # Renders WorkbenchLayout
 │       ├── index.css         # Global resets + CSS variables (dark theme)
+│       ├── providers.ts      # Provider + model definitions (default: OpenAI / GPT-4o)
 │       ├── types/index.ts    # Shared types: FileNode, OpenFile, UIMessage, UIBlock, etc.
 │       ├── api/files.ts      # Typed fetch wrappers for file/workspace endpoints
 │       ├── hooks/
 │       │   ├── useFileTree.ts        # Directory tree state + expand/collapse
-│       │   ├── useOpenFiles.ts       # Open tabs, dirty tracking, save logic
+│       │   ├── useOpenFiles.ts       # Open tabs, dirty tracking, save logic, refreshFile()
 │       │   ├── useGitStatus.ts       # Polls /api/git/status for file tree badges
 │       │   ├── useFileDiff.ts        # Polls /api/git/diff for editor decorations
 │       │   ├── useSourceControl.ts   # Polls /api/git/changes + stage/commit actions
 │       │   ├── useCodingAssistant.ts # SSE streaming chat state + message history
+│       │   ├── useFileWatcher.ts     # SSE connection to /api/files/watch; calls refreshFile on change
 │       │   └── useSystemGraph.ts     # Load/save system-graph.json for current workspace
+│       ├── utils/
+│       │   └── localFileTree.ts      # Builds a FileNode tree from a browser FileList (webkitdirectory)
 │       └── components/
 │           ├── layout/
-│           │   ├── WorkbenchLayout.tsx   # Root layout, panel widths, Ctrl+S handler
+│           │   ├── WorkbenchLayout.tsx   # Root layout, panel widths, Ctrl+S handler, mounts useFileWatcher
 │           │   ├── MenuBar.tsx           # Top menu bar — File > Open Project (browser picker + server find)
 │           │   ├── ActivityBar.tsx       # Left icon strip (Explorer / SCM toggle)
 │           │   ├── Sidebar.tsx           # Panel host — renders active view
@@ -74,11 +78,13 @@ iodine/
         ├── index.ts              # Entry point — listens on port 3001
         ├── app.ts               # Express app factory (CORS, JSON, routes)
         ├── state.ts             # Shared mutable state: rootPath (persisted to ~/.iodine/workspace)
+        ├── events.ts            # SSE broadcast infrastructure: client registry + broadcast() + watchFile()
         ├── routes/
-        │   ├── files.ts         # Route handlers for file/workspace/git/system-graph endpoints
+        │   ├── files.ts         # Route handlers for file/workspace/git/system-graph/file-watch endpoints
+        │   ├── events.ts        # GET /api/events — generic SSE client registration (uses events.ts broadcast)
         │   └── agent.ts         # POST /api/agent/chat (SSE), POST /api/system-graph/generate (SSE), GET /api/agent/status
         └── services/
-            ├── fileSystem.ts    # Pure FS operations + path traversal guard
+            ├── fileSystem.ts    # Pure FS operations + path traversal guard + isBinaryExtension()
             ├── fileTools.ts     # Shared tool schemas + executeTool() used by all agent services
             ├── anthropicAgent.ts # Anthropic agentic loop (@anthropic-ai/sdk)
             ├── openaiAgent.ts   # OpenAI agentic loop (openai SDK)
@@ -97,6 +103,8 @@ iodine/
 | `GET` | `/api/files/content?path=` | Read a file's text content |
 | `PUT` | `/api/files/content` | Write a file `{ path, content }` |
 | `GET` | `/api/files/image?path=` | Serve a binary image file (`image/png` or `image/jpeg`) — used by `ImageViewer` |
+| `GET` | `/api/files/watch` | SSE stream: emits `file-changed { path }` events when workspace files change (debounced 150 ms; ignores `.git/` and `node_modules/`) |
+| `GET` | `/api/events` | SSE stream: generic broadcast endpoint — client registers for `broadcast()` events from `server/src/events.ts` |
 | `GET` | `/api/git/status` | `{ status: { absPath: 'staged'\|'unstaged'\|'both' } }` — for file tree badges |
 | `GET` | `/api/git/diff?path=` | `{ added, modified, deleted }` — unified diff parsed for editor decorations |
 | `GET` | `/api/git/changes` | `{ branch, staged, unstaged }` — full change list for SCM panel |
@@ -125,6 +133,7 @@ All file reads and writes are validated against the workspace root to prevent pa
 - **Open a file**: Click any file in the tree. It opens as a tab in the editor.
 - **Save**: `Ctrl+S` / `Cmd+S`. An amber dot on the tab indicates unsaved changes.
 - **Workspace persistence**: The server writes the workspace path to `~/.iodine/workspace` on every `setRootPath()` call and reads it back on startup. Workspace survives `tsx watch` server restarts triggered by file saves during development.
+- **File watcher**: When a workspace is open, `WorkbenchLayout` mounts `useFileWatcher`, which opens a persistent SSE connection to `GET /api/files/watch`. The server uses `fs.watch({ recursive: true })` on the workspace root and emits a `file-changed { path }` event (debounced 150 ms per file) whenever a file changes on disk. The client calls `refreshFile(absPath)` in response — silently re-fetching content for any file already open in a tab, so edits made outside Iodine (e.g. by the AI agent or an external editor) are reflected immediately. The SSE connection bypasses the Vite proxy for the same reason as the Coding Assistant (see DEBUGGING.md).
 - **Resize panels**: Drag the thin dividers between the sidebar, editor, and right panel.
 - **Switch sidebar views**: Click the branch icon in the activity bar to switch between Explorer and Source Control.
 - **Source Control panel**: Click the branch icon in the activity bar. Shows the current branch, a commit textarea (Ctrl+Enter to commit), a Stage All button, and collapsible "Staged Changes" / "Changes" sections. Hover a file row to reveal stage/unstage (`+`/`−`) and discard (`↺`) buttons. Untracked files show as `U`. Discard always confirms; deleting an untracked file warns explicitly. Below the working-tree changes: **Local Branches** (click to checkout), **Remote Branches** (collapsed by default; click to checkout the corresponding local branch), and **History** (last 80 commits with ref badges — click any non-HEAD commit to check it out in detached HEAD state). A **↑ push** button in the header pushes to `origin HEAD`. All checkout and push actions guard against uncommitted changes: if any exist, a dialog offers to stash first (OK) or abort (Cancel).
@@ -146,6 +155,16 @@ All file reads and writes are validated against the workspace root to prevent pa
 
 To add support for more image types (e.g. `.gif`, `.webp`, `.svg`): add the extension to `IMAGE_EXTENSIONS` in both `useOpenFiles.ts` and `FileTreeNode.tsx`, and add the MIME mapping to `IMAGE_MIME` in `server/src/routes/files.ts`.
 
+## File Watcher — Implementation Details
+
+| Layer | File | Role |
+|-------|------|------|
+| Server watcher | `server/src/routes/files.ts` → `GET /api/files/watch` | `fs.watch(root, { recursive: true })` on the workspace root; debounces per-file events (150 ms); skips `.git/` and `node_modules/`; emits `file-changed { path }` SSE events |
+| Broadcast layer | `server/src/events.ts` | Alternative broadcast infrastructure (`addClient` / `broadcast` / `watchFile`) — available for other server-initiated push events beyond file watching |
+| Generic SSE route | `server/src/routes/events.ts` → `GET /api/events` | Registers the response with `addClient()`; intended for use with `broadcast()` from `events.ts` |
+| Client hook | `client/src/hooks/useFileWatcher.ts` | Opens an `EventSource` to `/api/files/watch` (direct to port 3001, bypassing Vite proxy); listens for `file-changed` events; calls a stable callback ref |
+| Integration | `WorkbenchLayout.tsx` | Calls `useFileWatcher(workspacePath, refreshFile)` — `refreshFile` is exposed by `useOpenFiles` and re-fetches content for any tab whose path matches the changed file |
+
 ## Menu Bar — File > Open Project
 
 ### How It Works
@@ -165,6 +184,10 @@ The File System Access API (`showDirectoryPicker()`) gives the absolute path but
 
 The browser's `<input webkitdirectory>` API intentionally withholds the absolute filesystem path for security reasons. Only relative paths within the selection are exposed via `webkitRelativePath`. The server-side search is the bridge that converts the folder name back to an absolute path the server can use.
 
+### localFileTree.ts
+
+`client/src/utils/localFileTree.ts` exports `buildLocalFileTree(files: FileList)` which converts a browser `FileList` (from `<input webkitdirectory>`) into a `FileNode` tree + a `Map<relativePath, File>`. Each node's `path` is the `webkitRelativePath` (e.g. `"myproject/src/index.ts"`), which makes paths stable for identity comparisons in `useOpenFiles`. Directories are sorted before files; siblings are sorted case-insensitively.
+
 ## Coding Assistant
 
 The Coding Assistant supports three AI providers. Select a provider and model from the dropdowns in the tab header. Click **?** to see API key setup instructions for the selected provider.
@@ -176,6 +199,8 @@ The Coding Assistant supports three AI providers. Select a provider and model fr
 | **Anthropic** | `~/.anthropic/api_key` or `ANTHROPIC_API_KEY` | Claude Sonnet 4.6 / 4.5 / 3.7 |
 | **OpenAI** | `OPENAI_TOKEN` env var | GPT-4o, GPT-4o mini, o3, o4-mini |
 | **Google** | `GEMINI_API_KEY` env var | Gemini 2.5 Flash / Pro, 2.0 Flash |
+
+The default provider is **OpenAI** and the default model is **GPT-4o** (set via `DEFAULT_PROVIDER` / `DEFAULT_MODEL` in `client/src/providers.ts`).
 
 For Anthropic, the key file is checked first (`~/.anthropic/api_key`), then the env var. If Claude Code is installed, its key is reused automatically.
 
@@ -217,7 +242,7 @@ The path of the file currently open in the editor is sent with every chat reques
 
 ### SSE and the Vite Proxy
 
-The Coding Assistant's `fetch` calls go **directly to `http://localhost:3001`** in development, bypassing the Vite proxy. This is intentional — Vite's proxy closes its backend connection shortly after forwarding the first SSE chunk, aborting the agent loop. See `DEBUGGING.md` for full details.
+The Coding Assistant's `fetch` calls go **directly to `http://localhost:3001`** in development, bypassing the Vite proxy. This is intentional — Vite's proxy closes its backend connection shortly after forwarding the first SSE chunk, aborting the agent loop. The file watcher (`useFileWatcher`) uses the same bypass for the same reason. See `DEBUGGING.md` for full details.
 
 Non-streaming requests (file tree, file content, workspace, status) continue to go through the Vite proxy at `/api/*` as normal.
 
