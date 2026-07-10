@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useFileTree } from '../../hooks/useFileTree';
 import { useGitStatus } from '../../hooks/useGitStatus';
 import { FileTreeNode } from './FileTreeNode';
 import { openWorkspace } from '../../api/files';
 import type { FileNode } from '../../types';
+import type { GitFileStatus } from '../../hooks/useGitStatus';
 
 interface FileExplorerProps {
   workspacePath: string | null;
@@ -11,6 +12,28 @@ interface FileExplorerProps {
   onWorkspaceOpen: (path: string) => void;
   onFileClick: (node: FileNode) => void;
   localTree?: FileNode | null;
+}
+
+// Merge two GitFileStatus values into a single representative value for a directory.
+function mergeStatus(a: GitFileStatus | undefined, b: GitFileStatus): GitFileStatus {
+  if (!a) return b;
+  if (a === 'both' || b === 'both') return 'both';
+  if (a !== b) return 'both';
+  return a;
+}
+
+// Computes directory statuses so that parents inherit the styling of their children.
+function aggregateGitStatus(statusMap: Record<string, GitFileStatus>): Record<string, GitFileStatus> {
+  const result: Record<string, GitFileStatus> = { ...statusMap };
+  for (const [path, status] of Object.entries(statusMap)) {
+    const segments = path.split('/');
+    // Build every ancestor directory path (excluding the file itself)
+    for (let i = 1; i < segments.length; i++) {
+      const dirPath = segments.slice(0, i).join('/');
+      result[dirPath] = mergeStatus(result[dirPath], status);
+    }
+  }
+  return result;
 }
 
 export function FileExplorer({
@@ -21,7 +44,11 @@ export function FileExplorer({
   localTree,
 }: FileExplorerProps) {
   const { tree, expandedPaths, toggleExpand, loading, error, refetch } = useFileTree(workspacePath, localTree);
-  const gitStatus = useGitStatus(workspacePath);
+  const rawGitStatus = useGitStatus(workspacePath);
+
+  // Memoise aggregated status to avoid unnecessary recalculations.
+  const gitStatus = useMemo(() => aggregateGitStatus(rawGitStatus), [rawGitStatus]);
+
   const [inputPath, setInputPath] = useState('');
   const [inputVisible, setInputVisible] = useState(false);
   const [openError, setOpenError] = useState<string | null>(null);
