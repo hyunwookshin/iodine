@@ -48,7 +48,7 @@ ${workspaceInfo}
 ${activeFileInfo}
 
 You can read, write, list, and search files. When modifying files, read them first.
-Be concise. Show diffs or full updated files when making changes.`;
+Be concise in your explanations. When writing files with write_file, ALWAYS write the complete file content — never truncate, abbreviate, or use placeholder comments like "// rest of file unchanged" or "// ...". The file on disk will be exactly what you pass to write_file, so partial content means a broken file.`;
 
   const history = [...messages];
 
@@ -57,7 +57,7 @@ Be concise. Show diffs or full updated files when making changes.`;
 
     const stream = client.messages.stream({
       model,
-      max_tokens: 16000,
+      max_tokens: 32000,
       thinking: { type: 'enabled', budget_tokens: 8000 },
       system,
       tools: TOOLS,
