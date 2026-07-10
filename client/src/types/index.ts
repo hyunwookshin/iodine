@@ -3,6 +3,8 @@ export interface FileNode {
   path: string;
   type: 'file' | 'directory';
   children: FileNode[] | null;
+  /** Whether this node is a symbolic link */
+  isSymlink?: boolean;
 }
 
 export interface OpenFile {

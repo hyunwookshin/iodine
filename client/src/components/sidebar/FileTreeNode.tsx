@@ -74,6 +74,7 @@ export function FileTreeNode({
   const isActive = node.path === activeFilePath;
   const isDir = node.type === 'directory';
   const isImage = !isDir && isImageFile(node.name);
+  const isSymlink = !!node.isSymlink;
 
   const gs = gitStatus[node.path];
   const nameFontWeight = (gs === 'unstaged' || gs === 'both') ? 'bold' : undefined;
@@ -86,6 +87,12 @@ export function FileTreeNode({
       onFileClick(node);
     }
   };
+
+  // Color logic for icons
+  const folderIconColor = isSymlink ? '#37d5ff' : '#dcb67a';
+  const fileIconColor = isSymlink ? '#37d5ff' : (isImage ? '#89d4f5' : '#c5c8c6');
+  // Name color (only override when symlink and not active so active highlight still wins)
+  const nameColor = isSymlink && !isActive ? '#37d5ff' : undefined;
 
   return (
     <>
@@ -119,19 +126,19 @@ export function FileTreeNode({
             <span style={{ color: 'var(--color-text-secondary)', display: 'flex' }}>
               {isExpanded ? <ChevronDown /> : <ChevronRight />}
             </span>
-            <span style={{ color: '#dcb67a', display: 'flex' }}>
+            <span style={{ color: folderIconColor, display: 'flex' }}>
               <FolderIcon open={isExpanded} />
             </span>
           </>
         ) : (
           <>
             <span style={{ width: 12, flexShrink: 0 }} />
-            <span style={{ color: isImage ? '#89d4f5' : '#c5c8c6', display: 'flex' }}>
+            <span style={{ color: fileIconColor, display: 'flex' }}>
               {isImage ? <ImageFileIcon /> : <FileIcon />}
             </span>
           </>
         )}
-        <span style={{ fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: nameFontWeight, textDecoration: nameTextDecoration }}>
+        <span style={{ fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: nameFontWeight, textDecoration: nameTextDecoration, color: nameColor }}>
           {node.name}
         </span>
       </div>

@@ -6,6 +6,8 @@ export interface FileNode {
   path: string;
   type: 'file' | 'directory';
   children: FileNode[] | null;
+  /** Whether this file or directory is a symbolic link */
+  isSymlink?: boolean;
 }
 
 const IGNORED = new Set([
@@ -35,20 +37,22 @@ export async function buildTree(dirPath: string, depth = 0, maxDepth = 6): Promi
   const name = path.basename(dirPath);
   let stat: fs.Stats;
   try {
-    stat = await fs.promises.stat(dirPath);
+    stat = await fs.promises.lstat(dirPath); // lstat to detect symlinks
   } catch {
     return { name, path: dirPath, type: 'file', children: null };
   }
 
+  const isSymlink = stat.isSymbolicLink();
+
   if (!stat.isDirectory() || depth >= maxDepth) {
-    return { name, path: dirPath, type: 'file', children: null };
+    return { name, path: dirPath, type: 'file', children: null, isSymlink };
   }
 
   let entries: fs.Dirent[];
   try {
     entries = await fs.promises.readdir(dirPath, { withFileTypes: true });
   } catch {
-    return { name, path: dirPath, type: 'directory', children: [] };
+    return { name, path: dirPath, type: 'directory', children: [], isSymlink };
   }
 
   const filtered = entries.filter(e => !IGNORED.has(e.name));
@@ -61,7 +65,7 @@ export async function buildTree(dirPath: string, depth = 0, maxDepth = 6): Promi
     filtered.map(e => buildTree(path.join(dirPath, e.name), depth + 1, maxDepth))
   );
 
-  return { name, path: dirPath, type: 'directory', children };
+  return { name, path: dirPath, type: 'directory', children, isSymlink };
 }
 
 export function isBinaryExtension(filePath: string): boolean {
