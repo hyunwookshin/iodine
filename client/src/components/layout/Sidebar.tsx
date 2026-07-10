@@ -21,6 +21,12 @@ export function Sidebar({
   onFileClick,
   localTree,
 }: SidebarProps) {
+  // Helper to open a file given only its absolute path (from SCM panel)
+  const handleOpenByPath = (absPath: string) => {
+    const name = absPath.split(/[/\\]/).pop() ?? absPath;
+    onFileClick({ name, path: absPath, type: 'file', children: null });
+  };
+
   return (
     <div
       style={{
@@ -42,7 +48,7 @@ export function Sidebar({
           localTree={localTree}
         />
       ) : (
-        <SourceControlPanel workspacePath={workspacePath} />
+        <SourceControlPanel workspacePath={workspacePath} onFileOpen={handleOpenByPath} />
       )}
     </div>
   );

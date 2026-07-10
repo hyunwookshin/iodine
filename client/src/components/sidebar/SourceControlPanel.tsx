@@ -111,12 +111,13 @@ function EmptyState({ children }: { children: React.ReactNode }) {
 
 // ─── file change rows ─────────────────────────────────────────────────────────
 
-function FileRow({ item, actionIcon, actionTitle, onAction, onDiscard }: {
+function FileRow({ item, actionIcon, actionTitle, onAction, onDiscard, onOpen }: {
   item: GitChange;
   actionIcon: string;
   actionTitle: string;
   onAction: (relPath: string) => void;
   onDiscard: (relPath: string, isUntracked: boolean) => void;
+  onOpen: (absPath: string) => void;
 }) {
   const [hovered, setHovered] = useState(false);
   const { label, color } = statusInfo(item.status);
@@ -134,15 +135,20 @@ function FileRow({ item, actionIcon, actionTitle, onAction, onDiscard }: {
     onDiscard(item.relPath, isUntracked);
   };
 
+  const handleOpen = () => {
+    onOpen(item.path);
+  };
+
   return (
     <div
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      onClick={handleOpen}
       style={{
         display: 'flex', alignItems: 'center',
         padding: '2px 8px 2px 24px', gap: 6,
         background: hovered ? 'var(--color-bg-hover)' : 'transparent',
-        cursor: 'default', fontSize: 13, minHeight: 22,
+        cursor: 'pointer', fontSize: 13, minHeight: 22,
       }}
       title={item.relPath}
     >
@@ -154,7 +160,7 @@ function FileRow({ item, actionIcon, actionTitle, onAction, onDiscard }: {
       </span>
 
       {hovered ? (
-        <div style={{ display: 'flex', gap: 1, flexShrink: 0 }}>
+        <div style={{ display: 'flex', gap: 1, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
           <IconButton onClick={handleDiscard} title="Discard Changes">↺</IconButton>
           <IconButton
             onClick={e => { e.stopPropagation(); onAction(item.relPath); }}
@@ -172,11 +178,12 @@ function FileRow({ item, actionIcon, actionTitle, onAction, onDiscard }: {
   );
 }
 
-function ChangeSection({ title, items, actionIcon, actionTitle, onAction, onDiscard }: {
+function ChangeSection({ title, items, actionIcon, actionTitle, onAction, onDiscard, onOpen }: {
   title: string; items: GitChange[];
   actionIcon: string; actionTitle: string;
   onAction: (relPath: string) => void;
   onDiscard: (relPath: string, isUntracked: boolean) => void;
+  onOpen: (absPath: string) => void;
 }) {
   const [open, setOpen] = useState(true);
   if (items.length === 0) return null;
@@ -187,7 +194,7 @@ function ChangeSection({ title, items, actionIcon, actionTitle, onAction, onDisc
         <FileRow
           key={item.relPath} item={item}
           actionIcon={actionIcon} actionTitle={actionTitle}
-          onAction={onAction} onDiscard={onDiscard}
+          onAction={onAction} onDiscard={onDiscard} onOpen={onOpen}
         />
       ))}
     </div>
@@ -265,8 +272,7 @@ function RemoteBranchesSection({ branches, onCheckout }: {
     <div>
       <SectionHeader open={open} onToggle={() => setOpen(v => !v)} title="Remote Branches" count={branches.length} />
       {open && branches.map(b => {
-        // strip "origin/" prefix to get local branch name for checkout
-        const localName = b.name.split('/').slice(1).join('/');
+        const localName = b.name.split('/')?.slice(1).join('/') ?? b.name;
         return (
           <BranchRow
             key={b.name} name={b.name} isCurrent={false}
@@ -331,7 +337,6 @@ function CommitRow({ commit, onCheckout }: {
       >
         {commit.message}
       </div>
-      {/* ref badges */}
       {displayRefs.length > 0 && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, paddingLeft: 16, marginTop: 3 }}>
           {displayRefs.map(r => <RefBadge key={r} name={r} />)}
@@ -357,7 +362,7 @@ function HistorySection({ commits, onCheckout }: {
 
 // ─── main panel ───────────────────────────────────────────────────────────────
 
-export function SourceControlPanel({ workspacePath }: { workspacePath: string | null }) {
+export function SourceControlPanel({ workspacePath, onFileOpen }: { workspacePath: string | null; onFileOpen: (absPath: string) => void }) {
   const sc = useSourceControl(workspacePath);
   const canCommit = sc.staged.length > 0 && sc.commitMessage.trim().length > 0 && !sc.loading;
   const hasChanges = sc.staged.length > 0 || sc.unstaged.length > 0;
@@ -484,12 +489,14 @@ export function SourceControlPanel({ workspacePath }: { workspacePath: string | 
                 actionIcon="−" actionTitle="Unstage Changes"
                 onAction={sc.unstage}
                 onDiscard={relPath => sc.discard(relPath, false)}
+                onOpen={onFileOpen}
               />
               <ChangeSection
                 title="Changes" items={sc.unstaged}
                 actionIcon="+" actionTitle="Stage Changes"
                 onAction={sc.stage}
                 onDiscard={(relPath, isUntracked) => sc.discard(relPath, isUntracked)}
+                onOpen={onFileOpen}
               />
             </div>
 
