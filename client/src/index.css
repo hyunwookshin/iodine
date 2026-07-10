@@ -89,8 +89,10 @@ input {
   margin-left: 8px !important;
   border-radius: 1px;
 }
-.git-added-glyph    { background: #2ea043 !important; }
-.git-modified-glyph { background: #e9b44c !important; }
+.git-added-glyph    { background: #2ea043 !important; cursor: pointer; }
+.git-added-glyph:hover { background: #40c060 !important; }
+.git-modified-glyph { background: #e9b44c !important; cursor: pointer; }
+.git-modified-glyph:hover { background: #f0c060 !important; }
 
 .git-deleted-glyph,
 .git-deleted-glyph-open {

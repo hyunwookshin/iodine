@@ -62,7 +62,7 @@ iodine/
 │           │   └── SourceControlPanel.tsx # SCM panel: branch, commit, staged/unstaged lists
 │           ├── editor/
 │           │   ├── EditorTabs.tsx        # Tab strip with dirty indicator
-│           │   ├── MonacoEditor.tsx      # @monaco-editor/react wrapper
+│           │   ├── MonacoEditor.tsx      # @monaco-editor/react wrapper; git diff gutter decorations + per-hunk revert
 │           │   ├── ImageViewer.tsx       # Renders .png/.jpg/.jpeg files with zoom controls (± buttons, click % to reset)
 │           │   └── WelcomeScreen.tsx     # Shown when no file is open
 │           └── right/
@@ -106,7 +106,7 @@ iodine/
 | `GET` | `/api/files/watch` | SSE stream: emits `file-changed { path }` events when workspace files change (debounced 150 ms; ignores `.git/` and `node_modules/`) |
 | `GET` | `/api/events` | SSE stream: generic broadcast endpoint — client registers for `broadcast()` events from `server/src/events.ts` |
 | `GET` | `/api/git/status` | `{ status: { absPath: 'staged'\|'unstaged'\|'both' } }` — for file tree badges |
-| `GET` | `/api/git/diff?path=` | `{ added, modified, deleted }` — unified diff parsed for editor decorations |
+| `GET` | `/api/git/diff?path=` | `{ added: number[], modified: { line, originalLine }[], deleted: { afterLine, lines[] }[] }` — unified diff parsed for editor decorations and per-hunk revert |
 | `GET` | `/api/git/changes` | `{ branch, staged, unstaged }` — full change list for SCM panel |
 | `POST` | `/api/git/stage` | Stage a file `{ relPath }` |
 | `POST` | `/api/git/unstage` | Unstage a file `{ relPath }` |
@@ -140,6 +140,7 @@ All file reads and writes are validated against the workspace root to prevent pa
 - **Coding Assistant**: Click the "Coding Assistant" tab in the right panel. Select a provider and model from the dropdowns (shared with System View). The chat now shows two kinds of streaming output: regular **answer** text and subtler **thought** lines representing the agent's live reasoning. Enter sends; Shift+Enter inserts a newline. Chat history persists until the page is refreshed.
 - **System View**: Click the "System View" tab. The graph is stored in `~/.iodine/<md5(workspacePath)>/system-graph.json` — persisted per workspace but not in git. Click **⚡ Generate** to run the agentic loop: the model uses `list_directory` and `read_file` tools to explore the real workspace and outputs a JSON architecture graph. A status bar shows which file is being scanned. Switch between **Graph** (interactive SVG) and **JSON** (Monaco editor) views. Nodes are draggable; scroll to zoom, drag background to pan. **↺ Layout** re-runs force-directed layout. **✓ Save** persists to disk.
 - **File preview**: When a `.md` or `.html` file is active, a floating **Preview** button appears in the upper-right corner of the editor. Clicking it renders the file — markdown is rendered with `react-markdown` + `remark-gfm` (dark-themed prose styles), HTML is rendered in a sandboxed `<iframe>`. Clicking **Source** returns to the Monaco editor. Switching to a non-previewable file automatically resets to source mode.
+- **Revert hunk**: The Monaco editor shows git diff decorations in the gutter — a green bar for added lines, amber bar for modified lines, and a red triangle for deleted lines. Clicking a green or amber glyph immediately reverts that hunk (removes added lines / restores original content). Clicking a red triangle expands a view zone showing the deleted lines; a **↺ Revert** button inside the zone inserts those lines back. All reverts go through Monaco's `executeEdits` API so **Ctrl+Z / Cmd+Z** undoes them. Contiguous changed lines are treated as a single hunk.
 - **Image viewer**: Clicking a `.png`, `.jpg`, or `.jpeg` file in the file tree opens it in a dedicated image viewer instead of the Monaco text editor. The file tree shows a distinct landscape-picture icon (light blue) for image files so they are visually distinguishable. The viewer displays the image centred on a dark canvas with zoom controls (`−` / `+` buttons, click the `%` label to reset to 100%). Images are fetched from `GET /api/files/image?path=` which streams the raw binary with the correct `Content-Type` header and a `no-store` cache policy. The `isImage` flag on `OpenFile` prevents diff decorations and dirty-save logic from running for image tabs.
 
 ## Image Viewer — Implementation Details
@@ -154,6 +155,18 @@ All file reads and writes are validated against the workspace root to prevent pa
 | URL helper | `api/files.ts` → `getImageUrl()` | Builds the query-param URL consumed by `<img src>` in `ImageViewer` |
 
 To add support for more image types (e.g. `.gif`, `.webp`, `.svg`): add the extension to `IMAGE_EXTENSIONS` in both `useOpenFiles.ts` and `FileTreeNode.tsx`, and add the MIME mapping to `IMAGE_MIME` in `server/src/routes/files.ts`.
+
+## Editor Diff Decorations & Revert Hunk — Implementation Details
+
+| Layer | File | Role |
+|-------|------|------|
+| Diff parsing | `server/src/routes/files.ts` → `parseDiff()` | Parses `git diff HEAD` output into `{ added: number[], modified: { line, originalLine }[], deleted: { afterLine, lines[] }[] }`. Modified blocks carry both the current line number and the original HEAD content so the client can restore without an extra fetch. |
+| Diff fetch | `client/src/hooks/useFileDiff.ts` | Polls `GET /api/git/diff?path=` every 3 s and on window focus; exposes `DiffData` to the editor. |
+| Types | `client/src/api/files.ts` | `ModifiedLine`, `DeletedBlock`, `DiffData` — shared between the hook and `MonacoEditor`. |
+| Decorations | `client/src/components/editor/MonacoEditor.tsx` | Applies Monaco glyph-margin and line-background decorations for each hunk type. Deleted blocks also get a view-zone showing the removed lines when expanded. |
+| Glyph click handler | `MonacoEditor.tsx` → `editor.onMouseDown` | Detects `GUTTER_GLYPH_MARGIN` clicks, groups contiguous lines into hunks, then calls the appropriate revert helper via `editor.executeEdits('revert-hunk', ...)` to preserve undo history. |
+| Revert helpers | `MonacoEditor.tsx` (module-level) | `revertAdded` — deletes the line range. `revertModified` — replaces lines with `originalLine` values from diff data. `revertDeleted` — inserts removed lines back after `afterLine`. |
+| CSS | `client/src/index.css` | `.git-added-glyph` / `.git-modified-glyph` get `cursor: pointer` and a hover tint; `.git-deleted-glyph` already had `cursor: pointer` for expand/collapse. |
 
 ## File Watcher — Implementation Details
 

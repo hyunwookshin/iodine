@@ -52,8 +52,9 @@ export function getImageUrl(path: string): string {
   return `/api/files/image?path=${encodeURIComponent(path)}`;
 }
 
+export type ModifiedLine = { line: number; originalLine: string };
 export type DeletedBlock = { afterLine: number; lines: string[] };
-export type DiffData = { added: number[]; modified: number[]; deleted: DeletedBlock[] };
+export type DiffData = { added: number[]; modified: ModifiedLine[]; deleted: DeletedBlock[] };
 
 export async function fetchFileDiff(filePath: string): Promise<DiffData> {
   return request<DiffData>(`/api/git/diff?path=${encodeURIComponent(filePath)}`);

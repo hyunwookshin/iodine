@@ -12,11 +12,12 @@ const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
 
 type DeletedBlock = { afterLine: number; lines: string[] };
-type DiffResult = { added: number[]; modified: number[]; deleted: DeletedBlock[] };
+type ModifiedLine = { line: number; originalLine: string };
+type DiffResult = { added: number[]; modified: ModifiedLine[]; deleted: DeletedBlock[] };
 
 function parseDiff(diffOutput: string): DiffResult {
   const added: number[] = [];
-  const modified: number[] = [];
+  const modified: ModifiedLine[] = [];
   const deleted: DeletedBlock[] = [];
 
   const hunkRe = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/;
@@ -61,7 +62,7 @@ function parseDiff(diffOutput: string): DiffResult {
       } else {
         // Mixed: first overlap lines are "modified"; extras on either side classified individually
         const overlap = Math.min(minusLines.length, plusLineNos.length);
-        for (let j = 0; j < overlap; j++) modified.push(plusLineNos[j]);
+        for (let j = 0; j < overlap; j++) modified.push({ line: plusLineNos[j], originalLine: minusLines[j] });
         for (let j = overlap; j < plusLineNos.length; j++) added.push(plusLineNos[j]);
         if (minusLines.length > plusLineNos.length) {
           deleted.push({
