@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { FileNode } from '../../types';
 import type { GitFileStatus } from '../../hooks/useGitStatus';
 
@@ -61,6 +62,17 @@ const ImageFileIcon = () => (
   </svg>
 );
 
+// Trash can icon (outline style)
+const TrashIcon = () => (
+  <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" style={{ flexShrink: 0 }}>
+    <path d="M5.5 6v6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+    <path d="M8 6v6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+    <path d="M10.5 6v6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+    <path d="M3 4h10l-.8 10.2A2 2 0 0 1 10.2 16H5.8a2 2 0 0 1-1.998-1.8L3 4z" fill="none" stroke="currentColor" strokeWidth="1.3" />
+    <path d="M6 1h4a1 1 0 0 1 1 1v1H5V2a1 1 0 0 1 1-1z" />
+  </svg>
+);
+
 export function FileTreeNode({
   node,
   depth,
@@ -70,6 +82,8 @@ export function FileTreeNode({
   activeFilePath,
   gitStatus = {},
 }: FileTreeNodeProps) {
+  const [isHovered, setIsHovered] = useState(false);
+
   const isExpanded = expandedPaths.has(node.path);
   const isActive = node.path === activeFilePath;
   const isDir = node.type === 'directory';
@@ -115,9 +129,11 @@ export function FileTreeNode({
           textOverflow: 'ellipsis',
         }}
         onMouseEnter={e => {
+          setIsHovered(true);
           if (!isActive) (e.currentTarget as HTMLDivElement).style.background = 'var(--color-bg-hover)';
         }}
         onMouseLeave={e => {
+          setIsHovered(false);
           if (!isActive) (e.currentTarget as HTMLDivElement).style.background = 'transparent';
         }}
       >
@@ -141,6 +157,31 @@ export function FileTreeNode({
         <span style={{ fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: nameFontWeight, textDecoration: nameTextDecoration, color: nameColor }}>
           {node.name}
         </span>
+
+        {/* Trash can button – visible on hover */}
+        {isHovered && (
+          <button
+            title="Delete"
+            onClick={e => {
+              e.stopPropagation();
+              // TODO: wire up deletion logic
+              // Currently just prevents row click.
+            }}
+            style={{
+              marginLeft: 'auto',
+              color: 'var(--color-text-secondary)',
+              padding: 2,
+              borderRadius: 3,
+              display: 'flex',
+              alignItems: 'center',
+              background: 'transparent',
+            }}
+            onMouseEnter={e => (e.currentTarget.style.background = 'var(--color-bg-hover)')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+          >
+            <TrashIcon />
+          </button>
+        )}
       </div>
 
       {isDir && isExpanded && node.children && (
