@@ -10,6 +10,7 @@ interface FileTreeNodeProps {
   onFileClick: (node: FileNode) => void;
   activeFilePath: string | null;
   gitStatus?: Record<string, GitFileStatus>;
+  onDelete: (node: FileNode) => void;
 }
 
 const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg']);
@@ -81,6 +82,7 @@ export function FileTreeNode({
   onFileClick,
   activeFilePath,
   gitStatus = {},
+  onDelete,
 }: FileTreeNodeProps) {
   const [isHovered, setIsHovered] = useState(false);
 
@@ -161,11 +163,10 @@ export function FileTreeNode({
         {/* Trash can button – visible on hover */}
         {isHovered && (
           <button
-            title="Delete"
+            title={`Delete ${isDir ? 'folder' : 'file'}`}
             onClick={e => {
               e.stopPropagation();
-              // TODO: wire up deletion logic
-              // Currently just prevents row click.
+              onDelete(node);
             }}
             style={{
               marginLeft: 'auto',
@@ -175,9 +176,10 @@ export function FileTreeNode({
               display: 'flex',
               alignItems: 'center',
               background: 'transparent',
+              flexShrink: 0,
             }}
-            onMouseEnter={e => (e.currentTarget.style.background = 'var(--color-bg-hover)')}
-            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+            onMouseEnter={e => (e.currentTarget.style.color = '#f48771')}
+            onMouseLeave={e => (e.currentTarget.style.color = 'var(--color-text-secondary)')}
           >
             <TrashIcon />
           </button>
@@ -196,6 +198,7 @@ export function FileTreeNode({
               onFileClick={onFileClick}
               activeFilePath={activeFilePath}
               gitStatus={gitStatus}
+              onDelete={onDelete}
             />
           ))}
         </>

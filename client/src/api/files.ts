@@ -39,6 +39,10 @@ export async function fetchFileContent(path: string): Promise<string> {
   return data.content;
 }
 
+export async function deleteNode(nodePath: string): Promise<void> {
+  await request(`/api/files?path=${encodeURIComponent(nodePath)}`, { method: 'DELETE' });
+}
+
 export async function putFileContent(path: string, content: string): Promise<void> {
   await request('/api/files/content', {
     method: 'PUT',

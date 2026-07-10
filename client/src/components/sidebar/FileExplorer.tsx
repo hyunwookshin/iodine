@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { useFileTree } from '../../hooks/useFileTree';
 import { useGitStatus } from '../../hooks/useGitStatus';
 import { FileTreeNode } from './FileTreeNode';
-import { openWorkspace } from '../../api/files';
+import { openWorkspace, deleteNode } from '../../api/files';
 import type { FileNode } from '../../types';
 import type { GitFileStatus } from '../../hooks/useGitStatus';
 
@@ -11,6 +11,7 @@ interface FileExplorerProps {
   activeFilePath: string | null;
   onWorkspaceOpen: (path: string) => void;
   onFileClick: (node: FileNode) => void;
+  onDeleteSuccess: (deletedPath: string) => void;
   localTree?: FileNode | null;
 }
 
@@ -41,6 +42,7 @@ export function FileExplorer({
   activeFilePath,
   onWorkspaceOpen,
   onFileClick,
+  onDeleteSuccess,
   localTree,
 }: FileExplorerProps) {
   const { tree, expandedPaths, toggleExpand, loading, error, refetch } = useFileTree(workspacePath, localTree);
@@ -53,6 +55,18 @@ export function FileExplorer({
   const [inputVisible, setInputVisible] = useState(false);
   const [openError, setOpenError] = useState<string | null>(null);
   const [opening, setOpening] = useState(false);
+
+  const handleDelete = async (node: FileNode) => {
+    const label = node.type === 'directory' ? `folder "${node.name}" and all its contents` : `"${node.name}"`;
+    if (!window.confirm(`Delete ${label}?\n\nThis cannot be undone.`)) return;
+    try {
+      await deleteNode(node.path);
+      onDeleteSuccess(node.path);
+      refetch();
+    } catch (err) {
+      alert(`Delete failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  };
 
   const handleOpenFolder = async () => {
     if (!inputPath.trim()) return;
@@ -228,6 +242,7 @@ export function FileExplorer({
                 onFileClick={onFileClick}
                 activeFilePath={activeFilePath}
                 gitStatus={gitStatus}
+                onDelete={handleDelete}
               />
             ))}
           </div>

@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import filesRouter from './routes/files';
+import deleteRouter from './routes/delete';
 import agentRouter from './routes/agent';
 
 export function createApp() {
@@ -10,6 +11,7 @@ export function createApp() {
   app.use(express.json({ limit: '10mb' }));
 
   app.use('/api', filesRouter);
+  app.use('/api', deleteRouter);
   app.use('/api', agentRouter);
 
   return app;

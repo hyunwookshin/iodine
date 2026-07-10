@@ -68,6 +68,13 @@ export function WorkbenchLayout() {
     setActiveView('explorer');
   }, []);
 
+  /** Close any open tabs that were inside the deleted file or directory. */
+  const handleDeleteSuccess = useCallback((deletedPath: string) => {
+    openFiles
+      .filter(f => f.path === deletedPath || f.path.startsWith(deletedPath + '/'))
+      .forEach(f => closeFile(f.path));
+  }, [openFiles, closeFile]);
+
   return (
     <div
       style={{
@@ -91,6 +98,7 @@ export function WorkbenchLayout() {
           activeFilePath={activeFilePath}
           onWorkspaceOpen={handleWorkspaceOpen}
           onFileClick={openFile}
+          onDeleteSuccess={handleDeleteSuccess}
         />
 
         <ResizeDivider
