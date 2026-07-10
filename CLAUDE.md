@@ -57,8 +57,8 @@ iodine/
 │           │   ├── RightPanel.tsx        # Tab bar: Simulation | Coding Assistant | System View; owns provider/model state
 │           │   └── ResizeDivider.tsx     # Draggable column resize handle
 │           ├── sidebar/
-│           │   ├── FileExplorer.tsx      # Open Folder UI + file tree
-│           │   ├── FileTreeNode.tsx      # Recursive tree node — shows image icon (🏔) for .png/.jpg/.jpeg files
+│           │   ├── FileExplorer.tsx      # Open Folder UI + file tree; handles delete confirmation + API call + tree refresh
+│           │   ├── FileTreeNode.tsx      # Recursive tree node — image icon for .png/.jpg/.jpeg; trash icon on hover
 │           │   └── SourceControlPanel.tsx # SCM panel: branch, commit, staged/unstaged lists
 │           ├── editor/
 │           │   ├── EditorTabs.tsx        # Tab strip with dirty indicator
@@ -81,6 +81,7 @@ iodine/
         ├── events.ts            # SSE broadcast infrastructure: client registry + broadcast() + watchFile()
         ├── routes/
         │   ├── files.ts         # Route handlers for file/workspace/git/system-graph/file-watch endpoints
+        │   ├── delete.ts        # DELETE /api/files — delete a file or directory (path-traversal guarded)
         │   ├── events.ts        # GET /api/events — generic SSE client registration (uses events.ts broadcast)
         │   └── agent.ts         # POST /api/agent/chat (SSE), POST /api/system-graph/generate (SSE), GET /api/agent/status
         └── services/
@@ -102,6 +103,7 @@ iodine/
 | `GET` | `/api/files/tree` | Full directory tree from workspace root |
 | `GET` | `/api/files/content?path=` | Read a file's text content |
 | `PUT` | `/api/files/content` | Write a file `{ path, content }` |
+| `DELETE` | `/api/files?path=` | Delete a file or directory (recursive for dirs); path-traversal guarded |
 | `GET` | `/api/files/image?path=` | Serve a binary image file (`image/png` or `image/jpeg`) — used by `ImageViewer` |
 | `GET` | `/api/files/watch` | SSE stream: emits `file-changed { path }` events when workspace files change (debounced 150 ms; ignores `.git/` and `node_modules/`) |
 | `GET` | `/api/events` | SSE stream: generic broadcast endpoint — client registers for `broadcast()` events from `server/src/events.ts` |
@@ -140,6 +142,7 @@ All file reads and writes are validated against the workspace root to prevent pa
 - **Coding Assistant**: Click the "Coding Assistant" tab in the right panel. Select a provider and model from the dropdowns (shared with System View). The chat now shows two kinds of streaming output: regular **answer** text and subtler **thought** lines representing the agent's live reasoning. Enter sends; Shift+Enter inserts a newline. Chat history persists until the page is refreshed.
 - **System View**: Click the "System View" tab. The graph is stored in `~/.iodine/<md5(workspacePath)>/system-graph.json` — persisted per workspace but not in git. Click **⚡ Generate** to run the agentic loop: the model uses `list_directory` and `read_file` tools to explore the real workspace and outputs a JSON architecture graph. A status bar shows which file is being scanned. Switch between **Graph** (interactive SVG) and **JSON** (Monaco editor) views. Nodes are draggable; scroll to zoom, drag background to pan. **↺ Layout** re-runs force-directed layout. **✓ Save** persists to disk.
 - **File preview**: When a `.md` or `.html` file is active, a floating **Preview** button appears in the upper-right corner of the editor. Clicking it renders the file — markdown is rendered with `react-markdown` + `remark-gfm` (dark-themed prose styles), HTML is rendered in a sandboxed `<iframe>`. Clicking **Source** returns to the Monaco editor. Switching to a non-previewable file automatically resets to source mode.
+- **Delete file/folder**: Hover over any file or folder in the Explorer to reveal a trash-can icon on the right. Clicking it shows a confirmation dialog (folders warn that all contents will be deleted), then calls `DELETE /api/files?path=` and refreshes the tree. Any editor tabs open inside the deleted path are automatically closed. The trash icon turns red on hover for visibility.
 - **Revert hunk**: The Monaco editor shows git diff decorations in the gutter — a green bar for added lines, amber bar for modified lines, and a red triangle for deleted lines. Clicking a green or amber glyph immediately reverts that hunk (removes added lines / restores original content). Clicking a red triangle expands a view zone showing the deleted lines; a **↺ Revert** button inside the zone inserts those lines back. All reverts go through Monaco's `executeEdits` API so **Ctrl+Z / Cmd+Z** undoes them. Contiguous changed lines are treated as a single hunk.
 - **Image viewer**: Clicking a `.png`, `.jpg`, or `.jpeg` file in the file tree opens it in a dedicated image viewer instead of the Monaco text editor. The file tree shows a distinct landscape-picture icon (light blue) for image files so they are visually distinguishable. The viewer displays the image centred on a dark canvas with zoom controls (`−` / `+` buttons, click the `%` label to reset to 100%). Images are fetched from `GET /api/files/image?path=` which streams the raw binary with the correct `Content-Type` header and a `no-store` cache policy. The `isImage` flag on `OpenFile` prevents diff decorations and dirty-save logic from running for image tabs.
 
