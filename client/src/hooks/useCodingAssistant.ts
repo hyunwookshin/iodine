@@ -84,15 +84,20 @@ export function useCodingAssistant(provider: Provider, model: string) {
             continue;
           }
 
-          if (eventName === 'text_delta') {
+          if (eventName === 'text_delta' || eventName === 'thought_delta') {
             const text = payload.text as string;
+            const blockType: UIBlock['type'] = eventName === 'thought_delta' ? 'thought' : 'text';
             updateAssistant(msg => {
               const blocks = [...msg.blocks];
               const last = blocks[blocks.length - 1];
-              if (last && last.type === 'text') {
-                blocks[blocks.length - 1] = { type: 'text', content: last.content + text };
+              if (last && last.type === blockType) {
+                // append to existing block of same type
+                if (blockType === 'text' || blockType === 'thought') {
+                  (last as { content: string }).content += text;
+                }
+                blocks[blocks.length - 1] = last;
               } else {
-                blocks.push({ type: 'text', content: text });
+                blocks.push({ type: blockType, content: text } as UIBlock);
               }
               return { ...msg, blocks };
             });

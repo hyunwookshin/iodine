@@ -78,6 +78,26 @@ function ToolBlock({ block }: { block: UIBlock & { type: 'tool' } }) {
   );
 }
 
+function ThoughtBlock({ block }: { block: UIBlock & { type: 'thought' } }) {
+  return (
+    <div
+      style={{
+        background: '#ffffff05',
+        borderLeft: '3px solid #4fc1ff',
+        padding: '4px 8px',
+        marginBottom: 4,
+        fontSize: 12,
+        fontStyle: 'italic',
+        color: 'var(--color-text-secondary)',
+        whiteSpace: 'pre-wrap',
+        wordBreak: 'break-word',
+      }}
+    >
+      {block.content}
+    </div>
+  );
+}
+
 function MessageBubble({ msg, isLast, providerLabel }: { msg: UIMessage; isLast: boolean; providerLabel: string }) {
   if (msg.role === 'user') {
     return (
@@ -135,6 +155,12 @@ function MessageBubble({ msg, isLast, providerLabel }: { msg: UIMessage; isLast:
                   <span style={{ animation: 'blink 1s step-end infinite', opacity: 1 }}>▌</span>
                 )}
               </div>
+            );
+          }
+          if (block.type === 'thought') {
+            const showCursor = isStreaming && isLast && i === msg.blocks.length - 1;
+            return (
+              <ThoughtBlock key={i} block={block} />
             );
           }
           return <ToolBlock key={block.id} block={block} />;
@@ -266,7 +292,7 @@ export function CodingAssistant({ workspacePath, activeFilePath, onWorkspaceOpen
             onChange={e => setProvider(e.target.value)}
             style={{ background: 'var(--color-bg-sidebar)', border: '1px solid var(--color-border)', borderRadius: 3, color: 'var(--color-text-primary)', fontSize: 11, padding: '2px 4px', cursor: 'pointer' }}
           >
-            {PROVIDERS.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
+            {PROVIDERS.map(p => <option key={p.id} value={p.id}>{p.label}</option>) }
           </select>
         )}
 

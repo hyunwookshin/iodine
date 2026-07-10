@@ -128,7 +128,7 @@ All file reads and writes are validated against the workspace root to prevent pa
 - **Resize panels**: Drag the thin dividers between the sidebar, editor, and right panel.
 - **Switch sidebar views**: Click the branch icon in the activity bar to switch between Explorer and Source Control.
 - **Source Control panel**: Click the branch icon in the activity bar. Shows the current branch, a commit textarea (Ctrl+Enter to commit), a Stage All button, and collapsible "Staged Changes" / "Changes" sections. Hover a file row to reveal stage/unstage (`+`/`−`) and discard (`↺`) buttons. Untracked files show as `U`. Discard always confirms; deleting an untracked file warns explicitly. Below the working-tree changes: **Local Branches** (click to checkout), **Remote Branches** (collapsed by default; click to checkout the corresponding local branch), and **History** (last 80 commits with ref badges — click any non-HEAD commit to check it out in detached HEAD state). A **↑ push** button in the header pushes to `origin HEAD`. All checkout and push actions guard against uncommitted changes: if any exist, a dialog offers to stash first (OK) or abort (Cancel).
-- **Coding Assistant**: Click the "Coding Assistant" tab in the right panel. Select a provider and model from the dropdowns (shared with System View). Enter sends; Shift+Enter inserts a newline. Chat history persists until the page is refreshed.
+- **Coding Assistant**: Click the "Coding Assistant" tab in the right panel. Select a provider and model from the dropdowns (shared with System View). The chat now shows two kinds of streaming output: regular **answer** text and subtler **thought** lines representing the agent's live reasoning. Enter sends; Shift+Enter inserts a newline. Chat history persists until the page is refreshed.
 - **System View**: Click the "System View" tab. The graph is stored in `~/.iodine/<md5(workspacePath)>/system-graph.json` — persisted per workspace but not in git. Click **⚡ Generate** to run the agentic loop: the model uses `list_directory` and `read_file` tools to explore the real workspace and outputs a JSON architecture graph. A status bar shows which file is being scanned. Switch between **Graph** (interactive SVG) and **JSON** (Monaco editor) views. Nodes are draggable; scroll to zoom, drag background to pan. **↺ Layout** re-runs force-directed layout. **✓ Save** persists to disk.
 - **File preview**: When a `.md` or `.html` file is active, a floating **Preview** button appears in the upper-right corner of the editor. Clicking it renders the file — markdown is rendered with `react-markdown` + `remark-gfm` (dark-themed prose styles), HTML is rendered in a sandboxed `<iframe>`. Clicking **Source** returns to the Monaco editor. Switching to a non-previewable file automatically resets to source mode.
 - **Image viewer**: Clicking a `.png`, `.jpg`, or `.jpeg` file in the file tree opens it in a dedicated image viewer instead of the Monaco text editor. The file tree shows a distinct landscape-picture icon (light blue) for image files so they are visually distinguishable. The viewer displays the image centred on a dark canvas with zoom controls (`−` / `+` buttons, click the `%` label to reset to 100%). Images are fetched from `GET /api/files/image?path=` which streams the raw binary with the correct `Content-Type` header and a `no-store` cache policy. The `isImage` flag on `OpenFile` prevents diff decorations and dirty-save logic from running for image tabs.
@@ -189,11 +189,14 @@ The loop runs entirely server-side (one service per provider). All three share t
 
 | SSE event | Payload | Meaning |
 |-----------|---------|---------|
-| `text_delta` | `{ text }` | Streamed text token |
+| `text_delta` | `{ text }` | Streamed answer token |
+| `thought_delta` | `{ text }` | Streamed reasoning/"thinking" token (hidden from end user unless UI chooses to show it) |
 | `tool_call` | `{ id, name, input }` | Model is invoking a tool |
 | `tool_result` | `{ tool_use_id, name, preview, error }` | Tool finished |
 | `done` | `{}` | Turn complete |
 | `error` | `{ message }` | Server-side error |
+
+`thought_delta` is optional: services emit it only if the agent prompt instructs the model to reveal its private reasoning (e.g., a "THOUGHTS:" section). The updated client (`useCodingAssistant.ts`) handles this event type and renders it as a muted italic line so developers can watch the agent think in real time without cluttering the main answer.
 
 ### Shared File Tools
 
