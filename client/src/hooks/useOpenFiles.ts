@@ -191,6 +191,11 @@ export function useOpenFiles() {
     });
   }, []);
 
+  const closeAllFiles = useCallback(() => {
+    setOpenFiles([]);
+    setActiveFilePath(null);
+  }, []);
+
   const activeFile = openFiles.find(f => f.path === activeFilePath) ?? null;
 
   return {
@@ -202,6 +207,7 @@ export function useOpenFiles() {
     updateContent,
     saveFile,
     closeFile,
+    closeAllFiles,
     refreshFile,
     setLocalFileMap,
   };

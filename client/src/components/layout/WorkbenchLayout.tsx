@@ -33,6 +33,7 @@ export function WorkbenchLayout() {
     updateContent,
     saveFile,
     closeFile,
+    closeAllFiles,
     refreshFile,
   } = useOpenFiles();
 
@@ -64,9 +65,29 @@ export function WorkbenchLayout() {
   /** Shared handler — opens a server-side workspace from any entrypoint
    *  (menu bar, sidebar, or Coding Assistant inline input). */
   const handleWorkspaceOpen = useCallback((path: string) => {
+    // If it's the same workspace, just make sure the explorer is visible
+    if (path === workspacePath) {
+      setActiveView('explorer');
+      return;
+    }
+
+    // Warn only about files with unsaved changes (not written to disk yet).
+    // Files that are saved but uncommitted in git have isDirty === false — no warning needed.
+    const unsaved = openFiles.filter(f => f.isDirty);
+    if (unsaved.length > 0) {
+      const list = unsaved.map(f => `• ${f.name}`).join('\n');
+      const confirmed = window.confirm(
+        `Switching workspaces will close all open files.\n\n` +
+        `The following ${unsaved.length === 1 ? 'file has' : 'files have'} unsaved changes that have not been written to disk:\n\n` +
+        `${list}\n\nDiscard changes and switch workspace?`
+      );
+      if (!confirmed) return;
+    }
+
+    closeAllFiles();
     setWorkspacePath(path);
     setActiveView('explorer');
-  }, []);
+  }, [workspacePath, openFiles, closeAllFiles]);
 
   /** Close any open tabs that were inside the deleted file or directory. */
   const handleDeleteSuccess = useCallback((deletedPath: string) => {
