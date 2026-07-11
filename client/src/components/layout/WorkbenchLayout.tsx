@@ -170,7 +170,7 @@ export function WorkbenchLayout() {
           min={TRAY_MIN}
           max={TRAY_MAX}
         />
-        <BottomTray height={trayHeight} />
+        <BottomTray height={trayHeight} workspacePath={workspacePath} />
       </div>
     </div>
   );

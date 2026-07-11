@@ -181,6 +181,39 @@ To add support for more image types (e.g. `.gif`, `.webp`, `.svg`): add the exte
 | Client hook | `client/src/hooks/useFileWatcher.ts` | Opens an `EventSource` to `/api/files/watch` (direct to port 3001, bypassing Vite proxy); listens for `file-changed` events; calls a stable callback ref |
 | Integration | `WorkbenchLayout.tsx` | Calls `useFileWatcher(workspacePath, refreshFile)` — `refreshFile` is exposed by `useOpenFiles` and re-fetches content for any tab whose path matches the changed file |
 
+## Integrated Terminal — Implementation Details
+
+The bottom tray includes a fully-featured pseudo-terminal that behaves almost exactly like the real thing but runs entirely through the browser ↔︎ Node.js bridge.
+
+### High-level Flow
+
+1. The **client** opens a WebSocket connection to `ws://localhost:3001/terminal?cwd=<absPath>`.
+2. The **server** upgrades the HTTP connection, spawns a `node-pty` process that runs the user’s shell (default `$SHELL` or `/bin/bash`) with its working directory set to the requested `cwd` (falls back to the workspace root or `$HOME`).
+3. `node-pty` streams raw PTY data; the server forwards it to the WebSocket as `{ type: "output", data }` JSON frames.
+4. The browser hosts **xterm.js** which receives those frames and renders them.  Keystrokes are sent back as `{ type: "input", data }`.
+5. Resize events (`cols`, `rows`) are forwarded both ways so the PTY always knows the correct terminal size.
+
+### File by File Breakdown
+
+| Layer | File | Role |
+|-------|------|------|
+| WebSocket setup | `server/src/index.ts` | Calls `setupTerminalWebSocket(server)` right after creating the HTTP server so upgrades work alongside Express routes. |
+| Terminal manager | `server/src/terminal.ts` | • Intercepts `upgrade` events whose pathname is `/terminal`.<br>• Parses `cwd` and optional `cmd` query params.<br>• `pty.spawn(shell, args, { cols:80, rows:24, cwd })` starts the pseudo-terminal.<br>• For every `pty.onData(data)` chunk, sends `{"type":"output","data":data}` to the socket.<br>• On WS `message`, handles:<br>&nbsp;&nbsp;– `{type:"input", data}` → `pty.write(data)`<br>&nbsp;&nbsp;– `{type:"resize", cols, rows}` → `pty.resize(cols, rows)`<br>• On PTY exit, sends `{ type:"exit", code }` then closes the socket.<br>• On socket close, kills the PTY to avoid orphaned processes. |
+| Bottom tray container | `client/src/components/bottom/BottomTray.tsx` | Shows/hides the whole terminal area (future tabs can live here too). Currently hard-wired to a single **Terminal** tab. |
+| Session manager | `client/src/components/bottom/TerminalPanel.tsx` | Implements **sub-tabs inside the Terminal** so developers can spawn multiple sessions.<br>• `+` button → creates a new session (`ws://…/terminal?cwd=<workspace>`).<br>• `✕` button → confirms & closes; if last session closes a fresh one is auto-spawned so the Terminal tab is never empty.<br>• Keeps session state (`dead` flag when server sends `exit`). |
+| Terminal instance | `client/src/components/bottom/TerminalSession.tsx` | Wraps **xterm.js**:<br>• Creates a `Terminal` and `FitAddon` once on mount.<br>• `ResizeObserver` + `fitAddon.fit()` whenever the container resizes or when the session becomes active (because hidden sessions are `display:none`).<br>• WebSocket lifecycle mirrors the PTY messages described above.<br>• When an `exit` message arrives it calls `onExit()` which sets `dead:true` so the sub-tab text shows *exited* in italics. |
+| Dependencies | `@xterm/xterm`, `@xterm/addon-fit`, `node-pty`, `ws` | All bundled via npm workspaces. |
+
+### UX Details
+
+- **Working directory** — New sessions always start in the *current* workspace root so `git` and relative paths just work.  If no workspace is open it falls back to the user’s home folder.
+- **Multiple sessions** — Each session keeps its scrollback, history, and process intact even when the user switches to another sub-tab; only the visible one gets re-fitted for performance.
+- **Resize fidelity** — Because xterm.js is raster-based a precise column/row count is critical.  Every content resize triggers a `fitAddon.fit()` **and** a `{type:"resize"}` message so the PTY stays in sync with what the browser actually shows.
+- **Error handling** — If `node-pty` fails to spawn (e.g. mis-configured shell) the server sends an *inline* error message and immediately closes the connection so the user sees the failure in-terminal.
+- **Auto-restart safeguard** — Closing the last session automatically spawns a fresh one; this prevents a state where the Terminal tab is blank and users wonder what happened.
+
+Adding a custom welcome banner or supporting login shells would just be a matter of tweaking the `pty.spawn` arguments in `server/src/terminal.ts`.
+
 ## Menu Bar — File > Open Project
 
 ### How It Works

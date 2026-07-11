@@ -12,12 +12,15 @@
     "@google/genai": "^2.10.0",
     "cors": "^2.8.5",
     "express": "^4.19.0",
-    "openai": "^6.45.0"
+    "node-pty": "^1.1.0",
+    "openai": "^6.45.0",
+    "ws": "^8.21.0"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
     "@types/node": "^20.14.0",
+    "@types/ws": "^8.18.1",
     "tsx": "^4.16.0",
     "typescript": "^5.5.0"
   }

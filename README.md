@@ -26,6 +26,7 @@ For a visual demonstration of Iodine IDE in action, check out our [YouTube demo]
 - 📂 **File preview** — Render `.md` (with GitHub Flavored Markdown) and `.html` files inline
 - 🔌 **Simulation panel** — Placeholder for planned network mocking and throttling features
 - 💾 **Workspace persistence** — The last opened folder is remembered across server restarts
+- 🖥️ **Integrated terminal** — A resizable bottom tray with a real pseudo-terminal (xterm.js + node-pty) running your shell at the workspace root. Open multiple sessions with **+**, close any with **✕**.
 - 🌐 **System View** — Interactive SVG graph editor for system architecture diagrams. Hit **⚡ Generate** and the AI explores your workspace with file tools, reads key files, and builds a graph from what it actually finds — no prompt needed. Nodes are draggable; pan and zoom with mouse. Diagram data is auto-saved to `~/.iodine/<workspace-hash>/system-graph.json`.
 
 ## System View 📈
@@ -71,9 +72,10 @@ Additional capabilities:
 |-------|-----------|
 | Frontend | React 18, TypeScript, Vite |
 | Code editor | Monaco Editor (`@monaco-editor/react`) |
+| Terminal | xterm.js (`@xterm/xterm` + `@xterm/addon-fit`), node-pty |
 | Markdown preview | `react-markdown` + `remark-gfm` |
 | AI providers | Anthropic Claude, OpenAI GPT, Google Gemini |
-| Backend | Node.js, Express 4, TypeScript |
+| Backend | Node.js, Express 4, TypeScript, `ws` (WebSocket) |
 | Dev runner | `tsx watch` (server), Vite HMR (client) |
 | Monorepo | npm workspaces + `concurrently` |
 
@@ -95,12 +97,14 @@ iodine/
 │           ├── layout/       # WorkbenchLayout, MenuBar, ActivityBar, Sidebar, EditorArea, RightPanel
 │           ├── sidebar/      # FileExplorer, FileTreeNode, SourceControlPanel
 │           ├── editor/       # EditorTabs, MonacoEditor, WelcomeScreen
+│           ├── bottom/       # BottomTray, TerminalPanel, TerminalSession (xterm.js)
 │           └── right/        # SimulationPanel, CodingAssistant, SystemView
 │
 └── server/                   # Node.js + Express backend — http://localhost:3001
     └── src/
         ├── app.ts            # Express app factory (CORS, JSON, routes)
         ├── state.ts          # Shared mutable state: rootPath (persisted to ~/.iodine/workspace)
+        ├── terminal.ts       # WebSocket terminal manager — node-pty sessions on ws://localhost:3001/terminal
         ├── routes/
         │   ├── files.ts      # File system + workspace + git endpoints
         │   └── agent.ts      # POST /api/agent/chat, POST /api/system-graph/generate (SSE), GET /api/agent/status

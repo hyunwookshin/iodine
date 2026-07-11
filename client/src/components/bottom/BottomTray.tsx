@@ -5,9 +5,10 @@ type BottomTab = 'terminal';
 
 interface BottomTrayProps {
   height: number;
+  workspacePath: string | null;
 }
 
-export function BottomTray({ height }: BottomTrayProps) {
+export function BottomTray({ height, workspacePath }: BottomTrayProps) {
   const [activeTab, setActiveTab] = useState<BottomTab>('terminal');
 
   return (
@@ -59,7 +60,7 @@ export function BottomTray({ height }: BottomTrayProps) {
       </div>
 
       {/* Tab content */}
-      {activeTab === 'terminal' && <TerminalPanel />}
+      {activeTab === 'terminal' && <TerminalPanel workspacePath={workspacePath} />}
     </div>
   );
 }
