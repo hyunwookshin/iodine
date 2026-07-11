@@ -1,11 +1,12 @@
 import { useCallback } from 'react';
 
 interface ResizeDividerProps {
-  onResize: (newWidth: number) => void;
+  onResize: (newSize: number) => void;
   currentWidth: number;
   min?: number;
   max?: number;
   side?: 'left' | 'right'; // which panel's width we're adjusting
+  orientation?: 'vertical' | 'horizontal'; // vertical = column resize, horizontal = row resize
 }
 
 export function ResizeDivider({
@@ -14,19 +15,23 @@ export function ResizeDivider({
   min = 120,
   max = 800,
   side = 'left',
+  orientation = 'vertical',
 }: ResizeDividerProps) {
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
       e.preventDefault();
-      const startX = e.clientX;
-      const startWidth = currentWidth;
+      const isHorizontal = orientation === 'horizontal';
+      const startPos = isHorizontal ? e.clientY : e.clientX;
+      const startSize = currentWidth;
 
       const onMouseMove = (ev: MouseEvent) => {
-        const delta = side === 'left'
-          ? ev.clientX - startX
-          : startX - ev.clientX;
-        const newWidth = Math.min(max, Math.max(min, startWidth + delta));
-        onResize(newWidth);
+        const pos = isHorizontal ? ev.clientY : ev.clientX;
+        // horizontal: dragging up grows tray (top side), so invert delta
+        const delta = isHorizontal
+          ? startPos - pos
+          : side === 'left' ? pos - startPos : startPos - pos;
+        const newSize = Math.min(max, Math.max(min, startSize + delta));
+        onResize(newSize);
       };
 
       const onMouseUp = () => {
@@ -37,20 +42,24 @@ export function ResizeDivider({
       };
 
       document.body.style.userSelect = 'none';
-      document.body.style.cursor = 'col-resize';
+      document.body.style.cursor = isHorizontal ? 'row-resize' : 'col-resize';
       document.addEventListener('mousemove', onMouseMove);
       document.addEventListener('mouseup', onMouseUp);
     },
-    [currentWidth, min, max, onResize, side]
+    [currentWidth, min, max, onResize, side, orientation]
   );
+
+  const isHorizontal = orientation === 'horizontal';
 
   return (
     <div
       onMouseDown={handleMouseDown}
       style={{
-        width: 4,
+        ...(isHorizontal
+          ? { width: '100%', height: 4 }
+          : { width: 4, height: '100%' }),
         background: 'transparent',
-        cursor: 'col-resize',
+        cursor: isHorizontal ? 'row-resize' : 'col-resize',
         flexShrink: 0,
         transition: 'background 0.1s',
         zIndex: 10,

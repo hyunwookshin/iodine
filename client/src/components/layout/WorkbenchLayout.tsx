@@ -5,6 +5,7 @@ import { Sidebar } from './Sidebar';
 import { EditorArea, EditorAreaHandle } from './EditorArea';
 import { RightPanel } from './RightPanel';
 import { ResizeDivider } from './ResizeDivider';
+import { BottomTray } from '../bottom/BottomTray';
 import { useOpenFiles } from '../../hooks/useOpenFiles';
 import { useFileWatcher } from '../../hooks/useFileWatcher';
 import { getWorkspace } from '../../api/files';
@@ -16,11 +17,15 @@ const SIDEBAR_MIN = 140;
 const SIDEBAR_MAX = 600;
 const RIGHT_MIN = 180;
 const RIGHT_MAX = 600;
+const TRAY_DEFAULT = 200;
+const TRAY_MIN = 80;
+const TRAY_MAX = 600;
 
 export function WorkbenchLayout() {
   const [activeView, setActiveView] = useState<SidebarView>('explorer');
   const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT);
   const [rightPanelWidth, setRightPanelWidth] = useState(RIGHT_PANEL_DEFAULT);
+  const [trayHeight, setTrayHeight] = useState(TRAY_DEFAULT);
   const [workspacePath, setWorkspacePath] = useState<string | null>(null);
 
   const editorAreaRef = useRef<EditorAreaHandle>(null);
@@ -109,50 +114,63 @@ export function WorkbenchLayout() {
     >
       <MenuBar onOpenProject={handleWorkspaceOpen} />
 
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-        <ActivityBar activeView={activeView} onViewChange={handleViewChange} />
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+        {/* Main row: sidebar + editor + right panel */}
+        <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+          <ActivityBar activeView={activeView} onViewChange={handleViewChange} />
 
-        <Sidebar
-          activeView={activeView}
-          width={sidebarWidth}
-          workspacePath={workspacePath}
-          activeFilePath={activeFilePath}
-          onWorkspaceOpen={handleWorkspaceOpen}
-          onFileClick={openFile}
-          onDeleteSuccess={handleDeleteSuccess}
-        />
+          <Sidebar
+            activeView={activeView}
+            width={sidebarWidth}
+            workspacePath={workspacePath}
+            activeFilePath={activeFilePath}
+            onWorkspaceOpen={handleWorkspaceOpen}
+            onFileClick={openFile}
+            onDeleteSuccess={handleDeleteSuccess}
+          />
 
+          <ResizeDivider
+            currentWidth={sidebarWidth}
+            onResize={setSidebarWidth}
+            min={SIDEBAR_MIN}
+            max={SIDEBAR_MAX}
+            side="left"
+          />
+
+          <EditorArea
+            ref={editorAreaRef}
+            openFiles={openFiles}
+            activeFilePath={activeFilePath}
+            onTabClick={setActiveFilePath}
+            onTabClose={closeFile}
+            onContentChange={updateContent}
+          />
+
+          <ResizeDivider
+            currentWidth={rightPanelWidth}
+            onResize={setRightPanelWidth}
+            min={RIGHT_MIN}
+            max={RIGHT_MAX}
+            side="right"
+          />
+
+          <RightPanel
+            width={rightPanelWidth}
+            workspacePath={workspacePath}
+            activeFilePath={activeFilePath}
+            onWorkspaceOpen={handleWorkspaceOpen}
+          />
+        </div>
+
+        {/* Horizontal resize handle + bottom tray */}
         <ResizeDivider
-          currentWidth={sidebarWidth}
-          onResize={setSidebarWidth}
-          min={SIDEBAR_MIN}
-          max={SIDEBAR_MAX}
-          side="left"
+          orientation="horizontal"
+          currentWidth={trayHeight}
+          onResize={setTrayHeight}
+          min={TRAY_MIN}
+          max={TRAY_MAX}
         />
-
-        <EditorArea
-          ref={editorAreaRef}
-          openFiles={openFiles}
-          activeFilePath={activeFilePath}
-          onTabClick={setActiveFilePath}
-          onTabClose={closeFile}
-          onContentChange={updateContent}
-        />
-
-        <ResizeDivider
-          currentWidth={rightPanelWidth}
-          onResize={setRightPanelWidth}
-          min={RIGHT_MIN}
-          max={RIGHT_MAX}
-          side="right"
-        />
-
-        <RightPanel
-          width={rightPanelWidth}
-          workspacePath={workspacePath}
-          activeFilePath={activeFilePath}
-          onWorkspaceOpen={handleWorkspaceOpen}
-        />
+        <BottomTray height={trayHeight} />
       </div>
     </div>
   );
