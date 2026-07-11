@@ -59,7 +59,7 @@ Additional capabilities:
 
 ## How It Works
 
-1. Open a local project folder via **File → Open Project** or the sidebar **Open Folder** button.
+1. Open a local project folder via **File → Open Project** (searches `~` up to 3 levels deep by folder name) or the sidebar **Open Folder** button (accepts any absolute path).
 2. The AI agent reads your source code and can automatically swap API endpoints to point to `localhost`.
 3. A lightweight local Express server mocks delays, throttling, errors, and other backend behaviors.
 4. Switch to the **System View** tab and click **⚡ Generate** — the AI reads your actual files and builds an interactive architecture graph.
@@ -135,6 +135,8 @@ npm run dev
 
 Once running, open a project via **File → Open Project** in the menu bar or click **Open Folder** in the left sidebar.
 
+> **Note — Open Project search scope:** The browser's directory picker only gives the app the folder *name*, not the full path. The server resolves the name by searching your home directory up to **3 levels deep** (i.e. `~/name`, `~/*/name`, `~/*/*/name`). If your project lives outside your home directory, or is nested more than 3 levels deep, use the sidebar **Open Folder** button and type the absolute path directly.
+
 ### Other Scripts
 
 ```bash
@@ -176,7 +178,7 @@ All three providers share the same tool layer and can perform:
 | `GET` | `/api/health` | Health check |
 | `POST` | `/api/workspace/open` | Set workspace root `{ path }` |
 | `GET` | `/api/workspace` | Get current workspace root |
-| `POST` | `/api/workspace/find` | Search for a directory by name `{ name }` |
+| `POST` | `/api/workspace/find` | Search for a directory by name `{ name }` — scans `~/name`, `~/*/name`, `~/*/*/name` (skips `node_modules`, `.git`, etc.) |
 | `GET` | `/api/files/tree` | Full directory tree from workspace root |
 | `GET` | `/api/files/content?path=` | Read a file's text content |
 | `PUT` | `/api/files/content` | Write a file `{ path, content }` |
