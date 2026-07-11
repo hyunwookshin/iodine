@@ -188,7 +188,7 @@ To add support for more image types (e.g. `.gif`, `.webp`, `.svg`): add the exte
 1. User clicks **File → Open Project…** → OS directory picker opens (`<input webkitdirectory>`).
 2. Browser returns a `FileList`. The client extracts the root folder name from the first file's `webkitRelativePath` (e.g. `"myproject/src/index.ts"` → `"myproject"`).
 3. Client sends `POST /api/workspace/find { name: "myproject" }`.
-4. Server searches `~/myproject`, then all `~/*/myproject` (one level deep in home). Returns `{ path: "/Users/you/code/myproject" }` or `{ path: null }`.
+4. Server searches `~/myproject`, then `~/*/myproject`, then `~/*/*/myproject` (up to 3 levels deep from home, capped at 300 level-3 subdirectory checks; skips `node_modules`, `.git`, `dist`, etc.). Returns `{ path: "/Users/you/code/myproject" }` or `{ path: null }`.
 5. If found: client calls `POST /api/workspace/open { path: "..." }` to register it, then updates UI.
 6. If not found: fallback dialog shows with the folder name pre-filled for manual absolute path entry.
 

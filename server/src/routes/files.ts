@@ -117,25 +117,40 @@ router.post('/workspace/find', async (req, res) => {
 
   const home = os.homedir();
 
-  // First: check direct child of home (~/name)
-  const direct = path.join(home, name);
-  try {
-    const stat = await fs.promises.stat(direct);
-    if (stat.isDirectory()) return res.json({ path: direct });
-  } catch { /* continue */ }
+  // Directories to skip when scanning — avoids descending into heavy or irrelevant trees
+  const SKIP = new Set(['node_modules', '.git', 'dist', 'build', '.next', '__pycache__', 'vendor', '.cache']);
 
-  // Second: scan all subdirectories of home one level deep (~/*/name)
-  try {
-    const homeDirs = await fs.promises.readdir(home, { withFileTypes: true });
-    for (const entry of homeDirs) {
-      if (!entry.isDirectory() || entry.name.startsWith('.')) continue;
-      const candidate = path.join(home, entry.name, name);
-      try {
-        const stat = await fs.promises.stat(candidate);
-        if (stat.isDirectory()) return res.json({ path: candidate });
-      } catch { /* continue */ }
+  async function isDir(p: string): Promise<boolean> {
+    try { return (await fs.promises.stat(p)).isDirectory(); } catch { return false; }
+  }
+
+  async function listSubdirs(dir: string): Promise<string[]> {
+    try {
+      const entries = await fs.promises.readdir(dir, { withFileTypes: true });
+      return entries
+        .filter(e => e.isDirectory() && !e.name.startsWith('.') && !SKIP.has(e.name))
+        .map(e => path.join(dir, e.name));
+    } catch { return []; }
+  }
+
+  // Level 1: ~/name
+  if (await isDir(path.join(home, name))) return res.json({ path: path.join(home, name) });
+
+  // Level 2: ~/*/name
+  const level1 = await listSubdirs(home);
+  for (const dir of level1) {
+    if (await isDir(path.join(dir, name))) return res.json({ path: path.join(dir, name) });
+  }
+
+  // Level 3: ~/*/*/name — cap total subdirectory checks to avoid excessive I/O
+  let checked = 0;
+  const MAX_LEVEL3 = 300;
+  outer: for (const dir of level1) {
+    for (const subdir of await listSubdirs(dir)) {
+      if (checked++ >= MAX_LEVEL3) break outer;
+      if (await isDir(path.join(subdir, name))) return res.json({ path: path.join(subdir, name) });
     }
-  } catch { /* continue */ }
+  }
 
   return res.json({ path: null });
 });
