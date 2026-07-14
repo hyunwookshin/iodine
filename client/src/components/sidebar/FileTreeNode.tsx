@@ -74,6 +74,13 @@ const TrashIcon = () => (
   </svg>
 );
 
+// Simple plus icon – a thin cross inside a square viewbox
+const PlusIcon = () => (
+  <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" style={{ flexShrink: 0 }}>
+    <path d="M6 2v8M2 6h8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+  </svg>
+);
+
 export function FileTreeNode({
   node,
   depth,
@@ -160,29 +167,52 @@ export function FileTreeNode({
           {node.name}
         </span>
 
-        {/* Trash can button – visible on hover */}
+        {/* Action buttons – visible on hover */}
         {isHovered && (
-          <button
-            title={`Delete ${isDir ? 'folder' : 'file'}`}
-            onClick={e => {
-              e.stopPropagation();
-              onDelete(node);
-            }}
-            style={{
-              marginLeft: 'auto',
-              color: 'var(--color-text-secondary)',
-              padding: 2,
-              borderRadius: 3,
-              display: 'flex',
-              alignItems: 'center',
-              background: 'transparent',
-              flexShrink: 0,
-            }}
-            onMouseEnter={e => (e.currentTarget.style.color = '#f48771')}
-            onMouseLeave={e => (e.currentTarget.style.color = 'var(--color-text-secondary)')}
-          >
-            <TrashIcon />
-          </button>
+          <div style={{ display: 'flex', marginLeft: 'auto', gap: 4 }}>
+            {isDir && (
+              <button
+                title="Add new file/folder"
+                onClick={e => {
+                  e.stopPropagation();
+                  // Placeholder – creation logic will be implemented later
+                }}
+                style={{
+                  color: 'var(--color-text-secondary)',
+                  padding: 2,
+                  borderRadius: 3,
+                  display: 'flex',
+                  alignItems: 'center',
+                  background: 'transparent',
+                  flexShrink: 0,
+                }}
+                onMouseEnter={e => (e.currentTarget.style.color = '#9cdcfe')}
+                onMouseLeave={e => (e.currentTarget.style.color = 'var(--color-text-secondary)')}
+              >
+                <PlusIcon />
+              </button>
+            )}
+            <button
+              title={`Delete ${isDir ? 'folder' : 'file'}`}
+              onClick={e => {
+                e.stopPropagation();
+                onDelete(node);
+              }}
+              style={{
+                color: 'var(--color-text-secondary)',
+                padding: 2,
+                borderRadius: 3,
+                display: 'flex',
+                alignItems: 'center',
+                background: 'transparent',
+                flexShrink: 0,
+              }}
+              onMouseEnter={e => (e.currentTarget.style.color = '#f48771')}
+              onMouseLeave={e => (e.currentTarget.style.color = 'var(--color-text-secondary)')}
+            >
+              <TrashIcon />
+            </button>
+          </div>
         )}
       </div>
 
