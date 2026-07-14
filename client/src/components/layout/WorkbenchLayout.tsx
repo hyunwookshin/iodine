@@ -8,7 +8,7 @@ import { ResizeDivider } from './ResizeDivider';
 import { BottomTray } from '../bottom/BottomTray';
 import { useOpenFiles } from '../../hooks/useOpenFiles';
 import { useFileWatcher } from '../../hooks/useFileWatcher';
-import { getWorkspace } from '../../api/files';
+import { getWorkspace, closeWorkspace } from '../../api/files';
 import type { SidebarView } from '../../types';
 
 const SIDEBAR_DEFAULT = 240;
@@ -94,6 +94,12 @@ export function WorkbenchLayout() {
     setActiveView('explorer');
   }, [workspacePath, openFiles, closeAllFiles]);
 
+  const handleCloseProject = useCallback(() => {
+    closeAllFiles();
+    setWorkspacePath(null);
+    closeWorkspace().catch(() => {});
+  }, [closeAllFiles]);
+
   /** Close any open tabs that were inside the deleted file or directory. */
   const handleDeleteSuccess = useCallback((deletedPath: string) => {
     openFiles
@@ -112,7 +118,11 @@ export function WorkbenchLayout() {
         background: 'var(--color-bg-workbench)',
       }}
     >
-      <MenuBar onOpenProject={handleWorkspaceOpen} />
+      <MenuBar
+        onOpenProject={handleWorkspaceOpen}
+        onCloseProject={handleCloseProject}
+        workspacePath={workspacePath}
+      />
 
       <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
         {/* Main row: sidebar + editor + right panel */}

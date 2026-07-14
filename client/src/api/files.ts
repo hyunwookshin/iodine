@@ -51,6 +51,10 @@ export async function createNode(nodePath: string, type: 'file' | 'directory'): 
   });
 }
 
+export async function closeWorkspace(): Promise<void> {
+  await request('/api/workspace/close', { method: 'POST' });
+}
+
 export async function putFileContent(path: string, content: string): Promise<void> {
   await request('/api/files/content', {
     method: 'PUT',

@@ -6,7 +6,7 @@ import crypto from 'crypto';
 import { exec, execFile } from 'child_process';
 import { promisify } from 'util';
 import { buildTree, readFileContent, writeFileContent } from '../services/fileSystem';
-import { rootPath, setRootPath } from '../state';
+import { rootPath, setRootPath, clearRootPath } from '../state';
 
 const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
@@ -109,6 +109,11 @@ router.post('/workspace/open', async (req, res) => {
   } catch {
     return res.status(400).json({ error: 'Path does not exist or is not accessible' });
   }
+});
+
+router.post('/workspace/close', (_req, res) => {
+  clearRootPath();
+  return res.json({ ok: true });
 });
 
 router.post('/workspace/find', async (req, res) => {

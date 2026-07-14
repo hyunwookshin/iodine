@@ -25,3 +25,12 @@ export function setRootPath(p: string) {
     // ignore write errors
   }
 }
+
+export function clearRootPath() {
+  rootPath = null;
+  try {
+    fs.unlinkSync(PERSIST_FILE);
+  } catch {
+    // ignore — file may not exist
+  }
+}

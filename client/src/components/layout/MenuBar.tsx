@@ -3,9 +3,11 @@ import { findWorkspace, openWorkspace } from '../../api/files';
 
 interface MenuBarProps {
   onOpenProject: (path: string) => void;
+  onCloseProject: () => void;
+  workspacePath: string | null;
 }
 
-export function MenuBar({ onOpenProject }: MenuBarProps) {
+export function MenuBar({ onOpenProject, onCloseProject, workspacePath }: MenuBarProps) {
   const [fileMenuOpen, setFileMenuOpen] = useState(false);
   const [showFallback, setShowFallback] = useState(false);
   const [pathInput, setPathInput] = useState('');
@@ -157,6 +159,27 @@ export function MenuBar({ onOpenProject }: MenuBarProps) {
               >
                 Open Project…
               </button>
+
+              {workspacePath && (
+                <>
+                  <div style={{ height: 1, background: 'var(--color-border)', margin: '4px 0' }} />
+                  <button
+                    onMouseDown={() => { setFileMenuOpen(false); onCloseProject(); }}
+                    style={{
+                      display: 'block',
+                      width: '100%',
+                      padding: '5px 16px',
+                      textAlign: 'left',
+                      color: 'var(--color-text-primary)',
+                      fontSize: 13,
+                    }}
+                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--color-bg-selected)')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                  >
+                    Close Project
+                  </button>
+                </>
+              )}
             </div>
           )}
         </div>
