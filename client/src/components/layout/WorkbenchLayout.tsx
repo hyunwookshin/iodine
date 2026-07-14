@@ -153,6 +153,7 @@ export function WorkbenchLayout() {
             onTabClick={setActiveFilePath}
             onTabClose={closeFile}
             onContentChange={updateContent}
+            workspacePath={workspacePath}
           />
 
           <ResizeDivider

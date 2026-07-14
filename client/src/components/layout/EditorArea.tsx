@@ -14,6 +14,7 @@ interface EditorAreaProps {
   onTabClick: (path: string) => void;
   onTabClose: (path: string) => void;
   onContentChange: (path: string, content: string) => void;
+  workspacePath: string | null;
 }
 
 export interface EditorAreaHandle {
@@ -24,8 +25,29 @@ function isPreviewable(path: string) {
   return path.endsWith('.md') || path.endsWith('.html');
 }
 
+/** Resolve a potentially relative image src to an API URL that the server can serve. */
+function resolveImageSrc(src: string, activeFilePath: string | null): string {
+  // Already an absolute URL — leave it alone
+  if (/^https?:\/\//.test(src) || src.startsWith('data:')) return src;
+
+  if (!activeFilePath) return src;
+
+  // Derive the directory of the open markdown file and join with the relative src
+  const dir = activeFilePath.substring(0, activeFilePath.lastIndexOf('/'));
+  // Normalise away any ".." segments by splitting and resolving manually
+  const parts = `${dir}/${src}`.split('/');
+  const resolved: string[] = [];
+  for (const part of parts) {
+    if (part === '..') resolved.pop();
+    else if (part !== '.') resolved.push(part);
+  }
+  const absPath = resolved.join('/');
+
+  return `http://localhost:3001/api/files/image?path=${encodeURIComponent(absPath)}`;
+}
+
 export const EditorArea = forwardRef<EditorAreaHandle, EditorAreaProps>(
-  function EditorArea({ openFiles, activeFilePath, onTabClick, onTabClose, onContentChange }, ref) {
+  function EditorArea({ openFiles, activeFilePath, onTabClick, onTabClose, onContentChange, workspacePath: _workspacePath }, ref) {
     const activeFile = openFiles.find(f => f.path === activeFilePath) ?? null;
     const diffData = useFileDiff(activeFile?.isImage ? null : (activeFile?.path ?? null));
     const [preview, setPreview] = useState(false);
@@ -104,7 +126,15 @@ export const EditorArea = forwardRef<EditorAreaHandle, EditorAreaProps>(
                     boxSizing: 'border-box',
                   }}
                 >
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      img({ src, alt, ...props }) {
+                        const resolvedSrc = resolveImageSrc(src ?? '', activeFile.path);
+                        return <img src={resolvedSrc} alt={alt ?? ''} {...props} style={{ maxWidth: '100%' }} />;
+                      },
+                    }}
+                  >
                     {activeFile.content}
                   </ReactMarkdown>
                 </div>
