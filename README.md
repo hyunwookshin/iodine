@@ -26,7 +26,7 @@ For a visual demonstration of Iodine IDE in action, check out our [YouTube demo]
 - 🌿 **Source Control panel** — View Git status, stage/unstage files, discard changes, and commit — all from the UI
 - 📂 **File preview** — Render `.md` (with GitHub Flavored Markdown) and `.html` files inline
 - 🔌 **Simulation panel** — Placeholder for planned network mocking and throttling features
-- 💾 **Workspace persistence** — The last opened folder is remembered across server restarts
+- 💾 **Workspace persistence** — The last opened folder is remembered across server restarts; use **File → Close Project** to clear it and return to the clean-slate welcome screen
 - 🖥️ **Integrated terminal** — A resizable bottom tray with a real pseudo-terminal (xterm.js + node-pty) running your shell at the workspace root. Open multiple sessions with **+**, close any with **✕**.
 - 🌐 **System View** — Interactive SVG graph editor for system architecture diagrams. Hit **⚡ Generate** and the AI explores your workspace with file tools, reads key files, and builds a graph from what it actually finds — no prompt needed. Nodes are draggable; pan and zoom with mouse. Diagram data is auto-saved to `~/.iodine/<workspace-hash>/system-graph.json`.
 
@@ -182,6 +182,7 @@ All three providers share the same tool layer and can perform:
 |--------|------|-------------|
 | `GET` | `/api/health` | Health check |
 | `POST` | `/api/workspace/open` | Set workspace root `{ path }` |
+| `POST` | `/api/workspace/close` | Clear workspace root and delete persisted path |
 | `GET` | `/api/workspace` | Get current workspace root |
 | `POST` | `/api/workspace/find` | Search for a directory by name `{ name }` — scans `~/name`, `~/*/name`, `~/*/*/name` (skips `node_modules`, `.git`, etc.) |
 | `GET` | `/api/files/tree` | Full directory tree from workspace root |

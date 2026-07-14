@@ -50,7 +50,7 @@ iodine/
 │       └── components/
 │           ├── layout/
 │           │   ├── WorkbenchLayout.tsx   # Root layout, panel widths, Ctrl+S handler, mounts useFileWatcher
-│           │   ├── MenuBar.tsx           # Top menu bar — File > Open Project (browser picker + server find)
+│           │   ├── MenuBar.tsx           # Top menu bar — File > Open Project (browser picker + server find); File > Close Project (clears workspace)
 │           │   ├── ActivityBar.tsx       # Left icon strip (Explorer / SCM toggle)
 │           │   ├── Sidebar.tsx           # Panel host — renders active view
 │           │   ├── EditorArea.tsx        # Tab bar + Monaco editor + Preview toggle for .md/.html + ImageViewer for images
@@ -77,7 +77,7 @@ iodine/
     └── src/
         ├── index.ts              # Entry point — listens on port 3001
         ├── app.ts               # Express app factory (CORS, JSON, routes)
-        ├── state.ts             # Shared mutable state: rootPath (persisted to ~/.iodine/workspace)
+        ├── state.ts             # Shared mutable state: rootPath — setRootPath() persists, clearRootPath() deletes ~/.iodine/workspace
         ├── events.ts            # SSE broadcast infrastructure: client registry + broadcast() + watchFile()
         ├── routes/
         │   ├── files.ts         # Route handlers for file/workspace/git/system-graph/file-watch endpoints
@@ -99,6 +99,7 @@ iodine/
 |--------|------|-------------|
 | `GET` | `/api/health` | Health check |
 | `POST` | `/api/workspace/open` | Set workspace root `{ path }` |
+| `POST` | `/api/workspace/close` | Clear workspace root and delete persisted path |
 | `GET` | `/api/workspace` | Get current workspace root |
 | `POST` | `/api/workspace/find` | Search for a directory by name `{ name }` → `{ path }` |
 | `GET` | `/api/files/tree` | Full directory tree from workspace root |
@@ -137,6 +138,7 @@ All file reads and writes are validated against the workspace root to prevent pa
 - **Open a file**: Click any file in the tree. It opens as a tab in the editor.
 - **Save**: `Ctrl+S` / `Cmd+S`. An amber dot on the tab indicates unsaved changes.
 - **Workspace persistence**: The server writes the workspace path to `~/.iodine/workspace` on every `setRootPath()` call and reads it back on startup. Workspace survives `tsx watch` server restarts triggered by file saves during development.
+- **Close Project**: **File → Close Project** is visible only when a workspace is open. Clicking it closes all open tabs, clears `workspacePath` in the UI, and calls `POST /api/workspace/close` which invokes `clearRootPath()` — deleting `~/.iodine/workspace` so the workspace is not restored on next server start. Returns the IDE to the same clean-slate state as a fresh launch.
 - **File watcher**: When a workspace is open, `WorkbenchLayout` mounts `useFileWatcher`, which opens a persistent SSE connection to `GET /api/files/watch`. The server uses `fs.watch({ recursive: true })` on the workspace root and emits a `file-changed { path }` event (debounced 150 ms per file) whenever a file changes on disk. The client calls `refreshFile(absPath)` in response — silently re-fetching content for any file already open in a tab, so edits made outside Iodine (e.g. by the AI agent or an external editor) are reflected immediately. The SSE connection bypasses the Vite proxy for the same reason as the Coding Assistant (see DEBUGGING.md).
 - **Resize panels**: Drag the thin dividers between the sidebar, editor, and right panel.
 - **Switch sidebar views**: Click the branch icon in the activity bar to switch between Explorer and Source Control.
