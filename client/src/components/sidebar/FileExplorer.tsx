@@ -1,15 +1,14 @@
-import { useState, useMemo } from 'react';
+import { useMemo } from 'react';
 import { useFileTree } from '../../hooks/useFileTree';
 import { useGitStatus } from '../../hooks/useGitStatus';
 import { FileTreeNode } from './FileTreeNode';
-import { openWorkspace, deleteNode, createNode } from '../../api/files';
+import { deleteNode, createNode } from '../../api/files';
 import type { FileNode } from '../../types';
 import type { GitFileStatus } from '../../hooks/useGitStatus';
 
 interface FileExplorerProps {
   workspacePath: string | null;
   activeFilePath: string | null;
-  onWorkspaceOpen: (path: string) => void;
   onFileClick: (node: FileNode) => void;
   onDeleteSuccess: (deletedPath: string) => void;
   localTree?: FileNode | null;
@@ -40,7 +39,6 @@ function aggregateGitStatus(statusMap: Record<string, GitFileStatus>): Record<st
 export function FileExplorer({
   workspacePath,
   activeFilePath,
-  onWorkspaceOpen,
   onFileClick,
   onDeleteSuccess,
   localTree,
@@ -50,11 +48,6 @@ export function FileExplorer({
 
   // Memoise aggregated status to avoid unnecessary recalculations.
   const gitStatus = useMemo(() => aggregateGitStatus(rawGitStatus), [rawGitStatus]);
-
-  const [inputPath, setInputPath] = useState('');
-  const [inputVisible, setInputVisible] = useState(false);
-  const [openError, setOpenError] = useState<string | null>(null);
-  const [opening, setOpening] = useState(false);
 
   const handleCreate = async (dirPath: string, name: string, type: 'file' | 'directory') => {
     await createNode(`${dirPath}/${name}`, type); // throws on error (e.g. 409 already exists)
@@ -70,24 +63,6 @@ export function FileExplorer({
       refetch();
     } catch (err) {
       alert(`Delete failed: ${err instanceof Error ? err.message : String(err)}`);
-    }
-  };
-
-  const handleOpenFolder = async () => {
-    if (!inputPath.trim()) return;
-    setOpening(true);
-    setOpenError(null);
-    try {
-      const result = await openWorkspace(inputPath.trim());
-      if (result.path) {
-        onWorkspaceOpen(result.path);
-        setInputVisible(false);
-        setInputPath('');
-      }
-    } catch (err) {
-      setOpenError(err instanceof Error ? err.message : 'Failed to open folder');
-    } finally {
-      setOpening(false);
     }
   };
 
@@ -142,89 +117,12 @@ export function FileExplorer({
       {/* Content */}
       <div style={{ flex: 1, overflow: 'auto' }}>
         {!workspacePath && !localTree ? (
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              padding: '24px 16px',
-              gap: 12,
-            }}
-          >
-            <p style={{ color: 'var(--color-text-secondary)', textAlign: 'center', lineHeight: 1.5 }}>
+          <div style={{ padding: '24px 16px' }}>
+            <p style={{ color: 'var(--color-text-secondary)', fontSize: 12, lineHeight: 1.6, textAlign: 'center' }}>
               No folder open.
+              <br /><br />
+              Use <strong style={{ color: 'var(--color-text-primary)' }}>File &gt; Open Project</strong> in the menu bar to get started.
             </p>
-            {!inputVisible ? (
-              <button
-                onClick={() => setInputVisible(true)}
-                style={{
-                  background: 'var(--color-accent)',
-                  color: '#fff',
-                  padding: '6px 16px',
-                  borderRadius: 3,
-                  fontSize: 13,
-                  cursor: 'pointer',
-                }}
-                onMouseEnter={e => (e.currentTarget.style.background = 'var(--color-accent-hover)')}
-                onMouseLeave={e => (e.currentTarget.style.background = 'var(--color-accent)')}
-              >
-                Open Folder
-              </button>
-            ) : (
-              <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <input
-                  autoFocus
-                  type="text"
-                  value={inputPath}
-                  onChange={e => setInputPath(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') handleOpenFolder();
-                    if (e.key === 'Escape') { setInputVisible(false); setInputPath(''); setOpenError(null); }
-                  }}
-                  placeholder="/path/to/project"
-                  style={{
-                    background: '#3c3c3c',
-                    border: '1px solid var(--color-accent)',
-                    borderRadius: 3,
-                    color: 'var(--color-text-primary)',
-                    padding: '5px 8px',
-                    width: '100%',
-                    outline: 'none',
-                  }}
-                />
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <button
-                    onClick={handleOpenFolder}
-                    disabled={opening}
-                    style={{
-                      flex: 1,
-                      background: 'var(--color-accent)',
-                      color: '#fff',
-                      padding: '5px 0',
-                      borderRadius: 3,
-                      cursor: opening ? 'not-allowed' : 'pointer',
-                      opacity: opening ? 0.7 : 1,
-                    }}
-                  >
-                    {opening ? 'Opening…' : 'Open'}
-                  </button>
-                  <button
-                    onClick={() => { setInputVisible(false); setInputPath(''); setOpenError(null); }}
-                    style={{
-                      padding: '5px 10px',
-                      borderRadius: 3,
-                      color: 'var(--color-text-secondary)',
-                      background: 'var(--color-bg-hover)',
-                    }}
-                  >
-                    Cancel
-                  </button>
-                </div>
-                {openError && (
-                  <p style={{ color: '#f48771', fontSize: 12 }}>{openError}</p>
-                )}
-              </div>
-            )}
           </div>
         ) : loading ? (
           <div style={{ padding: '12px 16px', color: 'var(--color-text-secondary)' }}>

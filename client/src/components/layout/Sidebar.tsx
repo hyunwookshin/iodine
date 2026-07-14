@@ -7,7 +7,6 @@ interface SidebarProps {
   width: number;
   workspacePath: string | null;
   activeFilePath: string | null;
-  onWorkspaceOpen: (path: string) => void;
   onFileClick: (node: FileNode) => void;
   onDeleteSuccess: (deletedPath: string) => void;
   localTree?: FileNode | null;
@@ -18,7 +17,6 @@ export function Sidebar({
   width,
   workspacePath,
   activeFilePath,
-  onWorkspaceOpen,
   onFileClick,
   onDeleteSuccess,
   localTree,
@@ -45,7 +43,6 @@ export function Sidebar({
         <FileExplorer
           workspacePath={workspacePath}
           activeFilePath={activeFilePath}
-          onWorkspaceOpen={onWorkspaceOpen}
           onFileClick={onFileClick}
           onDeleteSuccess={onDeleteSuccess}
           localTree={localTree}

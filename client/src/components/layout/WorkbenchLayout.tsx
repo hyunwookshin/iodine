@@ -124,7 +124,6 @@ export function WorkbenchLayout() {
             width={sidebarWidth}
             workspacePath={workspacePath}
             activeFilePath={activeFilePath}
-            onWorkspaceOpen={handleWorkspaceOpen}
             onFileClick={openFile}
             onDeleteSuccess={handleDeleteSuccess}
           />
