@@ -57,8 +57,8 @@ iodine/
 │           │   ├── RightPanel.tsx        # Tab bar: Simulation | Coding Assistant | System View; owns provider/model state
 │           │   └── ResizeDivider.tsx     # Draggable column resize handle
 │           ├── sidebar/
-│           │   ├── FileExplorer.tsx      # Open Folder UI + file tree; handles delete confirmation + API call + tree refresh
-│           │   ├── FileTreeNode.tsx      # Recursive tree node — image icon for .png/.jpg/.jpeg; trash icon on hover
+│           │   ├── FileExplorer.tsx      # Open Folder UI + file tree; handles create/delete + API calls + tree refresh
+│           │   ├── FileTreeNode.tsx      # Recursive tree node — + dropdown (New File/Folder), trash icon, image icon
 │           │   └── SourceControlPanel.tsx # SCM panel: branch, commit, staged/unstaged lists
 │           ├── editor/
 │           │   ├── EditorTabs.tsx        # Tab strip with dirty indicator
@@ -82,6 +82,7 @@ iodine/
         ├── routes/
         │   ├── files.ts         # Route handlers for file/workspace/git/system-graph/file-watch endpoints
         │   ├── delete.ts        # DELETE /api/files — delete a file or directory (path-traversal guarded)
+        │   ├── create.ts        # POST /api/files/create — create a file or directory; 409 if already exists
         │   ├── events.ts        # GET /api/events — generic SSE client registration (uses events.ts broadcast)
         │   └── agent.ts         # POST /api/agent/chat (SSE), POST /api/system-graph/generate (SSE), GET /api/agent/status
         └── services/
@@ -104,6 +105,7 @@ iodine/
 | `GET` | `/api/files/content?path=` | Read a file's text content |
 | `PUT` | `/api/files/content` | Write a file `{ path, content }` |
 | `DELETE` | `/api/files?path=` | Delete a file or directory (recursive for dirs); path-traversal guarded |
+| `POST` | `/api/files/create` | Create a file or directory `{ path, type: 'file'\|'directory' }` — 409 Conflict if the path already exists |
 | `GET` | `/api/files/image?path=` | Serve a binary image file (`image/png` or `image/jpeg`) — used by `ImageViewer` |
 | `GET` | `/api/files/watch` | SSE stream: emits `file-changed { path }` events when workspace files change (debounced 150 ms; ignores `.git/` and `node_modules/`) |
 | `GET` | `/api/events` | SSE stream: generic broadcast endpoint — client registers for `broadcast()` events from `server/src/events.ts` |
@@ -142,9 +144,20 @@ All file reads and writes are validated against the workspace root to prevent pa
 - **Coding Assistant**: Click the "Coding Assistant" tab in the right panel. Select a provider and model from the dropdowns (shared with System View). The chat now shows two kinds of streaming output: regular **answer** text and subtler **thought** lines representing the agent's live reasoning. Enter sends; Shift+Enter inserts a newline. Chat history persists until the page is refreshed.
 - **System View**: Click the "System View" tab. The graph is stored in `~/.iodine/<md5(workspacePath)>/system-graph.json` — persisted per workspace but not in git. Click **⚡ Generate** to run the agentic loop: the model uses `list_directory` and `read_file` tools to explore the real workspace and outputs a JSON architecture graph. A status bar shows which file is being scanned. Switch between **Graph** (interactive SVG) and **JSON** (Monaco editor) views. Nodes are draggable; scroll to zoom, drag background to pan. **↺ Layout** re-runs force-directed layout. **✓ Save** persists to disk.
 - **File preview**: When a `.md` or `.html` file is active, a floating **Preview** button appears in the upper-right corner of the editor. Clicking it renders the file — markdown is rendered with `react-markdown` + `remark-gfm` (dark-themed prose styles), HTML is rendered in a sandboxed `<iframe>`. Clicking **Source** returns to the Monaco editor. Switching to a non-previewable file automatically resets to source mode.
+- **Create file/folder**: Hover over any **directory** in the Explorer to reveal a **+** button (left of the trash icon). Clicking it opens a small dropdown with **New File** and **New Folder** options. Selecting one auto-expands the directory and shows an inline input row (matching icon + text field pre-filled with `"Untitled"`, all text selected). Press **Enter** to create — the server returns 409 if the name already exists, which is shown as an inline red error below the input. Press **Escape** or click away to cancel. On success the tree refreshes.
 - **Delete file/folder**: Hover over any file or folder in the Explorer to reveal a trash-can icon on the right. Clicking it shows a confirmation dialog (folders warn that all contents will be deleted), then calls `DELETE /api/files?path=` and refreshes the tree. Any editor tabs open inside the deleted path are automatically closed. The trash icon turns red on hover for visibility.
 - **Revert hunk**: The Monaco editor shows git diff decorations in the gutter — a green bar for added lines, amber bar for modified lines, and a red triangle for deleted lines. Clicking a green or amber glyph immediately reverts that hunk (removes added lines / restores original content). Clicking a red triangle expands a view zone showing the deleted lines; a **↺ Revert** button inside the zone inserts those lines back. All reverts go through Monaco's `executeEdits` API so **Ctrl+Z / Cmd+Z** undoes them. Contiguous changed lines are treated as a single hunk.
 - **Image viewer**: Clicking a `.png`, `.jpg`, or `.jpeg` file in the file tree opens it in a dedicated image viewer instead of the Monaco text editor. The file tree shows a distinct landscape-picture icon (light blue) for image files so they are visually distinguishable. The viewer displays the image centred on a dark canvas with zoom controls (`−` / `+` buttons, click the `%` label to reset to 100%). Images are fetched from `GET /api/files/image?path=` which streams the raw binary with the correct `Content-Type` header and a `no-store` cache policy. The `isImage` flag on `OpenFile` prevents diff decorations and dirty-save logic from running for image tabs.
+
+## File & Folder Creation — Implementation Details
+
+| Layer | File | Role |
+|-------|------|------|
+| Server endpoint | `server/src/routes/create.ts` → `POST /api/files/create` | Path-traversal guard; `fs.promises.access` to detect existence (→ 409 with `"X already exists"`); `fs.promises.mkdir` or `fs.promises.writeFile('', 'utf-8')` to create |
+| Client API | `client/src/api/files.ts` → `createNode(path, type)` | Thin `POST` wrapper; throws with the server's error string on non-2xx |
+| Create handler | `FileExplorer.tsx` → `handleCreate(dirPath, name, type)` | Builds full path as `dirPath + '/' + name`, calls `createNode`, then `refetch()` to refresh the tree |
+| Dropdown + input | `FileTreeNode.tsx` | Hover on a directory → **+** button appears; clicking toggles a dropdown (fixed-position backdrop for outside-click dismiss); selecting a type auto-expands the dir, renders an inline input row (matching icon + `<input>`) pre-filled with `"Untitled"` and all text selected via `useEffect` |
+| Error display | `FileTreeNode.tsx` | `createError` state; border turns red, message renders below the input; `submittingRef` prevents blur from cancelling mid-submit |
 
 ## Image Viewer — Implementation Details
 

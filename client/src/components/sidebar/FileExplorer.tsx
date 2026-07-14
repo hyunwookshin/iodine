@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { useFileTree } from '../../hooks/useFileTree';
 import { useGitStatus } from '../../hooks/useGitStatus';
 import { FileTreeNode } from './FileTreeNode';
-import { openWorkspace, deleteNode } from '../../api/files';
+import { openWorkspace, deleteNode, createNode } from '../../api/files';
 import type { FileNode } from '../../types';
 import type { GitFileStatus } from '../../hooks/useGitStatus';
 
@@ -55,6 +55,11 @@ export function FileExplorer({
   const [inputVisible, setInputVisible] = useState(false);
   const [openError, setOpenError] = useState<string | null>(null);
   const [opening, setOpening] = useState(false);
+
+  const handleCreate = async (dirPath: string, name: string, type: 'file' | 'directory') => {
+    await createNode(`${dirPath}/${name}`, type); // throws on error (e.g. 409 already exists)
+    refetch();
+  };
 
   const handleDelete = async (node: FileNode) => {
     const label = node.type === 'directory' ? `folder "${node.name}" and all its contents` : `"${node.name}"`;
@@ -243,6 +248,7 @@ export function FileExplorer({
                 activeFilePath={activeFilePath}
                 gitStatus={gitStatus}
                 onDelete={handleDelete}
+                onCreate={handleCreate}
               />
             ))}
           </div>

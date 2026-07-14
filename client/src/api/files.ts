@@ -43,6 +43,14 @@ export async function deleteNode(nodePath: string): Promise<void> {
   await request(`/api/files?path=${encodeURIComponent(nodePath)}`, { method: 'DELETE' });
 }
 
+export async function createNode(nodePath: string, type: 'file' | 'directory'): Promise<void> {
+  await request('/api/files/create', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path: nodePath, type }),
+  });
+}
+
 export async function putFileContent(path: string, content: string): Promise<void> {
   await request('/api/files/content', {
     method: 'PUT',

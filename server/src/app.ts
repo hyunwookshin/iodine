@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import filesRouter from './routes/files';
 import deleteRouter from './routes/delete';
+import createRouter from './routes/create';
 import agentRouter from './routes/agent';
 
 export function createApp() {
@@ -12,6 +13,7 @@ export function createApp() {
 
   app.use('/api', filesRouter);
   app.use('/api', deleteRouter);
+  app.use('/api', createRouter);
   app.use('/api', agentRouter);
 
   return app;

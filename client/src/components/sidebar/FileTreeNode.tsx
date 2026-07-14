@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import type { FileNode } from '../../types';
 import type { GitFileStatus } from '../../hooks/useGitStatus';
 
@@ -11,6 +11,7 @@ interface FileTreeNodeProps {
   activeFilePath: string | null;
   gitStatus?: Record<string, GitFileStatus>;
   onDelete: (node: FileNode) => void;
+  onCreate: (dirPath: string, name: string, type: 'file' | 'directory') => Promise<void>;
 }
 
 const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg']);
@@ -47,23 +48,19 @@ const FolderIcon = ({ open }: { open: boolean }) => (
 
 const FileIcon = () => (
   <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style={{ flexShrink: 0 }}>
-    <path d="M4 0h5.293A1 1 0 0 1 10 .293L13.707 4a1 1 0 0 1 .293.707V14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V2a2 2 0 0 1 2-2zm5.5 1.5v2a1 1 0 0 0 1 1h2L9.5 1.5z" />
+    <path d="M4 0h5.293A1 1 0 0 1 10 .293L13.707 4a1 1 0 0 1 .293.707V14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V2a2 2 0 0 1 4-2zm5.5 1.5v2a1 1 0 0 0 1 1h2L9.5 1.5z" />
   </svg>
 );
 
 /** Image file icon — a small landscape-style picture frame with a sun and mountain. */
 const ImageFileIcon = () => (
   <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style={{ flexShrink: 0 }}>
-    {/* Frame */}
     <rect x="1" y="2" width="14" height="12" rx="1.5" ry="1.5" fill="none" stroke="currentColor" strokeWidth="1.2" />
-    {/* Sun circle */}
     <circle cx="5" cy="6" r="1.5" />
-    {/* Mountain path */}
     <path d="M1.5 12.5 L5.5 7.5 L8.5 10.5 L10.5 8 L14.5 12.5 Z" />
   </svg>
 );
 
-// Trash can icon (outline style)
 const TrashIcon = () => (
   <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" style={{ flexShrink: 0 }}>
     <path d="M5.5 6v6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
@@ -74,7 +71,6 @@ const TrashIcon = () => (
   </svg>
 );
 
-// Simple plus icon – a thin cross inside a square viewbox
 const PlusIcon = () => (
   <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" style={{ flexShrink: 0 }}>
     <path d="M6 2v8M2 6h8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
@@ -90,8 +86,16 @@ export function FileTreeNode({
   activeFilePath,
   gitStatus = {},
   onDelete,
+  onCreate,
 }: FileTreeNodeProps) {
   const [isHovered, setIsHovered] = useState(false);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [creatingType, setCreatingType] = useState<'file' | 'directory' | null>(null);
+  const [newName, setNewName] = useState('Untitled');
+  const [createError, setCreateError] = useState<string | null>(null);
+
+  const inputRef = useRef<HTMLInputElement>(null);
+  const submittingRef = useRef(false);
 
   const isExpanded = expandedPaths.has(node.path);
   const isActive = node.path === activeFilePath;
@@ -103,6 +107,17 @@ export function FileTreeNode({
   const nameFontWeight = (gs === 'unstaged' || gs === 'both') ? 'bold' : undefined;
   const nameTextDecoration = (gs === 'staged' || gs === 'both') ? 'underline' : undefined;
 
+  const folderIconColor = isSymlink ? '#37d5ff' : '#dcb67a';
+  const fileIconColor = isSymlink ? '#37d5ff' : (isImage ? '#89d4f5' : '#c5c8c6');
+  const nameColor = isSymlink && !isActive ? '#37d5ff' : undefined;
+
+  // Select all text when the input first appears
+  useEffect(() => {
+    if (creatingType && inputRef.current) {
+      inputRef.current.select();
+    }
+  }, [creatingType]);
+
   const handleClick = () => {
     if (isDir) {
       onToggleExpand(node.path);
@@ -111,18 +126,51 @@ export function FileTreeNode({
     }
   };
 
-  // Color logic for icons
-  const folderIconColor = isSymlink ? '#37d5ff' : '#dcb67a';
-  const fileIconColor = isSymlink ? '#37d5ff' : (isImage ? '#89d4f5' : '#c5c8c6');
-  // Name color (only override when symlink and not active so active highlight still wins)
-  const nameColor = isSymlink && !isActive ? '#37d5ff' : undefined;
+  const startCreating = (type: 'file' | 'directory') => {
+    if (!isExpanded) onToggleExpand(node.path);
+    setCreatingType(type);
+    setNewName('Untitled');
+    setCreateError(null);
+    setDropdownOpen(false);
+  };
+
+  const cancelCreating = () => {
+    setCreatingType(null);
+    setNewName('Untitled');
+    setCreateError(null);
+  };
+
+  const handleCreate = async () => {
+    const name = newName.trim();
+    if (!name) {
+      setCreateError('Name cannot be empty');
+      return;
+    }
+    submittingRef.current = true;
+    setCreateError(null);
+    try {
+      await onCreate(node.path, name, creatingType!);
+      setCreatingType(null);
+      setNewName('Untitled');
+    } catch (err) {
+      setCreateError(err instanceof Error ? err.message : 'Failed to create');
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    } finally {
+      submittingRef.current = false;
+    }
+  };
+
+  const showActions = isHovered || dropdownOpen;
 
   return (
     <>
+      {/* Row */}
       <div
         onClick={handleClick}
         title={node.path}
         style={{
+          position: 'relative',
           display: 'flex',
           alignItems: 'center',
           gap: 4,
@@ -133,9 +181,6 @@ export function FileTreeNode({
           userSelect: 'none',
           background: isActive ? 'var(--color-bg-selected)' : 'transparent',
           color: isActive ? 'var(--color-text-active)' : 'var(--color-text-primary)',
-          whiteSpace: 'nowrap',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
         }}
         onMouseEnter={e => {
           setIsHovered(true);
@@ -163,35 +208,98 @@ export function FileTreeNode({
             </span>
           </>
         )}
-        <span style={{ fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: nameFontWeight, textDecoration: nameTextDecoration, color: nameColor }}>
+
+        <span style={{
+          fontSize: 13,
+          flex: 1,
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+          fontWeight: nameFontWeight,
+          textDecoration: nameTextDecoration,
+          color: nameColor,
+        }}>
           {node.name}
         </span>
 
-        {/* Action buttons – visible on hover */}
-        {isHovered && (
-          <div style={{ display: 'flex', marginLeft: 'auto', gap: 4 }}>
+        {/* Action buttons — visible on hover */}
+        {showActions && (
+          <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
             {isDir && (
-              <button
-                title="Add new file/folder"
-                onClick={e => {
-                  e.stopPropagation();
-                  // Placeholder – creation logic will be implemented later
-                }}
-                style={{
-                  color: 'var(--color-text-secondary)',
-                  padding: 2,
-                  borderRadius: 3,
-                  display: 'flex',
-                  alignItems: 'center',
-                  background: 'transparent',
-                  flexShrink: 0,
-                }}
-                onMouseEnter={e => (e.currentTarget.style.color = '#9cdcfe')}
-                onMouseLeave={e => (e.currentTarget.style.color = 'var(--color-text-secondary)')}
-              >
-                <PlusIcon />
-              </button>
+              /* Wrapper div is position:relative so the dropdown positions correctly */
+              <div style={{ position: 'relative' }}>
+                <button
+                  title="New file or folder"
+                  onClick={e => {
+                    e.stopPropagation();
+                    setDropdownOpen(v => !v);
+                  }}
+                  style={{
+                    color: 'var(--color-text-secondary)',
+                    padding: 2,
+                    borderRadius: 3,
+                    display: 'flex',
+                    alignItems: 'center',
+                    background: 'transparent',
+                    flexShrink: 0,
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.color = '#9cdcfe')}
+                  onMouseLeave={e => (e.currentTarget.style.color = 'var(--color-text-secondary)')}
+                >
+                  <PlusIcon />
+                </button>
+
+                {dropdownOpen && (
+                  <>
+                    {/* Backdrop — closes dropdown on outside click */}
+                    <div
+                      style={{ position: 'fixed', inset: 0, zIndex: 99 }}
+                      onClick={e => { e.stopPropagation(); setDropdownOpen(false); }}
+                    />
+                    <div style={{
+                      position: 'absolute',
+                      top: 20,
+                      right: 0,
+                      zIndex: 100,
+                      background: '#2d2d2d',
+                      border: '1px solid #555',
+                      borderRadius: 4,
+                      minWidth: 130,
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+                      overflow: 'hidden',
+                    }}>
+                      {(['file', 'directory'] as const).map(type => (
+                        <button
+                          key={type}
+                          onClick={e => { e.stopPropagation(); startCreating(type); }}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            width: '100%',
+                            padding: '6px 10px',
+                            background: 'transparent',
+                            color: 'var(--color-text-primary)',
+                            fontSize: 12,
+                            textAlign: 'left',
+                            cursor: 'pointer',
+                            whiteSpace: 'nowrap',
+                          }}
+                          onMouseEnter={e => (e.currentTarget.style.background = 'var(--color-bg-hover)')}
+                          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                        >
+                          <span style={{ color: type === 'directory' ? '#dcb67a' : '#c5c8c6', display: 'flex' }}>
+                            {type === 'directory' ? <FolderIcon open={false} /> : <FileIcon />}
+                          </span>
+                          {type === 'directory' ? 'New Folder' : 'New File'}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
             )}
+
             <button
               title={`Delete ${isDir ? 'folder' : 'file'}`}
               onClick={e => {
@@ -216,9 +324,64 @@ export function FileTreeNode({
         )}
       </div>
 
-      {isDir && isExpanded && node.children && (
+      {/* Children + optional inline creation row */}
+      {isDir && isExpanded && (
         <>
-          {node.children.map(child => (
+          {creatingType && (
+            <div>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                paddingLeft: 8 + (depth + 1) * 12,
+                paddingRight: 8,
+                height: 22,
+              }}>
+                <span style={{ width: 12, flexShrink: 0 }} />
+                <span style={{ color: creatingType === 'directory' ? '#dcb67a' : '#c5c8c6', display: 'flex' }}>
+                  {creatingType === 'directory' ? <FolderIcon open={false} /> : <FileIcon />}
+                </span>
+                <input
+                  ref={inputRef}
+                  autoFocus
+                  value={newName}
+                  onChange={e => { setNewName(e.target.value); setCreateError(null); }}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') { e.preventDefault(); handleCreate(); }
+                    if (e.key === 'Escape') { e.stopPropagation(); cancelCreating(); }
+                  }}
+                  onBlur={() => {
+                    if (!submittingRef.current) cancelCreating();
+                  }}
+                  onClick={e => e.stopPropagation()}
+                  style={{
+                    flex: 1,
+                    background: '#3c3c3c',
+                    border: `1px solid ${createError ? '#f48771' : 'var(--color-accent)'}`,
+                    borderRadius: 2,
+                    color: 'var(--color-text-primary)',
+                    fontSize: 13,
+                    padding: '1px 4px',
+                    outline: 'none',
+                    minWidth: 0,
+                  }}
+                />
+              </div>
+              {createError && (
+                <div style={{
+                  paddingLeft: 8 + (depth + 1) * 12 + 32,
+                  paddingRight: 8,
+                  fontSize: 11,
+                  color: '#f48771',
+                  lineHeight: '18px',
+                }}>
+                  {createError}
+                </div>
+              )}
+            </div>
+          )}
+
+          {node.children?.map(child => (
             <FileTreeNode
               key={child.path}
               node={child}
@@ -229,6 +392,7 @@ export function FileTreeNode({
               activeFilePath={activeFilePath}
               gitStatus={gitStatus}
               onDelete={onDelete}
+              onCreate={onCreate}
             />
           ))}
         </>
