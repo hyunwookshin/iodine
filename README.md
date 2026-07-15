@@ -1,6 +1,6 @@
 # Iodine — Few Drops of IDE Essentials
 
-[Donate tokens on PayPal](https://paypal.me/hwshin)
+[Support me on PayPal](https://paypal.me/hwshin)
 
 ## About
 
