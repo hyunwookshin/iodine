@@ -6,7 +6,8 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "jsx": "react-jsx",
-    "outDir": "dist"
+    "outDir": "dist",
+    "types": ["vite/client"]
   },
   "include": ["src"]
 }
