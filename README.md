@@ -15,6 +15,10 @@ VS Code is a multi-million-line codebase. Iodine is a few thousand. That differe
 - **Web-native** — ships as a local web app with no Electron or desktop packaging required. Embed it, proxy it, or deploy it however you like.
 - **Readable stack** — React + Express + TypeScript with no framework magic. Every file does one thing and is easy to follow.
 
+### Self-hosting milestone
+
+Iodine has reached the point where you can open its own repository inside Iodine and use the built-in Coding Assistant to continue developing it. The codebase fits comfortably in a single AI context window — ask it to add a panel, wire a new API route, or refactor a component and it can read the relevant files, write the changes, run the build, and interpret the output, all without leaving the browser tab.
+
 ## Demo Video
 
 For a visual demonstration of Iodine IDE in action, check out our [YouTube demo](https://youtube.com/watch?v=4uRyc2Wuvy4).
@@ -191,7 +195,7 @@ The Coding Assistant (right panel) supports three AI providers. Select a provide
 
 The UI shows a warning banner when the selected provider's key is not configured. Click **?** in the panel header for setup instructions.
 
-### AI File Tools
+### AI Tools
 
 All three providers share the same tool layer and can perform:
 
@@ -201,6 +205,9 @@ All three providers share the same tool layer and can perform:
 | `write_file` | Write (or create) a file in the workspace |
 | `list_directory` | Browse the directory tree (depth 3) |
 | `search_files` | Grep-like text search across workspace files |
+| `run_terminal_command` | Propose a shell command — pauses for your approval, then runs it and streams stdout/stderr live into the chat |
+
+When the AI wants to run a terminal command, it presents an approval card with the exact command, the reason it needs it, and whether it's expected to keep running (e.g. a dev server). Click **Approve** to execute or **Reject** to decline — the AI cannot run anything without your explicit confirmation. Output streams live into the chat, and the result (exit code, captured output, detected localhost URLs) is fed back to the model so it can interpret and continue.
 
 ## API Reference
 
@@ -226,6 +233,7 @@ All three providers share the same tool layer and can perform:
 | `POST` | `/api/git/commit` | Commit staged changes `{ message }` |
 | `GET` | `/api/agent/status` | Per-provider API key status |
 | `POST` | `/api/agent/chat` | SSE stream: AI chat with tool use |
+| `POST` | `/api/agent/terminal/approval` | Approve or reject a pending terminal command `{ id, approved }` |
 | `GET` | `/api/system-graph` | Load saved architecture graph for current workspace |
 | `PUT` | `/api/system-graph` | Save architecture graph for current workspace |
 | `POST` | `/api/system-graph/generate` | SSE stream: agentic graph generation (reads workspace) |

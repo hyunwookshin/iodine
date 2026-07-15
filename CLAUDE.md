@@ -286,22 +286,26 @@ Provider and model lists are defined in `client/src/providers.ts`. Adding a new 
 
 ### Agentic Loop
 
-The loop runs entirely server-side (one service per provider). All three share the same tool layer (`fileTools.ts`). The client receives only SSE events:
+The loop runs entirely server-side (one service per provider). All three share the same tool layer (`fileTools.ts` + `agentTools.ts`). The client receives only SSE events:
 
 | SSE event | Payload | Meaning |
 |-----------|---------|---------|
 | `text_delta` | `{ text }` | Streamed answer token |
-| `thought_delta` | `{ text }` | Streamed reasoning/"thinking" token (hidden from end user unless UI chooses to show it) |
+| `thought_delta` | `{ text }` | Streamed reasoning/"thinking" token |
 | `tool_call` | `{ id, name, input }` | Model is invoking a tool |
 | `tool_result` | `{ tool_use_id, name, preview, error }` | Tool finished |
+| `command_approval` | `{ id, command, reason, longRunning, cwd }` | Agent proposes a terminal command; UI pauses for user approval |
+| `command_output` | `{ id, stream, data }` | Live stdout/stderr chunk from an approved running command |
 | `done` | `{}` | Turn complete |
 | `error` | `{ message }` | Server-side error |
 
-`thought_delta` is optional: services emit it only if the agent prompt instructs the model to reveal its private reasoning (e.g., a "THOUGHTS:" section). The updated client (`useCodingAssistant.ts`) handles this event type and renders it as a muted italic line so developers can watch the agent think in real time without cluttering the main answer.
+`thought_delta` is optional: services emit it only if the agent prompt instructs the model to reveal its private reasoning. The client renders it as a muted italic line so developers can watch the agent think in real time.
 
-### Shared File Tools
+**Streaming performance:** `text_delta` and `thought_delta` payloads are buffered in refs and flushed to React state at most once per animation frame (~60 fps). This prevents per-token re-renders when fast providers (especially OpenAI) emit individual tokens at high rates. Every structurally significant event (`tool_call`, `tool_result`, `command_approval`, `done`, `error`) synchronously flushes any buffered text first to preserve block ordering. See `DEBUGGING.md` for the full write-up.
 
-Defined in `server/src/services/fileTools.ts`; used by all three agent services:
+### Shared Agent Tools
+
+Schemas defined in `server/src/services/fileTools.ts`; dispatched through `server/src/services/agentTools.ts` (`executeAgentTool`):
 
 | Tool | What it does |
 |------|-------------|
@@ -309,8 +313,37 @@ Defined in `server/src/services/fileTools.ts`; used by all three agent services:
 | `write_file(path, content)` | Writes a file; creates parent dirs if needed |
 | `list_directory(path?)` | Builds a directory tree (depth 3) |
 | `search_files(query, path?)` | Grep-like text search across workspace files |
+| `run_terminal_command(command, reason, longRunning)` | Proposes a shell command; pauses for user approval; streams stdout/stderr; returns exit code, output, and detected localhost URLs |
 
 All tools fail with a clear error if no workspace is set — they do not fall back to `process.cwd()`.
+
+### Terminal Command Execution
+
+The `run_terminal_command` tool implements a user-in-the-loop execution model so the AI can never run arbitrary shell commands without explicit confirmation.
+
+**Server-side flow:**
+
+1. `executeAgentTool` in `agentTools.ts` generates a UUID, calls `requestTerminalApproval` which emits `command_approval` and **blocks** (awaiting a Promise).
+2. `POST /api/agent/terminal/approval { id, approved }` is the out-of-band route the client calls when the user decides. It calls `resolveTerminalApproval(id, approved)` which resolves the blocked Promise.
+3. If approved, `runTerminalCommand` spawns the shell via `child_process.spawn(shell, ['-lc', command], { cwd: rootPath })`. stdout/stderr are emitted as `command_output` SSE events (both streams, with the approval `id` so the client can route them to the right block).
+4. For `longRunning: true` (dev servers, watchers), the command resolves after 15 s of initial capture with `stillRunning: true`; the process continues running. For regular commands the hard timeout is 2 min.
+5. The full result object `{ command, stdout, stderr, exitCode, signal, timedOut, stillRunning, urls }` is serialised as the tool result for the agent to interpret.
+
+**Client-side flow:**
+
+- `command_approval` event → `useCodingAssistant` adds a `command-approval` UIBlock with `status: 'pending'`.
+- User clicks **Approve** or **Reject** → `sendApproval(id, approved)` sets block status immediately and POSTs to the approval route.
+- `command_output` events → output string appended to the matching block; `CommandApprovalBlock` auto-scrolls its output pane.
+
+| Layer | File | Role |
+|-------|------|------|
+| Tool schema | `server/src/services/fileTools.ts` | `run_terminal_command` entry in `TOOL_SCHEMAS` |
+| Dispatcher | `server/src/services/agentTools.ts` | `executeAgentTool()` — routes terminal commands through approval; all other tools go to `executeTool()` |
+| Approval service | `server/src/services/terminalCommands.ts` | `requestTerminalApproval`, `resolveTerminalApproval`, `runTerminalCommand` |
+| Approval route | `server/src/routes/terminalCommands.ts` | `POST /api/agent/terminal/approval` |
+| Agent services | `anthropicAgent.ts`, `openaiAgent.ts`, `geminiAgent.ts` | Call `executeAgentTool` (not `executeTool`) so the approval flow is active for all providers |
+| Client hook | `client/src/hooks/useCodingAssistant.ts` | Handles `command_approval` / `command_output` events; `sendApproval()` |
+| Client UI | `client/src/components/right/CodingAssistant.tsx` | `CommandApprovalBlock` — command, reason, cwd, Approve/Reject buttons, live output pane |
 
 ### Active File Context
 
