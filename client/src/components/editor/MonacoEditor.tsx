@@ -296,7 +296,7 @@ export function MonacoEditor({ file, onContentChange, diffData }: MonacoEditorPr
   return (
     <Editor
       height="100%"
-      theme="vs-dark"
+      theme={document.documentElement.dataset.theme === 'light' ? 'light' : 'vs-dark'}
       language={file.language}
       value={file.content}
       onChange={value => onContentChange(file.path, value ?? '')}

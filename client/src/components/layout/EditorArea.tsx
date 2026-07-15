@@ -120,7 +120,7 @@ export const EditorArea = forwardRef<EditorAreaHandle, EditorAreaProps>(
                     height: '100%',
                     overflow: 'auto',
                     padding: '24px 32px',
-                    color: '#d4d4d4',
+                    color: 'var(--color-text-primary)',
                     fontSize: 14,
                     lineHeight: 1.7,
                     boxSizing: 'border-box',

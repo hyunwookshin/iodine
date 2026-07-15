@@ -8,6 +8,7 @@ import { ResizeDivider } from './ResizeDivider';
 import { BottomTray } from '../bottom/BottomTray';
 import { useOpenFiles } from '../../hooks/useOpenFiles';
 import { useFileWatcher } from '../../hooks/useFileWatcher';
+import { useTheme } from '../../hooks/useTheme';
 import { getWorkspace, closeWorkspace } from '../../api/files';
 import type { SidebarView } from '../../types';
 
@@ -27,6 +28,7 @@ export function WorkbenchLayout() {
   const [rightPanelWidth, setRightPanelWidth] = useState(RIGHT_PANEL_DEFAULT);
   const [trayHeight, setTrayHeight] = useState(TRAY_DEFAULT);
   const [workspacePath, setWorkspacePath] = useState<string | null>(null);
+  const { theme, toggleTheme } = useTheme();
 
   const editorAreaRef = useRef<EditorAreaHandle>(null);
 
@@ -129,6 +131,8 @@ export function WorkbenchLayout() {
         onOpenProject={handleWorkspaceOpen}
         onCloseProject={handleCloseProject}
         workspacePath={workspacePath}
+        theme={theme}
+        onToggleTheme={toggleTheme}
       />
 
       <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>

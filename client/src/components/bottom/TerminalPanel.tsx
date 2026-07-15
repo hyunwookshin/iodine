@@ -46,7 +46,6 @@ export function TerminalPanel({ workspacePath }: TerminalPanelProps) {
       const next = prev.filter(s => s.id !== id);
 
       if (next.length === 0) {
-        // Auto-open a fresh session when the last one is closed
         const newId = nextId++;
         setActiveId(newId);
         return [{ id: newId, wsUrl: buildWsUrl(workspaceRef.current), dead: false }];
@@ -66,15 +65,14 @@ export function TerminalPanel({ workspacePath }: TerminalPanelProps) {
   }, []);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', background: '#1e1e1e' }}>
-      {/* Session sub-tab strip */}
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', background: 'var(--color-bg-editor)' }}>
       <div
         style={{
           display: 'flex',
           alignItems: 'center',
           height: 28,
-          background: '#252526',
-          borderBottom: '1px solid #3c3c3c',
+          background: 'var(--color-bg-tab-inactive)',
+          borderBottom: '1px solid var(--color-border)',
           flexShrink: 0,
           overflowX: 'auto',
         }}
@@ -91,9 +89,9 @@ export function TerminalPanel({ workspacePath }: TerminalPanelProps) {
               height: '100%',
               cursor: 'pointer',
               fontSize: 11,
-              background: activeId === s.id ? '#1e1e1e' : 'transparent',
-              color: s.dead ? '#555' : activeId === s.id ? '#cccccc' : '#888',
-              borderRight: '1px solid #3c3c3c',
+              background: activeId === s.id ? 'var(--color-bg-tab-active)' : 'transparent',
+              color: s.dead ? 'var(--color-text-secondary)' : activeId === s.id ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
+              borderRight: '1px solid var(--color-border)',
               flexShrink: 0,
               userSelect: 'none',
               fontStyle: s.dead ? 'italic' : 'normal',
@@ -103,16 +101,15 @@ export function TerminalPanel({ workspacePath }: TerminalPanelProps) {
             <span
               onClick={e => { e.stopPropagation(); closeSession(s.id); }}
               title="Close terminal"
-              style={{ fontSize: 10, color: '#555', cursor: 'pointer', lineHeight: 1, padding: '1px 2px' }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#ff6b6b'; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = '#555'; }}
+              style={{ fontSize: 10, color: 'var(--color-icon)', cursor: 'pointer', lineHeight: 1, padding: '1px 2px' }}
+              onMouseEnter={e => { e.currentTarget.style.color = '#ff6b6b'; }}
+              onMouseLeave={e => { e.currentTarget.style.color = 'var(--color-icon)'; }}
             >
               ✕
             </span>
           </div>
         ))}
 
-        {/* New session button */}
         <button
           onClick={addSession}
           title="New terminal session"
@@ -120,21 +117,20 @@ export function TerminalPanel({ workspacePath }: TerminalPanelProps) {
             background: 'none',
             border: 'none',
             cursor: 'pointer',
-            color: '#777',
+            color: 'var(--color-icon)',
             fontSize: 18,
             lineHeight: 1,
             padding: '0 10px',
             height: '100%',
             flexShrink: 0,
           }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#cccccc'; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = '#777'; }}
+          onMouseEnter={e => { e.currentTarget.style.color = 'var(--color-icon-active)'; }}
+          onMouseLeave={e => { e.currentTarget.style.color = 'var(--color-icon)'; }}
         >
           +
         </button>
       </div>
 
-      {/* All sessions mounted; only the active one is visible to preserve state */}
       {sessions.map(s => (
         <div
           key={s.id}

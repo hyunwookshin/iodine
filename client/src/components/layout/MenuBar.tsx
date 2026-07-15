@@ -1,13 +1,16 @@
 import { useRef, useState } from 'react';
 import { findWorkspace, openWorkspace } from '../../api/files';
+import type { Theme } from '../../hooks/useTheme';
 
 interface MenuBarProps {
   onOpenProject: (path: string) => void;
   onCloseProject: () => void;
   workspacePath: string | null;
+  theme: Theme;
+  onToggleTheme: () => void;
 }
 
-export function MenuBar({ onOpenProject, onCloseProject, workspacePath }: MenuBarProps) {
+export function MenuBar({ onOpenProject, onCloseProject, workspacePath, theme, onToggleTheme }: MenuBarProps) {
   const [fileMenuOpen, setFileMenuOpen] = useState(false);
   const [showFallback, setShowFallback] = useState(false);
   const [pathInput, setPathInput] = useState('');
@@ -189,6 +192,23 @@ export function MenuBar({ onOpenProject, onCloseProject, workspacePath }: MenuBa
             Opening…
           </span>
         )}
+
+        <div style={{ flex: 1 }} />
+        <button
+          onClick={onToggleTheme}
+          title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+          aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+          style={{
+            width: 28,
+            height: 24,
+            borderRadius: 3,
+            color: 'var(--color-text-primary)',
+          }}
+          onMouseEnter={e => (e.currentTarget.style.background = 'var(--color-bg-hover)')}
+          onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+        >
+          {theme === 'dark' ? '☀' : '☾'}
+        </button>
       </div>
 
       {/* Fallback: manual path input shown when auto-detect fails */}
@@ -231,7 +251,7 @@ export function MenuBar({ onOpenProject, onCloseProject, workspacePath }: MenuBa
               placeholder="/absolute/path/to/project"
               style={{
                 width: '100%',
-                background: '#3c3c3c',
+                background: 'var(--color-bg-input)',
                 border: '1px solid var(--color-accent)',
                 borderRadius: 3,
                 color: 'var(--color-text-primary)',

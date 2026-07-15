@@ -19,7 +19,7 @@ function ToolBlock({ block }: { block: UIBlock & { type: 'tool' } }) {
   return (
     <div
       style={{
-        background: '#ffffff08',
+        background: 'var(--color-bg-subtle)',
         border: '1px solid var(--color-border)',
         borderRadius: 4,
         marginBottom: 4,
@@ -82,7 +82,7 @@ function ThoughtBlock({ block }: { block: UIBlock & { type: 'thought' } }) {
   return (
     <div
       style={{
-        background: '#ffffff05',
+        background: 'var(--color-bg-subtler)',
         borderLeft: '3px solid #4fc1ff',
         padding: '4px 8px',
         marginBottom: 4,
@@ -124,7 +124,7 @@ function CommandApprovalBlock({
 
   return (
     <div style={{
-      background: '#ffffff08',
+      background: 'var(--color-bg-subtle)',
       border: `1px solid ${borderColor}`,
       borderRadius: 6,
       marginBottom: 6,
@@ -136,7 +136,7 @@ function CommandApprovalBlock({
         alignItems: 'center',
         justifyContent: 'space-between',
         padding: '5px 10px',
-        background: '#ffffff05',
+        background: 'var(--color-bg-subtler)',
         borderBottom: '1px solid var(--color-border)',
       }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
@@ -161,12 +161,12 @@ function CommandApprovalBlock({
         <pre style={{
           margin: '0 0 5px',
           padding: '5px 8px',
-          background: '#1e1e1e',
+          background: 'var(--color-bg-editor)',
           border: '1px solid var(--color-border)',
           borderRadius: 4,
           fontSize: 12,
           fontFamily: 'monospace',
-          color: '#9cdcfe',
+          color: 'var(--color-code-text)',
           whiteSpace: 'pre-wrap',
           wordBreak: 'break-all',
         }}>
@@ -203,7 +203,7 @@ function CommandApprovalBlock({
             style={{
               marginTop: 8,
               padding: '6px 8px',
-              background: '#0d1117',
+              background: 'var(--color-bg-code)',
               border: '1px solid var(--color-border)',
               borderRadius: 4,
               fontSize: 11,
@@ -237,7 +237,7 @@ function MessageBubble({ msg, isLast, providerLabel, sendApproval }: {
         </div>
         <div
           style={{
-            background: '#ffffff0a',
+            background: 'var(--color-bg-subtle)',
             border: '1px solid var(--color-border)',
             borderRadius: 6,
             padding: '8px 10px',
@@ -402,7 +402,7 @@ export function CodingAssistant({ workspacePath, activeFilePath, onWorkspaceOpen
         .md-body table { border-collapse: collapse; font-size: 12px; margin: 6px 0; width: 100%; }
         .md-body th, .md-body td { border: 1px solid var(--color-border); padding: 4px 8px; text-align: left; }
         .md-body th { background: #ffffff0a; font-weight: 600; }
-        .md-pre { background: #1e1e1e; border: 1px solid var(--color-border); border-radius: 4px; padding: 8px 10px; overflow-x: auto; margin: 6px 0; font-size: 12px; font-family: monospace; white-space: pre; }
+        .md-pre { background: var(--color-bg-editor); border: 1px solid var(--color-border); border-radius: 4px; padding: 8px 10px; overflow-x: auto; margin: 6px 0; font-size: 12px; font-family: monospace; white-space: pre; }
         .md-code-inline { background: #ffffff12; border-radius: 3px; padding: 1px 4px; font-size: 12px; font-family: monospace; }
       `}</style>
 
@@ -496,7 +496,7 @@ export function CodingAssistant({ workspacePath, activeFilePath, onWorkspaceOpen
           style={{
             margin: '0 0 0 0',
             padding: '10px 12px',
-            background: '#ffffff06',
+            background: 'var(--color-bg-subtle)',
             borderBottom: '1px solid var(--color-border)',
             fontSize: 12,
             flexShrink: 0,
@@ -555,7 +555,7 @@ export function CodingAssistant({ workspacePath, activeFilePath, onWorkspaceOpen
               placeholder="/absolute/path/to/project"
               style={{
                 flex: 1,
-                background: '#3c3c3c',
+                background: 'var(--color-bg-input)',
                 border: '1px solid #e7c54760',
                 borderRadius: 3,
                 color: 'var(--color-text-primary)',
@@ -591,7 +591,7 @@ export function CodingAssistant({ workspacePath, activeFilePath, onWorkspaceOpen
           style={{
             margin: '6px 8px 0',
             padding: '4px 8px',
-            background: '#ffffff06',
+            background: 'var(--color-bg-subtle)',
             border: '1px solid var(--color-border)',
             borderRadius: 3,
             fontSize: 11,

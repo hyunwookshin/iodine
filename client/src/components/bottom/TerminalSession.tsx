@@ -10,6 +10,16 @@ interface TerminalSessionProps {
   onExit: () => void;
 }
 
+function terminalTheme() {
+  const styles = getComputedStyle(document.documentElement);
+  return {
+    background: styles.getPropertyValue('--color-bg-editor').trim(),
+    foreground: styles.getPropertyValue('--color-text-primary').trim(),
+    cursor: styles.getPropertyValue('--color-text-primary').trim(),
+    selectionBackground: styles.getPropertyValue('--color-bg-selected').trim(),
+  };
+}
+
 export function TerminalSession({ wsUrl, active, onExit }: TerminalSessionProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
@@ -23,12 +33,7 @@ export function TerminalSession({ wsUrl, active, onExit }: TerminalSessionProps)
     if (!containerRef.current) return;
 
     const term = new Terminal({
-      theme: {
-        background: '#1e1e1e',
-        foreground: '#cccccc',
-        cursor: '#cccccc',
-        selectionBackground: '#264f78',
-      },
+      theme: terminalTheme(),
       fontSize: 13,
       fontFamily: '"Menlo", "Monaco", "Courier New", monospace',
       cursorBlink: true,
@@ -89,6 +94,15 @@ export function TerminalSession({ wsUrl, active, onExit }: TerminalSessionProps)
       wsRef.current = null;
     };
   }, [wsUrl]);
+
+  // Update xterm's canvas colors when the document theme changes.
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      if (termRef.current) termRef.current.options.theme = terminalTheme();
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    return () => observer.disconnect();
+  }, []);
 
   // Re-fit when this session becomes visible (switching away then back hides it via display:none)
   useEffect(() => {

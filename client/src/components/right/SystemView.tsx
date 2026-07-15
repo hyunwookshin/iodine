@@ -126,7 +126,7 @@ function EdgeSvg({ edge, posMap }: { edge: GraphEdge; posMap: PosMap }) {
         return (
           <>
             <rect x={mx - labelW / 2} y={my - 8} width={labelW} height={15}
-              fill="#1e1e1e" rx={3} opacity={0.85} />
+              fill="var(--color-bg-editor)" rx={3} opacity={0.85} />
             <text x={mx} y={my + 3.5} textAnchor="middle" fill={color}
               fontSize={9} fontFamily="monospace" style={{ pointerEvents: 'none' }}>
               {edge.label}
@@ -489,7 +489,7 @@ export function SystemView({ workspacePath, provider, model }: SystemViewProps) 
           <Editor
             height="100%"
             defaultLanguage="json"
-            theme="vs-dark"
+            theme={document.documentElement.dataset.theme === 'light' ? 'light' : 'vs-dark'}
             value={jsonText}
             onChange={v => { setJsonText(v ?? ''); setDirty(true); }}
             options={{
@@ -505,7 +505,7 @@ export function SystemView({ workspacePath, provider, model }: SystemViewProps) 
         /* ── SVG graph canvas ─────────────────────────────────────────────── */
         <svg
           ref={svgRef}
-          style={{ flex: 1, background: '#141414', cursor: panState ? 'grabbing' : 'default' }}
+          style={{ flex: 1, background: 'var(--color-bg-canvas)', cursor: panState ? 'grabbing' : 'default' }}
           onMouseDown={handleSvgMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
