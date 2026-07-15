@@ -321,7 +321,7 @@ interface CodingAssistantProps {
 }
 
 export function CodingAssistant({ workspacePath, activeFilePath, onWorkspaceOpen, provider, model, setProvider, setModel }: CodingAssistantProps) {
-  const { uiMessages, isLoading, sendMessage, clearMessages, sendApproval } = useCodingAssistant(provider, model);
+  const { uiMessages, isLoading, sendMessage, stopExecution, clearMessages, sendApproval } = useCodingAssistant(provider, model);
   const [input, setInput] = useState('');
   const [providerStatus, setProviderStatus] = useState<Record<string, boolean>>({});
   const [showHelp, setShowHelp] = useState(false);
@@ -672,23 +672,41 @@ export function CodingAssistant({ workspacePath, activeFilePath, onWorkspaceOpen
             boxSizing: 'border-box',
           }}
         />
-        <button
-          onClick={handleSend}
-          disabled={isLoading || !input.trim()}
-          style={{
-            alignSelf: 'flex-end',
-            background: isLoading || !input.trim() ? '#ffffff18' : '#0e639c',
-            border: 'none',
-            borderRadius: 3,
-            color: isLoading || !input.trim() ? 'var(--color-text-secondary)' : '#fff',
-            cursor: isLoading || !input.trim() ? 'default' : 'pointer',
-            fontSize: 12,
-            padding: '5px 14px',
-            fontWeight: 600,
-          }}
-        >
-          {isLoading ? 'Thinking…' : 'Send'}
-        </button>
+        <div style={{ alignSelf: 'flex-end', display: 'flex', gap: 6 }}>
+          {isLoading && (
+            <button
+              onClick={stopExecution}
+              style={{
+                background: '#f4877118',
+                border: '1px solid #f4877160',
+                borderRadius: 3,
+                color: '#f48771',
+                cursor: 'pointer',
+                fontSize: 12,
+                padding: '5px 14px',
+                fontWeight: 600,
+              }}
+            >
+              Stop
+            </button>
+          )}
+          <button
+            onClick={handleSend}
+            disabled={isLoading || !input.trim()}
+            style={{
+              background: isLoading || !input.trim() ? '#ffffff18' : '#0e639c',
+              border: 'none',
+              borderRadius: 3,
+              color: isLoading || !input.trim() ? 'var(--color-text-secondary)' : '#fff',
+              cursor: isLoading || !input.trim() ? 'default' : 'pointer',
+              fontSize: 12,
+              padding: '5px 14px',
+              fontWeight: 600,
+            }}
+          >
+            {isLoading ? 'Thinking…' : 'Send'}
+          </button>
+        </div>
       </div>
     </div>
   );

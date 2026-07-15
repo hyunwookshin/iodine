@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { UIMessage, UIBlock, HistoryMessage } from '../types';
 import type { Provider } from '../providers';
 
@@ -24,6 +24,7 @@ export function useCodingAssistant(provider: Provider, model: string) {
   const textBufRef = useRef('');
   const thoughtBufRef = useRef('');
   const rafRef = useRef<number | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const sendApproval = useCallback(async (id: string, approved: boolean) => {
     // Update block status immediately so buttons disappear
@@ -49,6 +50,15 @@ export function useCodingAssistant(provider: Provider, model: string) {
     }
   }, []);
 
+  const stopExecution = useCallback(() => {
+    abortControllerRef.current?.abort();
+  }, []);
+
+  useEffect(() => () => {
+    abortControllerRef.current?.abort();
+    if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+  }, []);
+
   const sendMessage = useCallback(async (text: string, activeFilePath?: string | null) => {
     if (!text.trim() || isLoading) return;
 
@@ -57,6 +67,8 @@ export function useCodingAssistant(provider: Provider, model: string) {
     const assistantMsg: UIMessage = { id: assistantId, role: 'assistant', blocks: [], isStreaming: true };
 
     const newHistory: HistoryMessage[] = [...history, { role: 'user', content: text }];
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
     setUiMessages(prev => [...prev, userMsg, assistantMsg]);
     setHistory(newHistory);
@@ -67,6 +79,7 @@ export function useCodingAssistant(provider: Provider, model: string) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: newHistory, model, provider: provider.id, activeFile: activeFilePath ?? null }),
+        signal: controller.signal,
       });
 
       if (!response.ok || !response.body) {
@@ -220,25 +233,40 @@ export function useCodingAssistant(provider: Provider, model: string) {
         }
       }
     } catch (err) {
-      // Discard any buffered text so it doesn't leak into the error state
       if (rafRef.current !== null) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
+      const bufferedText = textBufRef.current;
+      const bufferedThought = thoughtBufRef.current;
       textBufRef.current = '';
       thoughtBufRef.current = '';
+      const stopped = controller.signal.aborted;
       const errText = err instanceof Error ? err.message : 'Unknown error';
-      setUiMessages(prev => prev.map(m =>
-        m.id === assistantId && m.role === 'assistant'
-          ? { ...m, isStreaming: false, blocks: [...(m as UIMessage & { role: 'assistant' }).blocks, { type: 'text', content: `Error: ${errText}` }] }
-          : m
-      ));
+      setUiMessages(prev => prev.map(m => {
+        if (m.id !== assistantId || m.role !== 'assistant') return m;
+        const blocks = [...m.blocks];
+        for (const [content, type] of [[bufferedThought, 'thought'], [bufferedText, 'text']] as [string, 'thought' | 'text'][]) {
+          if (!content) continue;
+          const last = blocks[blocks.length - 1];
+          if (last?.type === type) blocks[blocks.length - 1] = { ...last, content: last.content + content } as UIBlock;
+          else blocks.push({ type, content } as UIBlock);
+        }
+        if (stopped) {
+          blocks.push({ type: 'text', content: '_Execution stopped._' });
+        } else {
+          blocks.push({ type: 'text', content: `Error: ${errText}` });
+        }
+        return { ...m, isStreaming: false, blocks };
+      }));
     } finally {
+      if (abortControllerRef.current === controller) abortControllerRef.current = null;
       setIsLoading(false);
     }
   }, [history, isLoading, model, provider]);
 
   const clearMessages = useCallback(() => {
+    abortControllerRef.current?.abort();
     setUiMessages([]);
     setHistory([]);
   }, []);
 
-  return { uiMessages, isLoading, sendMessage, clearMessages, sendApproval };
+  return { uiMessages, isLoading, sendMessage, stopExecution, clearMessages, sendApproval };
 }
