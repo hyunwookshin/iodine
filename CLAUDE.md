@@ -2,7 +2,7 @@
 
 ## What This Is
 
-A web-based IDE shell for the Iodine project. Developers can open a local folder, browse its file tree, and read/edit files in a Monaco-powered code editor. The right panel has three tabs: **Simulation** (placeholder for planned network mocking / throttling features), **Coding Assistant** (a streaming chat powered by Claude, GPT, or Gemini that can read, write, and search files in the open workspace), and **System View** (an interactive SVG graph editor for architecture diagrams, with an AI-powered Generate button that explores the workspace with file tools).
+An open-source, forkable web-based IDE shell. Developers can open a local folder, browse its file tree, and read/edit files in a Monaco-powered code editor. The right panel has two tabs: **Coding Assistant** (a streaming chat powered by Claude, GPT, or Gemini that can read, write, and search files in the open workspace) and **System View** (an interactive SVG graph editor for architecture diagrams, with an AI-powered Generate button that explores the workspace with file tools).
 
 ## How to Start
 
@@ -54,7 +54,7 @@ iodine/
 │           │   ├── ActivityBar.tsx       # Left icon strip (Explorer / SCM toggle)
 │           │   ├── Sidebar.tsx           # Panel host — renders active view
 │           │   ├── EditorArea.tsx        # Tab bar + Monaco editor + Preview toggle for .md/.html + ImageViewer for images
-│           │   ├── RightPanel.tsx        # Tab bar: Simulation | Coding Assistant | System View; owns provider/model state
+│           │   ├── RightPanel.tsx        # Tab bar: Coding Assistant | System View; owns provider/model state
 │           │   └── ResizeDivider.tsx     # Draggable column resize handle
 │           ├── sidebar/
 │           │   ├── FileExplorer.tsx      # Open Folder UI + file tree; handles create/delete + API calls + tree refresh
@@ -66,7 +66,6 @@ iodine/
 │           │   ├── ImageViewer.tsx       # Renders .png/.jpg/.jpeg files with zoom controls (± buttons, click % to reset)
 │           │   └── WelcomeScreen.tsx     # Shown when no file is open
 │           └── right/
-│               ├── SimulationPanel.tsx   # Simulation tab content (placeholder)
 │               ├── CodingAssistant.tsx   # Coding Assistant chat UI
 │               └── SystemView.tsx        # SVG graph editor + AI generate (agentic loop)
 │

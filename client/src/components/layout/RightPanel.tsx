@@ -1,11 +1,10 @@
 import { useState } from 'react';
-import { SimulationPanel } from '../right/SimulationPanel';
 import { CodingAssistant } from '../right/CodingAssistant';
 import { SystemView } from '../right/SystemView';
 import { PROVIDERS, DEFAULT_PROVIDER, DEFAULT_MODEL } from '../../providers';
 import type { Provider } from '../../providers';
 
-type RightTab = 'simulation' | 'assistant' | 'system';
+type RightTab = 'assistant' | 'system';
 
 interface RightPanelProps {
   width: number;
@@ -49,7 +48,6 @@ export function RightPanel({ width, workspacePath, activeFilePath, onWorkspaceOp
         }}
       >
         {([
-          { id: 'simulation', label: 'Simulation' },
           { id: 'assistant', label: 'Coding Assistant' },
           { id: 'system', label: 'System View' },
         ] as { id: RightTab; label: string }[]).map(tab => (
@@ -77,10 +75,10 @@ export function RightPanel({ width, workspacePath, activeFilePath, onWorkspaceOp
       </div>
 
       {/* Tab content */}
-      {activeTab === 'simulation' ? <SimulationPanel /> :
-       activeTab === 'system'     ? <SystemView workspacePath={workspacePath} provider={provider} model={model} /> :
-       <CodingAssistant workspacePath={workspacePath} activeFilePath={activeFilePath} onWorkspaceOpen={onWorkspaceOpen}
-         provider={provider} model={model} setProvider={setProvider} setModel={setModel} />
+      {activeTab === 'system'
+        ? <SystemView workspacePath={workspacePath} provider={provider} model={model} />
+        : <CodingAssistant workspacePath={workspacePath} activeFilePath={activeFilePath} onWorkspaceOpen={onWorkspaceOpen}
+            provider={provider} model={model} setProvider={setProvider} setModel={setModel} />
       }
     </div>
   );

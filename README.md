@@ -2,9 +2,9 @@
 
 ## About
 
-**Iodine** is an AI-powered, web-based IDE for frontend performance simulation. It lets developers open a local project, browse and edit files in a VS Code-style interface, and simulate realistic backend conditions — such as slow responses, throttling, and errors — without needing access to a real backend.
+**Iodine** is an open-source, web-based IDE shell you can fork and build on. It gives you a VS Code-style editing experience in the browser — file explorer, Monaco editor, git integration, integrated terminal, and an AI coding assistant — all wired together and ready to extend.
 
-A built-in **Coding Assistant**, powered by your choice of AI provider (Anthropic Claude, OpenAI GPT, or Google Gemini), can read, write, and search files in your workspace to help you automate changes like swapping API endpoints, scaffolding loading states, or debugging frontend issues.
+Fork it to build a domain-specific dev tool, a learning environment, an AI-assisted editor, or anything else that benefits from a real IDE running in the browser.
 
 ## Demo Video
 
@@ -25,7 +25,6 @@ For a visual demonstration of Iodine IDE in action, check out our [YouTube demo]
 - 🤖 **AI Coding Assistant** — Streaming chat with tool use (read/write/search files) backed by Claude, GPT, or Gemini
 - 🌿 **Source Control panel** — View Git status, stage/unstage files, discard changes, and commit — all from the UI
 - 📂 **File preview** — Render `.md` (with GitHub Flavored Markdown) and `.html` files inline
-- 🔌 **Simulation panel** — Placeholder for planned network mocking and throttling features
 - 💾 **Workspace persistence** — The last opened folder is remembered across server restarts; use **File → Close Project** to clear it and return to the clean-slate welcome screen
 - 🖥️ **Integrated terminal** — A resizable bottom tray with a real pseudo-terminal (xterm.js + node-pty) running your shell at the workspace root. Open multiple sessions with **+**, close any with **✕**.
 - 🌐 **System View** — Interactive SVG graph editor for system architecture diagrams. Hit **⚡ Generate** and the AI explores your workspace with file tools, reads key files, and builds a graph from what it actually finds — no prompt needed. Nodes are draggable; pan and zoom with mouse. Diagram data is auto-saved to `~/.iodine/<workspace-hash>/system-graph.json`.
@@ -54,18 +53,18 @@ Additional capabilities:
 
 ## Use Cases
 
-* **User experience studies** — Simulate sluggish or unreliable APIs to observe how your UI behaves
-* **Frontend optimization** — Profile and improve loading performance under controlled conditions
-* **Loading screen development** — Build and tune spinners, skeletons, and progress indicators with realistic delays
-* **Error handling / Unhappy paths** — Test 500s, timeouts, and other failure modes without touching the real backend
+* **Fork as an IDE starter kit** — All the hard parts (editor, file tree, git, terminal, AI) are already wired up. Add your own panels and tools on top.
+* **AI-assisted development tools** — Use the built-in agent infrastructure to build specialised coding assistants for your team or domain.
+* **Learning / teaching** — A real, readable codebase showing how to integrate Monaco, xterm.js, git, and AI providers in a single app.
+* **Internal developer tools** — Run it locally as a lightweight web IDE for any project.
 
 ## How It Works
 
-1. Open a local project folder via **File → Open Project** (searches `~` up to 3 levels deep by folder name) or the sidebar **Open Folder** button (accepts any absolute path).
-2. The AI agent reads your source code and can automatically swap API endpoints to point to `localhost`.
-3. A lightweight local Express server mocks delays, throttling, errors, and other backend behaviors.
+1. Open a local project folder via **File → Open Project** (searches `~` up to 3 levels deep by folder name).
+2. Browse and edit files in the Monaco-powered editor. Git status, diffs, and per-hunk revert appear automatically.
+3. Use the **Coding Assistant** tab to chat with an AI that can read, write, and search files in your workspace.
 4. Switch to the **System View** tab and click **⚡ Generate** — the AI reads your actual files and builds an interactive architecture graph.
-5. Developers can create **checkpoints** to save and restore the local simulation environment.
+5. Use the integrated terminal to run commands directly in your workspace.
 
 ## Tech Stack
 
@@ -204,9 +203,3 @@ All three providers share the same tool layer and can perform:
 | `PUT` | `/api/system-graph` | Save architecture graph for current workspace |
 | `POST` | `/api/system-graph/generate` | SSE stream: agentic graph generation (reads workspace) |
 
-## What Do You Plan to Support?
-
-* HTTP/HTTPS endpoint mocking
-* gRPC mocking
-* LLM API simulation
-* Checkpoint save/load for simulation environments
