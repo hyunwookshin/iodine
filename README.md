@@ -10,14 +10,16 @@ Fork it to build a domain-specific dev tool, a learning environment, an AI-assis
 
 VS Code is a multi-million-line codebase. Iodine is a few thousand. That difference matters more than it sounds:
 
-- **Vibe-coding friendly** — the entire codebase fits in an AI's context window. You can describe a feature and apply it in one shot, without hitting token limits or losing coherence across files.
+- **Vibe-coding friendly** — at ~7,700 lines / ~67K tokens, the entire codebase fits in a single AI context window with room to spare (Claude: 200K, GPT-4o: 128K, Gemini 2.5: 1M). You can describe a feature and apply it in one shot, without hitting token limits or losing coherence across files.
 - **You own the shell** — VS Code's extension API lets you add functionality inside a sandbox. Iodine lets you change the layout, panels, and behaviour of the IDE itself.
 - **Web-native** — ships as a local web app with no Electron or desktop packaging required. Embed it, proxy it, or deploy it however you like.
 - **Readable stack** — React + Express + TypeScript with no framework magic. Every file does one thing and is easy to follow.
 
 ### Self-hosting milestone
 
-Iodine has reached the point where you can open its own repository inside Iodine and use the built-in Coding Assistant to continue developing it. The codebase fits comfortably in a single AI context window — ask it to add a panel, wire a new API route, or refactor a component and it can read the relevant files, write the changes, run the build, and interpret the output, all without leaving the browser tab.
+Iodine has reached the point where you can open its own repository inside Iodine and use the built-in Coding Assistant to continue developing it. Ask it to add a panel, wire a new API route, or refactor a component and it can read the relevant files, write the changes, run the build, and interpret the output — all without leaving the browser tab.
+
+> **Caveat:** "fits in the context window" and "the model reasons perfectly across all of it" are not the same thing. Long-context degradation is real — models pay less attention to content deep in a large prompt. For large cross-cutting changes, being explicit about which files are relevant helps. For typical feature work (add a component, extend an API, fix a bug), 67K tokens is well within the range where one-shot application genuinely works.
 
 ## Demo Video
 
