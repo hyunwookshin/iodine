@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { UIMessage, UIBlock, HistoryMessage } from '../types';
 import type { Provider } from '../providers';
 
@@ -18,6 +18,12 @@ export function useCodingAssistant(provider: Provider, model: string) {
   const [uiMessages, setUiMessages] = useState<UIMessage[]>([]);
   const [history, setHistory] = useState<HistoryMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Refs that accumulate text/thought tokens between animation frames.
+  // Prevents per-token re-renders when providers like OpenAI stream very fast.
+  const textBufRef = useRef('');
+  const thoughtBufRef = useRef('');
+  const rafRef = useRef<number | null>(null);
 
   const sendApproval = useCallback(async (id: string, approved: boolean) => {
     // Update block status immediately so buttons disappear
@@ -79,6 +85,39 @@ export function useCodingAssistant(provider: Provider, model: string) {
         ));
       };
 
+      // Drain both text/thought buffers into state in one React update.
+      // Called either by RAF (at most once per frame) or synchronously before
+      // structural events (tool_call, done, etc.) to preserve block ordering.
+      const flushBufs = () => {
+        rafRef.current = null;
+        const txt = textBufRef.current;
+        const tht = thoughtBufRef.current;
+        textBufRef.current = '';
+        thoughtBufRef.current = '';
+        if (!txt && !tht) return;
+        updateAssistant(msg => {
+          const blocks = [...msg.blocks];
+          // thoughts always precede answer text, so flush thought first
+          for (const [buf, blockType] of [[tht, 'thought'], [txt, 'text']] as [string, 'thought' | 'text'][]) {
+            if (!buf) continue;
+            const last = blocks[blocks.length - 1];
+            if (last?.type === blockType) {
+              blocks[blocks.length - 1] = { ...last, content: last.content + buf } as UIBlock;
+            } else {
+              blocks.push({ type: blockType, content: buf } as UIBlock);
+            }
+          }
+          return { ...msg, blocks };
+        });
+      };
+
+      // Cancel any pending RAF and flush synchronously — call before every
+      // non-text event so that block ordering in the UI stays correct.
+      const flushNow = () => {
+        if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+        flushBufs();
+      };
+
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -108,24 +147,15 @@ export function useCodingAssistant(provider: Provider, model: string) {
             continue;
           }
 
-          if (eventName === 'text_delta' || eventName === 'thought_delta') {
-            const text = payload.text as string;
-            const blockType: UIBlock['type'] = eventName === 'thought_delta' ? 'thought' : 'text';
-            updateAssistant(msg => {
-              const blocks = [...msg.blocks];
-              const last = blocks[blocks.length - 1];
-              if (last && last.type === blockType) {
-                // append to existing block of same type
-                if (blockType === 'text' || blockType === 'thought') {
-                  (last as { content: string }).content += text;
-                }
-                blocks[blocks.length - 1] = last;
-              } else {
-                blocks.push({ type: blockType, content: text } as UIBlock);
-              }
-              return { ...msg, blocks };
-            });
+          if (eventName === 'text_delta') {
+            // Buffer and render at most once per animation frame (~60 fps)
+            textBufRef.current += payload.text as string;
+            if (rafRef.current === null) rafRef.current = requestAnimationFrame(flushBufs);
+          } else if (eventName === 'thought_delta') {
+            thoughtBufRef.current += payload.text as string;
+            if (rafRef.current === null) rafRef.current = requestAnimationFrame(flushBufs);
           } else if (eventName === 'tool_call') {
+            flushNow();
             const toolBlock: UIBlock = {
               type: 'tool',
               id: payload.id as string,
@@ -135,6 +165,7 @@ export function useCodingAssistant(provider: Provider, model: string) {
             };
             updateAssistant(msg => ({ ...msg, blocks: [...msg.blocks, toolBlock] }));
           } else if (eventName === 'command_approval') {
+            flushNow();
             const approvalBlock: UIBlock = {
               type: 'command-approval',
               id: payload.id as string,
@@ -157,6 +188,7 @@ export function useCodingAssistant(provider: Provider, model: string) {
               ),
             }));
           } else if (eventName === 'tool_result') {
+            flushNow();
             const toolUseId = payload.tool_use_id as string;
             updateAssistant(msg => ({
               ...msg,
@@ -167,6 +199,7 @@ export function useCodingAssistant(provider: Provider, model: string) {
               ),
             }));
           } else if (eventName === 'done') {
+            flushNow();
             updateAssistant(msg => {
               const finalText = msg.blocks
                 .filter((b): b is UIBlock & { type: 'text' } => b.type === 'text')
@@ -176,6 +209,7 @@ export function useCodingAssistant(provider: Provider, model: string) {
               return { ...msg, isStreaming: false };
             });
           } else if (eventName === 'error') {
+            flushNow();
             const errText = payload.message as string;
             updateAssistant(msg => ({
               ...msg,
@@ -186,6 +220,10 @@ export function useCodingAssistant(provider: Provider, model: string) {
         }
       }
     } catch (err) {
+      // Discard any buffered text so it doesn't leak into the error state
+      if (rafRef.current !== null) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
+      textBufRef.current = '';
+      thoughtBufRef.current = '';
       const errText = err instanceof Error ? err.message : 'Unknown error';
       setUiMessages(prev => prev.map(m =>
         m.id === assistantId && m.role === 'assistant'
