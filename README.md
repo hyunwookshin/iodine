@@ -21,7 +21,7 @@ For a visual demonstration of Iodine IDE in action, check out our [YouTube demo]
 ## Features
 
 - 🖥️ **VS Code-like IDE shell** — Activity bar, file explorer sidebar, Monaco-powered code editor, and resizable panels
-- 📁 **File & folder creation** — Hover any folder in the Explorer to reveal a **+** button; pick **New File** or **New Folder** from the dropdown, type a name (default "Untitled"), and press Enter. Errors out if the name already exists.
+- 📁 **File & folder management** — Hover any folder to reveal a **+** button (New File / New Folder); double-click any name to rename it inline; hover any item to reveal a trash icon to delete it. All three operations error out if the target name already exists.
 - 🤖 **AI Coding Assistant** — Streaming chat with tool use (read/write/search files) backed by Claude, GPT, or Gemini
 - 🌿 **Source Control panel** — View Git status, stage/unstage files, discard changes, and commit — all from the UI
 - 📂 **File preview** — Render `.md` (with GitHub Flavored Markdown) and `.html` files inline
@@ -196,6 +196,7 @@ All three providers share the same tool layer and can perform:
 | `POST` | `/api/git/stage-all` | Stage all changes |
 | `POST` | `/api/git/discard` | Discard changes `{ relPath, isUntracked }` |
 | `POST` | `/api/files/create` | Create a file or directory `{ path, type: 'file'\|'directory' }` — 409 if already exists |
+| `POST` | `/api/files/rename` | Rename a file or directory `{ oldPath, newName }` — 409 if target name already exists |
 | `POST` | `/api/git/commit` | Commit staged changes `{ message }` |
 | `GET` | `/api/agent/status` | Per-provider API key status |
 | `POST` | `/api/agent/chat` | SSE stream: AI chat with tool use |

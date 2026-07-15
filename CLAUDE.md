@@ -58,7 +58,7 @@ iodine/
 │           │   └── ResizeDivider.tsx     # Draggable column resize handle
 │           ├── sidebar/
 │           │   ├── FileExplorer.tsx      # Open Folder UI + file tree; handles create/delete + API calls + tree refresh
-│           │   ├── FileTreeNode.tsx      # Recursive tree node — + dropdown (New File/Folder), trash icon, image icon
+│           │   ├── FileTreeNode.tsx      # Recursive tree node — + dropdown (New File/Folder), double-click to rename, trash icon, image icon
 │           │   └── SourceControlPanel.tsx # SCM panel: branch, commit, staged/unstaged lists
 │           ├── editor/
 │           │   ├── EditorTabs.tsx        # Tab strip with dirty indicator
@@ -82,7 +82,7 @@ iodine/
         ├── routes/
         │   ├── files.ts         # Route handlers for file/workspace/git/system-graph/file-watch endpoints
         │   ├── delete.ts        # DELETE /api/files — delete a file or directory (path-traversal guarded)
-        │   ├── create.ts        # POST /api/files/create — create a file or directory; 409 if already exists
+        │   ├── create.ts        # POST /api/files/create — create a file or directory; POST /api/files/rename — rename; both 409 if target exists
         │   ├── events.ts        # GET /api/events — generic SSE client registration (uses events.ts broadcast)
         │   └── agent.ts         # POST /api/agent/chat (SSE), POST /api/system-graph/generate (SSE), GET /api/agent/status
         └── services/
@@ -107,6 +107,7 @@ iodine/
 | `PUT` | `/api/files/content` | Write a file `{ path, content }` |
 | `DELETE` | `/api/files?path=` | Delete a file or directory (recursive for dirs); path-traversal guarded |
 | `POST` | `/api/files/create` | Create a file or directory `{ path, type: 'file'\|'directory' }` — 409 Conflict if the path already exists |
+| `POST` | `/api/files/rename` | Rename `{ oldPath, newName }` → `{ ok, newPath }` — 409 Conflict if target already exists |
 | `GET` | `/api/files/image?path=` | Serve a binary image file (`image/png` or `image/jpeg`) — used by `ImageViewer` |
 | `GET` | `/api/files/watch` | SSE stream: emits `file-changed { path }` events when workspace files change (debounced 150 ms; ignores `.git/` and `node_modules/`) |
 | `GET` | `/api/events` | SSE stream: generic broadcast endpoint — client registers for `broadcast()` events from `server/src/events.ts` |
@@ -148,6 +149,7 @@ All file reads and writes are validated against the workspace root to prevent pa
 - **File preview**: When a `.md` or `.html` file is active, a floating **Preview** button appears in the upper-right corner of the editor. Clicking it renders the file — markdown is rendered with `react-markdown` + `remark-gfm` (dark-themed prose styles), HTML is rendered in a sandboxed `<iframe>`. Clicking **Source** returns to the Monaco editor. Switching to a non-previewable file automatically resets to source mode.
 - **Create file/folder**: Hover over any **directory** in the Explorer to reveal a **+** button (left of the trash icon). Clicking it opens a small dropdown with **New File** and **New Folder** options. Selecting one auto-expands the directory and shows an inline input row (matching icon + text field pre-filled with `"Untitled"`, all text selected). Press **Enter** to create — the server returns 409 if the name already exists, which is shown as an inline red error below the input. Press **Escape** or click away to cancel. On success the tree refreshes.
 - **Delete file/folder**: Hover over any file or folder in the Explorer to reveal a trash-can icon on the right. Clicking it shows a confirmation dialog (folders warn that all contents will be deleted), then calls `DELETE /api/files?path=` and refreshes the tree. Any editor tabs open inside the deleted path are automatically closed. The trash icon turns red on hover for visibility.
+- **Rename file/folder**: Double-click any file or folder name in the Explorer to enter inline rename mode. The name span is replaced with a text input pre-filled with the current name (all text selected). Press **Enter** to submit — the server calls `POST /api/files/rename` and returns 409 if a file with that name already exists (shown as a red error below the row). Press **Escape** or click away to cancel. Submitting the same name as before cancels without a server round-trip. Any editor tab open at the old path is closed on success.
 - **Revert hunk**: The Monaco editor shows git diff decorations in the gutter — a green bar for added lines, amber bar for modified lines, and a red triangle for deleted lines. Clicking a green or amber glyph immediately reverts that hunk (removes added lines / restores original content). Clicking a red triangle expands a view zone showing the deleted lines; a **↺ Revert** button inside the zone inserts those lines back. All reverts go through Monaco's `executeEdits` API so **Ctrl+Z / Cmd+Z** undoes them. Contiguous changed lines are treated as a single hunk.
 - **Image viewer**: Clicking a `.png`, `.jpg`, or `.jpeg` file in the file tree opens it in a dedicated image viewer instead of the Monaco text editor. The file tree shows a distinct landscape-picture icon (light blue) for image files so they are visually distinguishable. The viewer displays the image centred on a dark canvas with zoom controls (`−` / `+` buttons, click the `%` label to reset to 100%). Images are fetched from `GET /api/files/image?path=` which streams the raw binary with the correct `Content-Type` header and a `no-store` cache policy. The `isImage` flag on `OpenFile` prevents diff decorations and dirty-save logic from running for image tabs.
 
@@ -160,6 +162,17 @@ All file reads and writes are validated against the workspace root to prevent pa
 | Create handler | `FileExplorer.tsx` → `handleCreate(dirPath, name, type)` | Builds full path as `dirPath + '/' + name`, calls `createNode`, then `refetch()` to refresh the tree |
 | Dropdown + input | `FileTreeNode.tsx` | Hover on a directory → **+** button appears; clicking toggles a dropdown (fixed-position backdrop for outside-click dismiss); selecting a type auto-expands the dir, renders an inline input row (matching icon + `<input>`) pre-filled with `"Untitled"` and all text selected via `useEffect` |
 | Error display | `FileTreeNode.tsx` | `createError` state; border turns red, message renders below the input; `submittingRef` prevents blur from cancelling mid-submit |
+
+## File & Folder Rename — Implementation Details
+
+| Layer | File | Role |
+|-------|------|------|
+| Server endpoint | `server/src/routes/create.ts` → `POST /api/files/rename` | Same path-traversal and 409-on-collision logic as create; resolves new path as `dirname(oldPath) + newName`; calls `fs.promises.rename()` |
+| Client API | `client/src/api/files.ts` → `renameNode(oldPath, newName)` | Thin `POST` wrapper returning `{ newPath }`; throws with the server's error string on non-2xx |
+| Rename handler | `FileExplorer.tsx` → `handleRename(node, newName)` | Calls `renameNode`, then `onRenameSuccess(oldPath, newPath)` and `refetch()` |
+| Tab cleanup | `WorkbenchLayout.tsx` → `handleRenameSuccess(oldPath)` | Closes any open editor tabs whose path matches `oldPath` or starts with `oldPath + '/'` |
+| Inline input | `FileTreeNode.tsx` | Double-clicking the name span sets `renaming = true`; the span is replaced with an `<input>` pre-filled with the current name, all text selected via `useEffect`; `renameSubmittingRef` prevents blur from cancelling a pending submit; submitting the same name short-circuits without a server call |
+| Error display | `FileTreeNode.tsx` | `renameError` state; input border turns red, message renders below the row (same style as create errors) |
 
 ## Image Viewer — Implementation Details
 
