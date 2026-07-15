@@ -12,6 +12,7 @@ interface FileTreeNodeProps {
   gitStatus?: Record<string, GitFileStatus>;
   onDelete: (node: FileNode) => void;
   onCreate: (dirPath: string, name: string, type: 'file' | 'directory') => Promise<void>;
+  onRename: (node: FileNode, newName: string) => Promise<void>;
 }
 
 const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg']);
@@ -87,6 +88,7 @@ export function FileTreeNode({
   gitStatus = {},
   onDelete,
   onCreate,
+  onRename,
 }: FileTreeNodeProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -94,8 +96,14 @@ export function FileTreeNode({
   const [newName, setNewName] = useState('Untitled');
   const [createError, setCreateError] = useState<string | null>(null);
 
+  const [renaming, setRenaming] = useState(false);
+  const [renameName, setRenameName] = useState('');
+  const [renameError, setRenameError] = useState<string | null>(null);
+
   const inputRef = useRef<HTMLInputElement>(null);
   const submittingRef = useRef(false);
+  const renameInputRef = useRef<HTMLInputElement>(null);
+  const renameSubmittingRef = useRef(false);
 
   const isExpanded = expandedPaths.has(node.path);
   const isActive = node.path === activeFilePath;
@@ -111,12 +119,19 @@ export function FileTreeNode({
   const fileIconColor = isSymlink ? '#37d5ff' : (isImage ? '#89d4f5' : '#c5c8c6');
   const nameColor = isSymlink && !isActive ? '#37d5ff' : undefined;
 
-  // Select all text when the input first appears
+  // Select all text when the create input first appears
   useEffect(() => {
     if (creatingType && inputRef.current) {
       inputRef.current.select();
     }
   }, [creatingType]);
+
+  // Select all text when the rename input first appears
+  useEffect(() => {
+    if (renaming && renameInputRef.current) {
+      renameInputRef.current.select();
+    }
+  }, [renaming]);
 
   const handleClick = () => {
     if (isDir) {
@@ -138,6 +153,37 @@ export function FileTreeNode({
     setCreatingType(null);
     setNewName('Untitled');
     setCreateError(null);
+  };
+
+  const startRenaming = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setRenaming(true);
+    setRenameName(node.name);
+    setRenameError(null);
+  };
+
+  const cancelRenaming = () => {
+    setRenaming(false);
+    setRenameName('');
+    setRenameError(null);
+  };
+
+  const handleRename = async () => {
+    const name = renameName.trim();
+    if (!name) { setRenameError('Name cannot be empty'); return; }
+    if (name === node.name) { cancelRenaming(); return; }
+    renameSubmittingRef.current = true;
+    setRenameError(null);
+    try {
+      await onRename(node, name);
+      setRenaming(false);
+    } catch (err) {
+      setRenameError(err instanceof Error ? err.message : 'Failed to rename');
+      renameInputRef.current?.focus();
+      renameInputRef.current?.select();
+    } finally {
+      renameSubmittingRef.current = false;
+    }
   };
 
   const handleCreate = async () => {
@@ -209,18 +255,47 @@ export function FileTreeNode({
           </>
         )}
 
-        <span style={{
-          fontSize: 13,
-          flex: 1,
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
-          fontWeight: nameFontWeight,
-          textDecoration: nameTextDecoration,
-          color: nameColor,
-        }}>
-          {node.name}
-        </span>
+        {renaming ? (
+          <input
+            ref={renameInputRef}
+            autoFocus
+            value={renameName}
+            onChange={e => { setRenameName(e.target.value); setRenameError(null); }}
+            onKeyDown={e => {
+              if (e.key === 'Enter') { e.preventDefault(); handleRename(); }
+              if (e.key === 'Escape') { e.stopPropagation(); cancelRenaming(); }
+            }}
+            onBlur={() => { if (!renameSubmittingRef.current) cancelRenaming(); }}
+            onClick={e => e.stopPropagation()}
+            style={{
+              flex: 1,
+              background: '#3c3c3c',
+              border: `1px solid ${renameError ? '#f48771' : 'var(--color-accent)'}`,
+              borderRadius: 2,
+              color: 'var(--color-text-primary)',
+              fontSize: 13,
+              padding: '1px 4px',
+              outline: 'none',
+              minWidth: 0,
+            }}
+          />
+        ) : (
+          <span
+            onDoubleClick={startRenaming}
+            style={{
+              fontSize: 13,
+              flex: 1,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              fontWeight: nameFontWeight,
+              textDecoration: nameTextDecoration,
+              color: nameColor,
+            }}
+          >
+            {node.name}
+          </span>
+        )}
 
         {/* Action buttons — visible on hover */}
         {showActions && (
@@ -324,6 +399,19 @@ export function FileTreeNode({
         )}
       </div>
 
+      {/* Rename error shown below the row */}
+      {renameError && (
+        <div style={{
+          paddingLeft: 8 + depth * 12 + 32,
+          paddingRight: 8,
+          fontSize: 11,
+          color: '#f48771',
+          lineHeight: '18px',
+        }}>
+          {renameError}
+        </div>
+      )}
+
       {/* Children + optional inline creation row */}
       {isDir && isExpanded && (
         <>
@@ -393,6 +481,7 @@ export function FileTreeNode({
               gitStatus={gitStatus}
               onDelete={onDelete}
               onCreate={onCreate}
+              onRename={onRename}
             />
           ))}
         </>

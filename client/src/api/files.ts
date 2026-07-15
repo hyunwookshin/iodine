@@ -55,6 +55,14 @@ export async function closeWorkspace(): Promise<void> {
   await request('/api/workspace/close', { method: 'POST' });
 }
 
+export async function renameNode(oldPath: string, newName: string): Promise<{ newPath: string }> {
+  return request<{ newPath: string }>('/api/files/rename', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ oldPath, newName }),
+  });
+}
+
 export async function putFileContent(path: string, content: string): Promise<void> {
   await request('/api/files/content', {
     method: 'PUT',

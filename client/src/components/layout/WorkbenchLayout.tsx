@@ -107,6 +107,13 @@ export function WorkbenchLayout() {
       .forEach(f => closeFile(f.path));
   }, [openFiles, closeFile]);
 
+  /** Close tabs for the old path when a file or directory is renamed. */
+  const handleRenameSuccess = useCallback((oldPath: string) => {
+    openFiles
+      .filter(f => f.path === oldPath || f.path.startsWith(oldPath + '/'))
+      .forEach(f => closeFile(f.path));
+  }, [openFiles, closeFile]);
+
   return (
     <div
       style={{
@@ -136,6 +143,7 @@ export function WorkbenchLayout() {
             activeFilePath={activeFilePath}
             onFileClick={openFile}
             onDeleteSuccess={handleDeleteSuccess}
+            onRenameSuccess={handleRenameSuccess}
           />
 
           <ResizeDivider
