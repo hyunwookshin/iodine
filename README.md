@@ -15,11 +15,19 @@ VS Code is a multi-million-line codebase. Iodine is a few thousand. That differe
 - **Web-native** — ships as a local web app with no Electron or desktop packaging required. Embed it, proxy it, or deploy it however you like.
 - **Readable stack** — React + Express + TypeScript with no framework magic. Every file does one thing and is easy to follow.
 
+### Context window guarantee
+
+**Iodine commits to keeping the entire source under 100K tokens — permanently.**
+
+GPT-4o, our most constrained supported model, has a 128K context window. At 100K tokens the source fits with 28K to spare for conversation history and output. That headroom is intentional.
+
+This is not just a current snapshot — it is a design constraint. If a feature would push the source past 100K tokens it is a signal to prune or split first, not to quietly let the project grow. The point is to stay small enough that you can always hand the whole codebase to an AI and ask it to make a change in one shot, forever — not just today.
+
+> **Caveat:** "fits in the context window" and "the model reasons perfectly across all of it" are not the same thing. Long-context degradation is real — models pay less attention to content deep in a large prompt. For large cross-cutting changes, being explicit about which files are relevant helps. For typical feature work (add a component, extend an API, fix a bug), 67K tokens is well within the range where one-shot application genuinely works.
+
 ### Self-hosting milestone
 
 Iodine has reached the point where you can open its own repository inside Iodine and use the built-in Coding Assistant to continue developing it. Ask it to add a panel, wire a new API route, or refactor a component and it can read the relevant files, write the changes, run the build, and interpret the output — all without leaving the browser tab.
-
-> **Caveat:** "fits in the context window" and "the model reasons perfectly across all of it" are not the same thing. Long-context degradation is real — models pay less attention to content deep in a large prompt. For large cross-cutting changes, being explicit about which files are relevant helps. For typical feature work (add a component, extend an API, fix a bug), 67K tokens is well within the range where one-shot application genuinely works.
 
 ## Demo Video
 
