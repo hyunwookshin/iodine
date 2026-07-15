@@ -26,6 +26,16 @@ const TOOLS: Anthropic.Tool[] = Object.entries(TOOL_SCHEMAS).map(([name, schema]
   input_schema: schema.parameters as Anthropic.Tool['input_schema'],
 }));
 
+// Newer models use adaptive thinking; older models use extended thinking with a budget.
+const ADAPTIVE_THINKING_MODELS = new Set(['claude-opus-4-8', 'claude-sonnet-5']);
+
+function getThinkingParam(model: string): Anthropic.ThinkingConfigParam {
+  if (ADAPTIVE_THINKING_MODELS.has(model)) {
+    return { type: 'adaptive' };
+  }
+  return { type: 'enabled', budget_tokens: 8000 };
+}
+
 function writeSSE(res: Response, event: string, data: unknown) {
   res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
 }
@@ -58,7 +68,7 @@ Be concise in your explanations. When writing files with write_file, ALWAYS writ
     const stream = client.messages.stream({
       model,
       max_tokens: 32000,
-      thinking: { type: 'enabled', budget_tokens: 8000 },
+      thinking: getThinkingParam(model),
       system,
       tools: TOOLS,
       messages: history,

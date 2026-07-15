@@ -8,6 +8,12 @@ export async function loadOpenAIKey(): Promise<string> {
   throw new Error('OPENAI_TOKEN environment variable is not set');
 }
 
+// Reasoning models require reasoning_effort: 'none' to use function tools on /v1/chat/completions.
+const REASONING_MODEL_PREFIXES = ['o1', 'o3', 'o4', 'gpt-5'];
+function isReasoningModel(model: string): boolean {
+  return REASONING_MODEL_PREFIXES.some(prefix => model.startsWith(prefix));
+}
+
 const TOOLS: OpenAI.ChatCompletionTool[] = Object.entries(TOOL_SCHEMAS).map(([name, schema]) => ({
   type: 'function' as const,
   function: {
@@ -56,6 +62,7 @@ export async function runOpenAIAgentLoop(
       tools: TOOLS,
       messages: history,
       stream: true,
+      ...(isReasoningModel(model) ? { reasoning_effort: 'none' as const } : {}),
     });
 
     // Accumulate tool call deltas across chunks
