@@ -1,5 +1,7 @@
 # Iodine — Few Drops of IDE Essentials
 
+[Donate tokens on PayPal](https://paypal.me/hwshin)
+
 ## About
 
 **Iodine** is an open-source, web-based IDE shell you can fork and build on. It gives you a VS Code-style editing experience in the browser — file explorer, Monaco editor, git integration, integrated terminal, and an AI coding assistant — all wired together and ready to extend.
