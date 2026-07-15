@@ -19,6 +19,30 @@ export function useCodingAssistant(provider: Provider, model: string) {
   const [history, setHistory] = useState<HistoryMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
+  const sendApproval = useCallback(async (id: string, approved: boolean) => {
+    // Update block status immediately so buttons disappear
+    setUiMessages(prev => prev.map(msg => {
+      if (msg.role !== 'assistant') return msg;
+      return {
+        ...msg,
+        blocks: msg.blocks.map(b =>
+          b.type === 'command-approval' && b.id === id
+            ? { ...b, status: (approved ? 'approved' : 'rejected') as 'approved' | 'rejected' }
+            : b
+        ),
+      };
+    }));
+    try {
+      await fetch(`${API_BASE}/api/agent/terminal/approval`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, approved }),
+      });
+    } catch {
+      // timeout on server will reject automatically
+    }
+  }, []);
+
   const sendMessage = useCallback(async (text: string, activeFilePath?: string | null) => {
     if (!text.trim() || isLoading) return;
 
@@ -110,6 +134,28 @@ export function useCodingAssistant(provider: Provider, model: string) {
               pending: true,
             };
             updateAssistant(msg => ({ ...msg, blocks: [...msg.blocks, toolBlock] }));
+          } else if (eventName === 'command_approval') {
+            const approvalBlock: UIBlock = {
+              type: 'command-approval',
+              id: payload.id as string,
+              command: payload.command as string,
+              reason: payload.reason as string,
+              cwd: payload.cwd as string | null,
+              longRunning: payload.longRunning as boolean,
+              status: 'pending',
+              output: '',
+            };
+            updateAssistant(msg => ({ ...msg, blocks: [...msg.blocks, approvalBlock] }));
+          } else if (eventName === 'command_output') {
+            const { id, data } = payload as { id: string; stream: string; data: string };
+            updateAssistant(msg => ({
+              ...msg,
+              blocks: msg.blocks.map(b =>
+                b.type === 'command-approval' && b.id === id
+                  ? { ...b, output: b.output + data }
+                  : b
+              ),
+            }));
           } else if (eventName === 'tool_result') {
             const toolUseId = payload.tool_use_id as string;
             updateAssistant(msg => ({
@@ -156,5 +202,5 @@ export function useCodingAssistant(provider: Provider, model: string) {
     setHistory([]);
   }, []);
 
-  return { uiMessages, isLoading, sendMessage, clearMessages };
+  return { uiMessages, isLoading, sendMessage, clearMessages, sendApproval };
 }

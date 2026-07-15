@@ -79,7 +79,6 @@ export async function executeTool(name: string, input: Record<string, unknown>):
   }
 }
 
-/** Provider-agnostic tool parameter schemas (reused by both agents). */
 export const TOOL_SCHEMAS = {
   read_file: {
     description: 'Read the contents of a file in the workspace.',
@@ -116,6 +115,18 @@ export const TOOL_SCHEMAS = {
         path: { type: 'string', description: 'Directory to search in (defaults to workspace root)' },
       },
       required: ['query'],
+    },
+  },
+  run_terminal_command: {
+    description: 'Propose a terminal command in the workspace. This tool pauses until the user explicitly approves or rejects it. After approval, its captured stdout, stderr, exit code, and detected localhost URLs are returned so you can interpret the result and continue. Use longRunning for development servers and watchers.',
+    parameters: {
+      type: 'object' as const,
+      properties: {
+        command: { type: 'string', description: 'The exact shell command to run' },
+        reason: { type: 'string', description: 'A short explanation of why this command is needed' },
+        longRunning: { type: 'boolean', description: 'Set true for dev servers, watchers, or commands expected to keep running' },
+      },
+      required: ['command', 'reason'],
     },
   },
 } as const;

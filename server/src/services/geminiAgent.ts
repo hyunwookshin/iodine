@@ -1,6 +1,7 @@
 import { GoogleGenAI, Type } from '@google/genai';
 import { Response } from 'express';
-import { executeTool, TOOL_SCHEMAS } from './fileTools';
+import { TOOL_SCHEMAS } from './fileTools';
+import { executeAgentTool } from './agentTools';
 import { rootPath } from '../state';
 
 export async function loadGeminiKey(): Promise<string> {
@@ -54,7 +55,7 @@ function buildSystemInstruction(activeFile: string | null): string {
 ${workspaceInfo}
 ${activeFileInfo}
 
-You can read, write, list, and search files. When modifying files, read them first.
+You can read, write, list, and search files, and run terminal commands. When modifying files, read them first.
 Be concise in your explanations. When writing files with write_file, ALWAYS write the complete file content — never truncate, abbreviate, or use placeholder comments like "// rest of file unchanged" or "// ...". The file on disk will be exactly what you pass to write_file, so partial content means a broken file.`;
 }
 
@@ -154,7 +155,7 @@ export async function runGeminiAgentLoop(
 
       writeSSE(res, 'tool_call', { id: fc.id, name: fc.name, input: fc.args });
 
-      const result = await executeTool(fc.name, fc.args);
+      const result = await executeAgentTool(fc.name, fc.args, res, abortSignal);
       writeSSE(res, 'tool_result', {
         tool_use_id: fc.id,
         name: fc.name,

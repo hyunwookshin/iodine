@@ -3,7 +3,8 @@ import os from 'os';
 import fs from 'fs';
 import path from 'path';
 import { Response } from 'express';
-import { executeTool, TOOL_SCHEMAS } from './fileTools';
+import { TOOL_SCHEMAS } from './fileTools';
+import { executeAgentTool } from './agentTools';
 import { rootPath } from '../state';
 
 export async function loadApiKey(): Promise<string> {
@@ -57,7 +58,7 @@ export async function runAgentLoop(
 ${workspaceInfo}
 ${activeFileInfo}
 
-You can read, write, list, and search files. When modifying files, read them first.
+You can read, write, list, and search files, and run terminal commands. When modifying files, read them first.
 Be concise in your explanations. When writing files with write_file, ALWAYS write the complete file content — never truncate, abbreviate, or use placeholder comments like "// rest of file unchanged" or "// ...". The file on disk will be exactly what you pass to write_file, so partial content means a broken file.`;
 
   const history = [...messages];
@@ -111,7 +112,7 @@ Be concise in your explanations. When writing files with write_file, ALWAYS writ
       if (abortSignal.aborted) return;
       writeSSE(res, 'tool_call', { id: toolUse.id, name: toolUse.name, input: toolUse.input });
 
-      const result = await executeTool(toolUse.name, toolUse.input as Record<string, unknown>);
+      const result = await executeAgentTool(toolUse.name, toolUse.input as Record<string, unknown>, res, abortSignal);
       writeSSE(res, 'tool_result', {
         tool_use_id: toolUse.id,
         name: toolUse.name,

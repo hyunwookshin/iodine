@@ -98,7 +98,137 @@ function ThoughtBlock({ block }: { block: UIBlock & { type: 'thought' } }) {
   );
 }
 
-function MessageBubble({ msg, isLast, providerLabel }: { msg: UIMessage; isLast: boolean; providerLabel: string }) {
+function CommandApprovalBlock({
+  block,
+  onApprove,
+  onReject,
+}: {
+  block: UIBlock & { type: 'command-approval' };
+  onApprove: () => void;
+  onReject: () => void;
+}) {
+  const outputRef = useRef<HTMLPreElement>(null);
+  const isPending = block.status === 'pending';
+  const isApproved = block.status === 'approved';
+
+  useEffect(() => {
+    if (outputRef.current) {
+      outputRef.current.scrollTop = outputRef.current.scrollHeight;
+    }
+  }, [block.output]);
+
+  const borderColor = isPending ? '#e7c54760' : isApproved ? '#4ec9b040' : '#f4877140';
+  const statusColor = isPending ? '#e7c547' : isApproved ? '#4ec9b0' : '#f48771';
+  const statusBg    = isPending ? '#e7c54720' : isApproved ? '#4ec9b020' : '#f4877120';
+  const statusBorder = isPending ? '#e7c54740' : isApproved ? '#4ec9b040' : '#f4877140';
+
+  return (
+    <div style={{
+      background: '#ffffff08',
+      border: `1px solid ${borderColor}`,
+      borderRadius: 6,
+      marginBottom: 6,
+      overflow: 'hidden',
+    }}>
+      {/* Header */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '5px 10px',
+        background: '#ffffff05',
+        borderBottom: '1px solid var(--color-border)',
+      }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
+          <span>⚡</span>
+          <span style={{ color: 'var(--color-text-primary)', fontWeight: 600 }}>Terminal command</span>
+          {block.longRunning && (
+            <span style={{ fontSize: 9, background: '#4fc1ff18', border: '1px solid #4fc1ff40', color: '#4fc1ff', borderRadius: 3, padding: '1px 5px' }}>
+              long-running
+            </span>
+          )}
+        </span>
+        <span style={{ fontSize: 10, color: statusColor, background: statusBg, border: `1px solid ${statusBorder}`, borderRadius: 3, padding: '1px 6px' }}>
+          {isPending ? 'waiting for approval' : isApproved ? 'approved' : 'rejected'}
+        </span>
+      </div>
+
+      {/* Body */}
+      <div style={{ padding: '8px 10px' }}>
+        <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 5 }}>
+          {block.reason}
+        </div>
+        <pre style={{
+          margin: '0 0 5px',
+          padding: '5px 8px',
+          background: '#1e1e1e',
+          border: '1px solid var(--color-border)',
+          borderRadius: 4,
+          fontSize: 12,
+          fontFamily: 'monospace',
+          color: '#9cdcfe',
+          whiteSpace: 'pre-wrap',
+          wordBreak: 'break-all',
+        }}>
+          $ {block.command}
+        </pre>
+        {block.cwd && (
+          <div style={{ fontSize: 10, color: 'var(--color-text-secondary)', marginBottom: 6 }}>
+            in {block.cwd}
+          </div>
+        )}
+
+        {/* Approve / Reject */}
+        {isPending && (
+          <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+            <button
+              onClick={onApprove}
+              style={{ background: '#1e4a1e', border: '1px solid #4ec9b060', borderRadius: 3, color: '#4ec9b0', fontSize: 11, padding: '4px 12px', cursor: 'pointer', fontWeight: 600 }}
+            >
+              ✓ Approve
+            </button>
+            <button
+              onClick={onReject}
+              style={{ background: 'none', border: '1px solid var(--color-border)', borderRadius: 3, color: 'var(--color-text-secondary)', fontSize: 11, padding: '4px 12px', cursor: 'pointer' }}
+            >
+              ✕ Reject
+            </button>
+          </div>
+        )}
+
+        {/* Live output */}
+        {block.output && (
+          <pre
+            ref={outputRef}
+            style={{
+              marginTop: 8,
+              padding: '6px 8px',
+              background: '#0d1117',
+              border: '1px solid var(--color-border)',
+              borderRadius: 4,
+              fontSize: 11,
+              fontFamily: 'monospace',
+              color: 'var(--color-text-primary)',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-all',
+              maxHeight: 220,
+              overflowY: 'auto',
+            }}
+          >
+            {block.output}
+          </pre>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function MessageBubble({ msg, isLast, providerLabel, sendApproval }: {
+  msg: UIMessage;
+  isLast: boolean;
+  providerLabel: string;
+  sendApproval: (id: string, approved: boolean) => void;
+}) {
   if (msg.role === 'user') {
     return (
       <div style={{ marginBottom: 12 }}>
@@ -158,9 +288,16 @@ function MessageBubble({ msg, isLast, providerLabel }: { msg: UIMessage; isLast:
             );
           }
           if (block.type === 'thought') {
-            const showCursor = isStreaming && isLast && i === msg.blocks.length - 1;
+            return <ThoughtBlock key={i} block={block} />;
+          }
+          if (block.type === 'command-approval') {
             return (
-              <ThoughtBlock key={i} block={block} />
+              <CommandApprovalBlock
+                key={block.id}
+                block={block}
+                onApprove={() => sendApproval(block.id, true)}
+                onReject={() => sendApproval(block.id, false)}
+              />
             );
           }
           return <ToolBlock key={block.id} block={block} />;
@@ -184,7 +321,7 @@ interface CodingAssistantProps {
 }
 
 export function CodingAssistant({ workspacePath, activeFilePath, onWorkspaceOpen, provider, model, setProvider, setModel }: CodingAssistantProps) {
-  const { uiMessages, isLoading, sendMessage, clearMessages } = useCodingAssistant(provider, model);
+  const { uiMessages, isLoading, sendMessage, clearMessages, sendApproval } = useCodingAssistant(provider, model);
   const [input, setInput] = useState('');
   const [providerStatus, setProviderStatus] = useState<Record<string, boolean>>({});
   const [showHelp, setShowHelp] = useState(false);
@@ -499,7 +636,7 @@ export function CodingAssistant({ workspacePath, activeFilePath, onWorkspaceOpen
           </div>
         )}
         {uiMessages.map((msg, i) => (
-          <MessageBubble key={msg.id} msg={msg} isLast={i === uiMessages.length - 1} providerLabel={provider.label} />
+          <MessageBubble key={msg.id} msg={msg} isLast={i === uiMessages.length - 1} providerLabel={provider.label} sendApproval={sendApproval} />
         ))}
       </div>
 

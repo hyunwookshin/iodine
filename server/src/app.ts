@@ -4,6 +4,7 @@ import filesRouter from './routes/files';
 import deleteRouter from './routes/delete';
 import createRouter from './routes/create';
 import agentRouter from './routes/agent';
+import terminalCommandsRouter from './routes/terminalCommands';
 
 export function createApp() {
   const app = express();
@@ -15,6 +16,7 @@ export function createApp() {
   app.use('/api', deleteRouter);
   app.use('/api', createRouter);
   app.use('/api', agentRouter);
+  app.use('/api', terminalCommandsRouter);
 
   return app;
 }
