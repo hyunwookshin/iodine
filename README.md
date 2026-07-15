@@ -1,4 +1,4 @@
-# Project Iodine
+# Iodine — Few Drops of IDE Essentials
 
 ## About
 

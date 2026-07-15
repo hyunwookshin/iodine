@@ -1,4 +1,4 @@
-# Iodine — Developer Notes
+# Iodine — Few Drops of IDE Essentials — Developer Notes
 
 ## What This Is
 
