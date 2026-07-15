@@ -6,6 +6,15 @@
 
 Fork it to build a domain-specific dev tool, a learning environment, an AI-assisted editor, or anything else that benefits from a real IDE running in the browser.
 
+### Why Iodine instead of forking VS Code?
+
+VS Code is a multi-million-line codebase. Iodine is a few thousand. That difference matters more than it sounds:
+
+- **Vibe-coding friendly** — the entire codebase fits in an AI's context window. You can describe a feature and apply it in one shot, without hitting token limits or losing coherence across files.
+- **You own the shell** — VS Code's extension API lets you add functionality inside a sandbox. Iodine lets you change the layout, panels, and behaviour of the IDE itself.
+- **Web-native** — ships as a local web app with no Electron or desktop packaging required. Embed it, proxy it, or deploy it however you like.
+- **Readable stack** — React + Express + TypeScript with no framework magic. Every file does one thing and is easy to follow.
+
 ## Demo Video
 
 For a visual demonstration of Iodine IDE in action, check out our [YouTube demo](https://youtube.com/watch?v=4uRyc2Wuvy4).
@@ -54,6 +63,7 @@ Additional capabilities:
 ## Use Cases
 
 * **Fork as an IDE starter kit** — All the hard parts (editor, file tree, git, terminal, AI) are already wired up. Add your own panels and tools on top.
+* **Vibe-code your own IDE** — The codebase fits in a single AI context window. Describe a feature, get working code. No fighting a million-line codebase or hitting token limits.
 * **AI-assisted development tools** — Use the built-in agent infrastructure to build specialised coding assistants for your team or domain.
 * **Learning / teaching** — A real, readable codebase showing how to integrate Monaco, xterm.js, git, and AI providers in a single app.
 * **Internal developer tools** — Run it locally as a lightweight web IDE for any project.
