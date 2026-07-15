@@ -126,6 +126,23 @@ iodine/
             └── geminiAgent.ts    # Agentic loop using @google/genai SDK
 ```
 
+## Forking Guide
+
+The three most common extension points:
+
+**Add a right-panel tab** (e.g. a database browser, a diff viewer, a docs panel)
+1. Create your component in `client/src/components/right/MyPanel.tsx`
+2. Add it to the tab strip and content switch in `client/src/components/layout/RightPanel.tsx`
+
+**Add an API route** (e.g. a new backend capability)
+1. Create `server/src/routes/myroute.ts` with an Express `Router`
+2. Register it in `server/src/app.ts` with `app.use('/api', myRouter)`
+
+**Add a sidebar view** (e.g. a search panel, a bookmarks panel)
+1. Add your new view id to the `SidebarView` union in `client/src/types/index.ts`
+2. Add an icon + entry to `NAV_ITEMS` in `client/src/components/layout/ActivityBar.tsx`
+3. Render your panel in the `activeView` switch in `client/src/components/layout/Sidebar.tsx`
+
 ## Getting Started
 
 ### Prerequisites
