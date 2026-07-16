@@ -86,7 +86,7 @@ Your task:
 2. Read key files: package.json, README, main entry points, config files, and service or module definitions.
 3. Based on what you find, generate a system architecture graph.
 
-When you have finished exploring, output ONLY a valid JSON object — no markdown fences, no explanation, no other text — just raw JSON.
+When you have finished exploring, your ENTIRE response must be a single raw JSON object and nothing else. Do not write any explanation, greeting, summary, or markdown fences before or after it. The very first character of your response must be { and the very last must be }.
 
 JSON schema (do not include x/y coordinates):
 {

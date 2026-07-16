@@ -370,7 +370,12 @@ export function SystemView({ workspacePath, provider, model }: SystemViewProps) 
             const icon = name === 'list_directory' ? '📂' : name === 'read_file' ? '📄' : '🔍';
             setGenActivity(`${icon} ${arg || name}`);
           } else if (eventName === 'done') {
-            const clean = accumulated.replace(/^```[a-z]*\n?/i, '').replace(/\n?```$/i, '').trim();
+            // Strip markdown fences, then extract the outermost JSON object,
+            // ignoring any prose the model prepends/appends ("Sure, here is…")
+            const stripped = accumulated.replace(/^```[a-z]*\n?/i, '').replace(/\n?```$/i, '').trim();
+            const start = stripped.indexOf('{');
+            const end = stripped.lastIndexOf('}');
+            const clean = start !== -1 && end > start ? stripped.slice(start, end + 1) : stripped;
             try {
               const parsed = JSON.parse(clean) as SystemGraph;
               const g = ensurePositions(parsed);
