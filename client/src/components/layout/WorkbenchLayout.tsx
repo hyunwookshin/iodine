@@ -10,6 +10,8 @@ import { useOpenFiles } from '../../hooks/useOpenFiles';
 import { useFileWatcher } from '../../hooks/useFileWatcher';
 import { useTheme } from '../../hooks/useTheme';
 import { getWorkspace, closeWorkspace } from '../../api/files';
+import { PROVIDERS, DEFAULT_PROVIDER, DEFAULT_MODEL } from '../../providers';
+import type { Provider } from '../../providers';
 import type { SidebarView } from '../../types';
 
 const SIDEBAR_DEFAULT = 240;
@@ -29,6 +31,15 @@ export function WorkbenchLayout() {
   const [trayHeight, setTrayHeight] = useState(TRAY_DEFAULT);
   const [workspacePath, setWorkspacePath] = useState<string | null>(null);
   const { theme, toggleTheme } = useTheme();
+
+  // AI provider/model — shared by RightPanel (chat/system view) and EditorArea (AI summary)
+  const [provider, setProviderState] = useState<Provider>(DEFAULT_PROVIDER);
+  const [model, setModel] = useState<string>(DEFAULT_MODEL);
+  const setProvider = useCallback((id: string) => {
+    const p = PROVIDERS.find(p => p.id === id) ?? DEFAULT_PROVIDER;
+    setProviderState(p);
+    setModel(p.models[0].id);
+  }, []);
 
   const editorAreaRef = useRef<EditorAreaHandle>(null);
 
@@ -166,6 +177,8 @@ export function WorkbenchLayout() {
             onTabClose={closeFile}
             onContentChange={updateContent}
             workspacePath={workspacePath}
+            provider={provider}
+            model={model}
           />
 
           <ResizeDivider
@@ -181,6 +194,10 @@ export function WorkbenchLayout() {
             workspacePath={workspacePath}
             activeFilePath={activeFilePath}
             onWorkspaceOpen={handleWorkspaceOpen}
+            provider={provider}
+            model={model}
+            setProvider={setProvider}
+            setModel={setModel}
           />
         </div>
 

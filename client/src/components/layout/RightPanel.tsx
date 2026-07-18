@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { CodingAssistant } from '../right/CodingAssistant';
 import { SystemView } from '../right/SystemView';
-import { PROVIDERS, DEFAULT_PROVIDER, DEFAULT_MODEL } from '../../providers';
 import type { Provider } from '../../providers';
 
 type RightTab = 'assistant' | 'system';
@@ -11,19 +10,14 @@ interface RightPanelProps {
   workspacePath: string | null;
   activeFilePath: string | null;
   onWorkspaceOpen: (path: string) => void;
+  provider: Provider;
+  model: string;
+  setProvider: (id: string) => void;
+  setModel: (id: string) => void;
 }
 
-export function RightPanel({ width, workspacePath, activeFilePath, onWorkspaceOpen }: RightPanelProps) {
+export function RightPanel({ width, workspacePath, activeFilePath, onWorkspaceOpen, provider, model, setProvider, setModel }: RightPanelProps) {
   const [activeTab, setActiveTab] = useState<RightTab>('assistant');
-
-  // Provider/model — shared across Coding Assistant and System View
-  const [provider, setProviderState] = useState<Provider>(DEFAULT_PROVIDER);
-  const [model, setModel] = useState<string>(DEFAULT_MODEL);
-  const setProvider = (id: string) => {
-    const p = PROVIDERS.find(p => p.id === id) ?? DEFAULT_PROVIDER;
-    setProviderState(p);
-    setModel(p.models[0].id);
-  };
 
   return (
     <div
