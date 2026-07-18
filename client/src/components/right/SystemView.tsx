@@ -35,51 +35,71 @@ function rectEdgePt(fx: number, fy: number, tx: number, ty: number, pad = 5) {
   return { x: fx + best * dx, y: fy + best * dy };
 }
 
-/** Spring-force auto-layout. Returns id → {x,y} for 300 iterations. */
+/** Hierarchical layout. Groups nodes by their `layer` field (0=clients … 4=external).
+ *  For nodes without an explicit layer, infers depth via BFS on directed edges.
+ *  Each layer occupies a horizontal row; nodes within a row are evenly spread. */
 function autoLayout(nodes: GraphNode[], edges: GraphEdge[]): Record<string, { x: number; y: number }> {
   if (!nodes.length) return {};
-  const n = nodes.length;
-  const cx = 320, cy = 240;
-  const r = Math.max(120, n * 35);
-  type P = { id: string; x: number; y: number; vx: number; vy: number };
-  const pos: P[] = nodes.map((nd, i) => {
-    const a = (2 * Math.PI * i / n) - Math.PI / 2;
-    return { id: nd.id, x: nd.x ?? cx + r * Math.cos(a), y: nd.y ?? cy + r * Math.sin(a), vx: 0, vy: 0 };
-  });
 
-  for (let iter = 0; iter < 300; iter++) {
-    const alpha = Math.max(0.02, 1 - iter / 250);
-    for (const p of pos) { p.vx = 0; p.vy = 0; }
-    // Repulsion
-    for (let i = 0; i < pos.length; i++) {
-      for (let j = i + 1; j < pos.length; j++) {
-        const a = pos[i], b = pos[j];
-        const dx = b.x - a.x, dy = b.y - a.y;
-        const d = Math.sqrt(dx * dx + dy * dy) || 0.1;
-        const f = 14000 / (d * d);
-        a.vx -= f * dx / d; a.vy -= f * dy / d;
-        b.vx += f * dx / d; b.vy += f * dy / d;
+  const layerMap = new Map<string, number>();
+
+  // 1. Use explicit layer values where provided
+  for (const n of nodes) {
+    if (n.layer != null) layerMap.set(n.id, n.layer);
+  }
+
+  // 2. Infer layers for remaining nodes via longest-path BFS on directed edges
+  const unplaced = nodes.filter(n => !layerMap.has(n.id));
+  if (unplaced.length) {
+    const ids = new Set(unplaced.map(n => n.id));
+    const dirEdges = edges.filter(e => e.type === 'directed' && ids.has(e.source) && ids.has(e.target));
+    const inDeg = new Map<string, number>();
+    for (const n of unplaced) inDeg.set(n.id, 0);
+    for (const e of dirEdges) inDeg.set(e.target, (inDeg.get(e.target) ?? 0) + 1);
+
+    const queue: string[] = [];
+    for (const [id, deg] of inDeg) {
+      if (deg === 0) { queue.push(id); layerMap.set(id, 0); }
+    }
+    while (queue.length) {
+      const id = queue.shift()!;
+      const cur = layerMap.get(id) ?? 0;
+      for (const e of dirEdges) {
+        if (e.source !== id) continue;
+        const next = cur + 1;
+        if (next > (layerMap.get(e.target) ?? -1)) {
+          layerMap.set(e.target, next);
+          queue.push(e.target);
+        }
       }
     }
-    // Spring attraction along edges
-    for (const e of edges) {
-      const a = pos.find(p => p.id === e.source);
-      const b = pos.find(p => p.id === e.target);
-      if (!a || !b || a === b) continue;
-      const dx = b.x - a.x, dy = b.y - a.y;
-      const d = Math.sqrt(dx * dx + dy * dy) || 0.1;
-      const f = 0.007 * (d - 200);
-      a.vx += f * dx / d; a.vy += f * dy / d;
-      b.vx -= f * dx / d; b.vy -= f * dy / d;
-    }
-    // Gravity to center
-    for (const p of pos) {
-      p.vx += (cx - p.x) * 0.002; p.vy += (cy - p.y) * 0.002;
-      p.x += p.vx * alpha; p.y += p.vy * alpha;
+    // Any remaining (cycles, isolated) land on layer 0
+    for (const n of unplaced) {
+      if (!layerMap.has(n.id)) layerMap.set(n.id, 0);
     }
   }
+
+  // 3. Group ids by layer and compute positions
+  const byLayer = new Map<number, string[]>();
+  for (const [id, layer] of layerMap) {
+    const arr = byLayer.get(layer) ?? [];
+    arr.push(id);
+    byLayer.set(layer, arr);
+  }
+
+  const layers = [...byLayer.keys()].sort((a, b) => a - b);
+  const LAYER_H = 150;  // vertical gap between layer centres
+  const NODE_W  = 210;  // horizontal gap between node centres
+  const CX      = 400;  // horizontal centre of canvas
+
   const result: Record<string, { x: number; y: number }> = {};
-  for (const p of pos) result[p.id] = { x: p.x, y: p.y };
+  layers.forEach((layer, li) => {
+    const ids = byLayer.get(layer)!;
+    const totalW = (ids.length - 1) * NODE_W;
+    ids.forEach((id, i) => {
+      result[id] = { x: CX - totalW / 2 + i * NODE_W, y: 100 + li * LAYER_H };
+    });
+  });
   return result;
 }
 
@@ -184,9 +204,9 @@ function NodeSvg({
 
 const SAMPLE_JSON = JSON.stringify({
   nodes: [
-    { id: 'client',  name: 'Client',   subname: 'Browser',     color: '#1e4e6e' },
-    { id: 'api',     name: 'API',      subname: 'Express/3001', color: '#2e5e2e' },
-    { id: 'db',      name: 'Database', subname: 'PostgreSQL',   color: '#5e2e2e' },
+    { id: 'client', name: 'Client',   subname: 'Browser',      color: '#1e5e2e', layer: 0 },
+    { id: 'api',    name: 'API',      subname: 'Express/3001', color: '#1e4e6e', layer: 1 },
+    { id: 'db',     name: 'Database', subname: 'PostgreSQL',   color: '#5e2e2e', layer: 2 },
   ],
   edges: [
     { source: 'client', target: 'api', type: 'bidirectional', label: 'HTTP' },
@@ -434,7 +454,7 @@ export function SystemView({ workspacePath, provider, model }: SystemViewProps) 
         <div style={{ flex: 1 }} />
 
         {view === 'graph' && (
-          <button style={btnBase} onClick={doAutoLayout} title="Re-run force layout">
+          <button style={btnBase} onClick={doAutoLayout} title="Re-run hierarchical layout">
             ↺ Layout
           </button>
         )}

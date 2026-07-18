@@ -182,6 +182,7 @@ export interface GraphNode {
   name: string;
   subname?: string;
   color?: string;
+  layer?: number;  // 0=clients, 1=gateways, 2=services, 3=data, 4=external
   x?: number;
   y?: number;
 }

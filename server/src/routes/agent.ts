@@ -91,12 +91,22 @@ When you have finished exploring, your ENTIRE response must be a single raw JSON
 JSON schema (do not include x/y coordinates):
 {
   "nodes": [
-    { "id": "lowercase-id", "name": "Display Name", "subname": "optional subtitle", "color": "#rrggbb" }
+    { "id": "lowercase-id", "name": "Display Name", "subname": "optional subtitle", "color": "#rrggbb", "layer": 0 }
   ],
   "edges": [
     { "source": "node-id", "target": "node-id", "type": "directed|bidirectional|undirected", "label": "optional" }
   ]
 }
+
+Layer assignment (required — controls the vertical tier in the diagram):
+  0 — Clients / Frontend / Browser / Mobile app
+  1 — Gateways / Load balancers / CDN / Reverse proxy
+  2 — Application services / APIs / Backends
+  3 — Data stores / Databases / Caches / Message queues
+  4 — External services / Third-party APIs / Infrastructure
+
+Group every component into the tier that best matches its role.
+Edges should generally point downward (smaller layer → larger layer number).
 
 Edge types:
   directed      — arrow pointing at the target (A calls B)
