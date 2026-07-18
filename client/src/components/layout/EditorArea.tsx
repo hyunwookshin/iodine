@@ -64,10 +64,11 @@ export const EditorArea = forwardRef<EditorAreaHandle, EditorAreaProps>(
     const activeFile = openFiles.find(f => f.path === activeFilePath) ?? null;
     const diffData   = useFileDiff(activeFile?.isImage ? null : (activeFile?.path ?? null));
 
-    const [editorView,     setEditorView]     = useState<EditorView>('source');
-    const [summaryContent, setSummaryContent] = useState('');
-    const [summaryLoading, setSummaryLoading] = useState(false);
-    const [summaryError,   setSummaryError]   = useState<string | null>(null);
+    const [editorView,       setEditorView]       = useState<EditorView>('source');
+    const [summaryContent,   setSummaryContent]   = useState('');
+    const [summaryLoading,   setSummaryLoading]   = useState(false);
+    const [summaryError,     setSummaryError]     = useState<string | null>(null);
+    const [hasCachedSummary, setHasCachedSummary] = useState(false);
 
     // Reset view & summary when switching files
     useEffect(() => {
@@ -75,7 +76,20 @@ export const EditorArea = forwardRef<EditorAreaHandle, EditorAreaProps>(
       setSummaryContent('');
       setSummaryError(null);
       setSummaryLoading(false);
+      setHasCachedSummary(false);
     }, [activeFile?.path]);
+
+    // Probe cache whenever the active file changes so the button label is accurate
+    useEffect(() => {
+      if (!activeFile || activeFile.isImage || !workspacePath) return;
+      const relPath = activeFile.path.startsWith(workspacePath + '/')
+        ? activeFile.path.slice(workspacePath.length + 1)
+        : activeFile.path;
+      fetch(`${API_BASE}/api/ai-summary?path=${encodeURIComponent(relPath)}`)
+        .then(r => r.json())
+        .then((data: { content: string | null }) => setHasCachedSummary(!!data.content))
+        .catch(() => {});
+    }, [activeFile?.path, workspacePath]);
 
     useImperativeHandle(ref, () => ({ save: () => {} }));
 
@@ -148,6 +162,7 @@ export const EditorArea = forwardRef<EditorAreaHandle, EditorAreaProps>(
                 setSummaryContent(c => c + (payload.text as string));
               } else if (eventName === 'done') {
                 setSummaryLoading(false);
+                setHasCachedSummary(true);
               } else if (eventName === 'error') {
                 setSummaryError(payload.message as string);
                 setSummaryLoading(false);
@@ -220,10 +235,10 @@ export const EditorArea = forwardRef<EditorAreaHandle, EditorAreaProps>(
                   onClick={() => editorView === 'summary'
                     ? setEditorView('source')
                     : handleSwitchToSummary()}
-                  title={editorView === 'summary' ? 'Back to source' : 'Generate AI summary'}
+                  title={editorView === 'summary' ? 'Back to source' : hasCachedSummary ? 'View cached summary' : 'Generate AI summary'}
                   style={{ ...btnStyle, background: editorView === 'summary' ? '#007acc' : '#3a3d41' }}
                 >
-                  {editorView === 'summary' ? '⌨ Source' : '🤖 Summary'}
+                  {editorView === 'summary' ? '⌨ Source' : hasCachedSummary ? '📖 View Summary' : '✨ Generate Summary'}
                 </button>
               )}
             </div>
