@@ -33,7 +33,9 @@ Iodine has reached the point where you can open its own repository inside Iodine
 
 ## Demo Video
 
-For a visual demonstration of Iodine IDE in action, check out our [YouTube demo](https://youtube.com/watch?v=4uRyc2Wuvy4).
+For a visual demonstration of Iodine IDE in action, check out our demo videos on YouTube:
+- [Demo 1](https://youtube.com/watch?v=4uRyc2Wuvy4)
+- [Demo 2](https://www.youtube.com/watch?v=SjOQjkT9GJM)
 
 ## Screenshots
 
