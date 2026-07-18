@@ -49,7 +49,8 @@ For a visual demonstration of Iodine IDE in action, check out our demo videos on
 
 - 🖥️ **VS Code-like IDE shell** — Activity bar, file explorer sidebar, Monaco-powered code editor, and resizable panels
 - 📁 **File & folder management** — Hover any folder to reveal a **+** button (New File / New Folder); double-click any name to rename it inline; hover any item to reveal a trash icon to delete it. All three operations error out if the target name already exists.
-- 🤖 **AI Coding Assistant** — Streaming chat with tool use (read/write/search files) backed by Claude, GPT, or Gemini
+- 🤖 **AI Coding Assistant** — Your coding partner in the right panel: streaming chat with full tool use (read, write, search files, run terminal commands) backed by Claude, GPT, or Gemini. Describe what you want, and it figures out the edits.
+- 📖 **AI Summary** — A tutor and walking encyclopedia baked into the editor. Click **🤖 Summary** on any open file and get a comprehensive, tutorial-style explanation — framework history, architecture role, API breakdown, data flow diagrams, and gotchas. Summaries are cached locally (keyed to the file's content hash) so repeat opens are instant and token costs stay flat as the codebase grows.
 - 🌿 **Source Control panel** — View Git status, stage/unstage files, discard changes, and commit — all from the UI
 - 📂 **File preview** — Render `.md` (with GitHub Flavored Markdown) and `.html` files inline
 - 💾 **Workspace persistence** — The last opened folder is remembered across server restarts; use **File → Close Project** to clear it and return to the clean-slate welcome screen
@@ -90,9 +91,10 @@ Additional capabilities:
 
 1. Open a local project folder via **File → Open Project** (searches `~` up to 3 levels deep by folder name).
 2. Browse and edit files in the Monaco-powered editor. Git status, diffs, and per-hunk revert appear automatically.
-3. Use the **Coding Assistant** tab to chat with an AI that can read, write, and search files in your workspace.
-4. Switch to the **System View** tab and click **⚡ Generate** — the AI reads your actual files and builds an interactive architecture graph.
-5. Use the integrated terminal to run commands directly in your workspace.
+3. Open any file and click **🤖 Summary** to get an AI-generated tutorial explaining the file — cached locally so the second open is instant.
+4. Use the **Coding Assistant** tab to chat with an AI that can read, write, search, and run commands in your workspace.
+5. Switch to the **System View** tab and click **⚡ Generate** — the AI reads your actual files and builds an interactive architecture graph.
+6. Use the integrated terminal to run commands directly in your workspace.
 
 ## Tech Stack
 
@@ -193,9 +195,39 @@ npm run build      # Build both client and server for production
 npm run typecheck  # Run TypeScript type checks across the monorepo
 ```
 
+## AI Summary 📖
+
+AI Summary is a **tutor and walking encyclopedia** embedded directly in the editor. Where the Coding Assistant is a coding *partner* you converse with, AI Summary is a reference you *consult* — it teaches you about a file rather than acting on it.
+
+Click **🤖 Summary** on any open file to get a tutorial-style Markdown document covering:
+
+- **Overview** — what the file does and why it exists
+- **Technology context** — brief history of any framework involved, comparable alternatives, and trade-off notes
+- **Architecture & role** — how the file fits into the broader system, with ASCII diagrams where helpful
+- **API / public interface** — every exported function, class, or HTTP route documented with signature, purpose, parameters, and a realistic example
+- **Data flow** — how data enters and exits the module, visualised as an ASCII diagram
+- **Key patterns & gotchas** — non-obvious behaviour, edge cases, and performance notes
+
+### Persistent cache
+
+Summaries are cached at:
+
+```
+~/.iodine/<workspace-hash>/<file-path-hash>/<file-content-hash>_ai_summary.md
+```
+
+The **file-content hash** is the cache key. This means:
+- Repeat opens of an unchanged file are **instant** — no API call, no token spend.
+- Edit the file and the old summary is silently superseded; a new one is generated on next open.
+- Token costs stay flat as the codebase grows. You pay once per file version, not once per session.
+
+Use the **↺ Regenerate** button in the summary header to discard the cached version and request a fresh one.
+
 ## Coding Assistant
 
-The Coding Assistant (right panel) supports three AI providers. Select a provider and model from the dropdowns, then chat naturally. The AI can read, write, and search files in your workspace autonomously.
+The Coding Assistant (right panel) is your **AI coding partner**. Describe what you want in plain language — add a feature, fix a bug, refactor a module — and the AI figures out the edits, writes the code, and can run build or test commands to verify the result. It has full read/write access to your workspace and asks for explicit approval before running any shell command.
+
+Select a provider and model from the dropdowns, then chat naturally.
 
 ### Supported Providers & API Keys
 
@@ -251,4 +283,6 @@ When the AI wants to run a terminal command, it presents an approval card with t
 | `GET` | `/api/system-graph` | Load saved architecture graph for current workspace |
 | `PUT` | `/api/system-graph` | Save architecture graph for current workspace |
 | `POST` | `/api/system-graph/generate` | SSE stream: agentic graph generation (reads workspace) |
+| `GET` | `/api/ai-summary?path=` | Return cached AI summary for the file at `path` (or `null` if not cached) |
+| `POST` | `/api/ai-summary/generate` | SSE stream: generate tutorial-style summary, cache on completion |
 
