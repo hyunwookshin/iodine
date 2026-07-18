@@ -12,7 +12,7 @@ Fork it to build a domain-specific dev tool, a learning environment, an AI-assis
 
 VS Code is a multi-million-line codebase. Iodine is a few thousand. That difference matters more than it sounds:
 
-- **Vibe-coding friendly** — at ~7,700 lines / ~67K tokens, the entire codebase fits in a single AI context window with room to spare (Claude: 200K, GPT-4o: 128K, Gemini 2.5: 1M). You can describe a feature and apply it in one shot, without hitting token limits or losing coherence across files.
+- **Vibe-coding friendly** — at ~9,200 lines / ~85K tokens, the entire codebase fits in a single AI context window with room to spare (Claude: 200K, GPT-4o: 128K, Gemini 2.5: 1M). You can describe a feature and apply it in one shot, without hitting token limits or losing coherence across files.
 - **You own the shell** — VS Code's extension API lets you add functionality inside a sandbox. Iodine lets you change the layout, panels, and behaviour of the IDE itself.
 - **Web-native** — ships as a local web app with no Electron or desktop packaging required. Embed it, proxy it, or deploy it however you like.
 - **Readable stack** — React + Express + TypeScript with no framework magic. Every file does one thing and is easy to follow.
@@ -21,7 +21,7 @@ VS Code is a multi-million-line codebase. Iodine is a few thousand. That differe
 
 **Iodine commits to keeping the entire source under 100K tokens — permanently.**
 
-GPT-4o, our most constrained supported model, has a 128K context window. At 100K tokens the source fits with 28K to spare for conversation history and output. That headroom is intentional.
+GPT-4o, our most constrained supported model, has a 128K context window. At 100K tokens the source fits with 28K to spare for conversation history and output. That headroom is intentional. The current codebase sits at ~85K tokens, leaving ~15K headroom against the 100K ceiling and ~43K against GPT-4o's hard limit.
 
 This is not just a current snapshot — it is a design constraint. If a feature would push the source past 100K tokens it is a signal to prune or split first, not to quietly let the project grow. The point is to stay small enough that you can always hand the whole codebase to an AI and ask it to make a change in one shot, forever — not just today.
 
