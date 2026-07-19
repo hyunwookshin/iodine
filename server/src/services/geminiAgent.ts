@@ -59,13 +59,11 @@ You can read, write, list, and search files, and run terminal commands. When mod
 Be concise in your explanations. When writing files with write_file, ALWAYS write the complete file content — never truncate, abbreviate, or use placeholder comments like "// rest of file unchanged" or "// ...". The file on disk will be exactly what you pass to write_file, so partial content means a broken file.`;
 }
 
+// Permissive part type so thought parts (with thoughtSignature) are preserved verbatim.
+type GeminiPart = Record<string, unknown>;
 type GeminiContent = {
   role: string;
-  parts: Array<
-    | { text: string }
-    | { functionCall: { name: string; args: Record<string, unknown> } }
-    | { functionResponse: { name: string; response: { result: string } } }
-  >;
+  parts: GeminiPart[];
 };
 
 export async function runGeminiAgentLoop(
@@ -101,28 +99,29 @@ export async function runGeminiAgentLoop(
       },
     });
 
-    // Accumulate text and function calls across chunks
-    let assistantText = '';
+    // Accumulate raw parts verbatim (preserves thoughtSignature on thought parts)
+    // and separately track function calls for tool execution.
+    const rawModelParts: GeminiPart[] = [];
     const functionCalls: Array<{ name: string; args: Record<string, unknown>; id: string }> = [];
 
     for await (const chunk of stream) {
       if (abortSignal.aborted) return;
 
-      // Iterate parts directly so we can distinguish thought vs answer text
       const parts = chunk.candidates?.[0]?.content?.parts ?? [];
       for (const part of parts) {
-        if (part.text) {
+        // Preserve the raw part so thought signatures are kept for history
+        rawModelParts.push(part as GeminiPart);
+
+        if (typeof part.text === 'string' && part.text) {
           if ((part as { thought?: boolean }).thought) {
             writeSSE(res, 'thought_delta', { text: part.text });
           } else {
             writeSSE(res, 'text_delta', { text: part.text });
-            assistantText += part.text;
           }
         }
-      }
 
-      if (chunk.functionCalls) {
-        for (const fc of chunk.functionCalls) {
+        if (part.functionCall) {
+          const fc = part.functionCall as { name?: string; args?: Record<string, unknown>; id?: string };
           functionCalls.push({
             name: fc.name ?? '',
             args: (fc.args ?? {}) as Record<string, unknown>,
@@ -140,16 +139,11 @@ export async function runGeminiAgentLoop(
       return;
     }
 
-    // Append model turn (text + function calls)
-    const modelParts: GeminiContent['parts'] = [];
-    if (assistantText) modelParts.push({ text: assistantText });
-    for (const fc of functionCalls) {
-      modelParts.push({ functionCall: { name: fc.name, args: fc.args } });
-    }
-    history.push({ role: 'model', parts: modelParts });
+    // Append model turn using the raw parts (thought signatures intact)
+    history.push({ role: 'model', parts: rawModelParts });
 
     // Execute tools and collect function responses
-    const responseParts: GeminiContent['parts'] = [];
+    const responseParts: GeminiPart[] = [];
     for (const fc of functionCalls) {
       if (abortSignal.aborted) return;
 
