@@ -13,6 +13,8 @@ interface FileTreeNodeProps {
   onDelete: (node: FileNode) => void;
   onCreate: (dirPath: string, name: string, type: 'file' | 'directory') => Promise<void>;
   onRename: (node: FileNode, newName: string) => Promise<void>;
+  workspacePath?: string | null;
+  onDirSummary?: (node: FileNode) => void;
 }
 
 const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg']);
@@ -78,6 +80,8 @@ const PlusIcon = () => (
   </svg>
 );
 
+const API_BASE = import.meta.env.DEV ? 'http://localhost:3001' : '';
+
 export function FileTreeNode({
   node,
   depth,
@@ -89,12 +93,16 @@ export function FileTreeNode({
   onDelete,
   onCreate,
   onRename,
+  workspacePath,
+  onDirSummary,
 }: FileTreeNodeProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [creatingType, setCreatingType] = useState<'file' | 'directory' | null>(null);
   const [newName, setNewName] = useState('Untitled');
   const [createError, setCreateError] = useState<string | null>(null);
+  // null = not probed yet, false = no cache, true = has cache
+  const [dirSummaryCached, setDirSummaryCached] = useState<boolean | null>(null);
 
   const [renaming, setRenaming] = useState(false);
   const [renameName, setRenameName] = useState('');
@@ -132,6 +140,18 @@ export function FileTreeNode({
       renameInputRef.current.select();
     }
   }, [renaming]);
+
+  // Probe directory summary cache when the dropdown opens for the first time
+  useEffect(() => {
+    if (!dropdownOpen || !isDir || !workspacePath || dirSummaryCached !== null) return;
+    const relPath = node.path.startsWith(workspacePath + '/')
+      ? node.path.slice(workspacePath.length + 1)
+      : node.path;
+    fetch(`${API_BASE}/api/ai-directory-summary?path=${encodeURIComponent(relPath)}`)
+      .then(r => r.json())
+      .then((data: { content: string | null }) => setDirSummaryCached(!!data.content))
+      .catch(() => {});
+  }, [dropdownOpen, isDir, workspacePath, node.path, dirSummaryCached]);
 
   const handleClick = () => {
     if (isDir) {
@@ -369,6 +389,38 @@ export function FileTreeNode({
                           {type === 'directory' ? 'New Folder' : 'New File'}
                         </button>
                       ))}
+                      {onDirSummary && (
+                        <>
+                          <div style={{ height: 1, background: 'var(--color-border)', margin: '2px 0' }} />
+                          <button
+                            onClick={e => {
+                              e.stopPropagation();
+                              setDropdownOpen(false);
+                              onDirSummary(node);
+                            }}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 8,
+                              width: '100%',
+                              padding: '6px 10px',
+                              background: 'transparent',
+                              color: 'var(--color-text-primary)',
+                              fontSize: 12,
+                              textAlign: 'left',
+                              cursor: 'pointer',
+                              whiteSpace: 'nowrap',
+                            }}
+                            onMouseEnter={e => (e.currentTarget.style.background = 'var(--color-bg-hover)')}
+                            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                          >
+                            <span style={{ fontSize: 11 }}>
+                              {dirSummaryCached === true ? '📖' : '✨'}
+                            </span>
+                            {dirSummaryCached === true ? 'View Summary' : 'Generate Summary'}
+                          </button>
+                        </>
+                      )}
                     </div>
                   </>
                 )}
@@ -482,6 +534,8 @@ export function FileTreeNode({
               onDelete={onDelete}
               onCreate={onCreate}
               onRename={onRename}
+              workspacePath={workspacePath}
+              onDirSummary={onDirSummary}
             />
           ))}
         </>

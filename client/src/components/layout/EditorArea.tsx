@@ -73,22 +73,25 @@ export const EditorArea = forwardRef<EditorAreaHandle, EditorAreaProps>(
     const [summaryError,     setSummaryError]     = useState<string | null>(null);
     const [hasCachedSummary, setHasCachedSummary] = useState(false);
 
-    // Reset view & summary when switching files
+    // Reset view & summary when switching files; directories go straight to summary view
     useEffect(() => {
-      setEditorView('source');
+      setEditorView(activeFile?.isDirectory ? 'summary' : 'source');
       setSummaryContent('');
       setSummaryError(null);
       setSummaryLoading(false);
       setHasCachedSummary(false);
     }, [activeFile?.path]);
 
-    // Probe cache whenever the active file changes so the button label is accurate
+    // Probe cache whenever the active file/dir changes so the button label is accurate
     useEffect(() => {
       if (!activeFile || activeFile.isImage || !workspacePath) return;
       const relPath = activeFile.path.startsWith(workspacePath + '/')
         ? activeFile.path.slice(workspacePath.length + 1)
         : activeFile.path;
-      fetch(`${API_BASE}/api/ai-summary?path=${encodeURIComponent(relPath)}`)
+      const url = activeFile.isDirectory
+        ? `${API_BASE}/api/ai-directory-summary?path=${encodeURIComponent(relPath)}`
+        : `${API_BASE}/api/ai-summary?path=${encodeURIComponent(relPath)}`;
+      fetch(url)
         .then(r => r.json())
         .then((data: { content: string | null }) => setHasCachedSummary(!!data.content))
         .catch(() => {});
@@ -129,8 +132,8 @@ export const EditorArea = forwardRef<EditorAreaHandle, EditorAreaProps>(
       },
     }));
 
-    const showPreviewButton = !!activeFile && !activeFile.isImage && isPreviewable(activeFile.path);
-    const showSummaryButton = !!activeFile && !activeFile.isImage && !!workspacePath;
+    const showPreviewButton = !!activeFile && !activeFile.isImage && !activeFile.isDirectory && isPreviewable(activeFile.path);
+    const showSummaryButton = !!activeFile && !activeFile.isImage && !activeFile.isDirectory && !!workspacePath;
 
     /** Convert an absolute file path to a workspace-relative path. */
     const toRelPath = (abs: string) =>
@@ -149,10 +152,14 @@ export const EditorArea = forwardRef<EditorAreaHandle, EditorAreaProps>(
       setSummaryError(null);
 
       const relPath = toRelPath(activeFile.path);
+      const isDir = !!activeFile.isDirectory;
 
       // 1. Check cache
       try {
-        const resp = await fetch(`${API_BASE}/api/ai-summary?path=${encodeURIComponent(relPath)}`);
+        const cacheUrl = isDir
+          ? `${API_BASE}/api/ai-directory-summary?path=${encodeURIComponent(relPath)}`
+          : `${API_BASE}/api/ai-summary?path=${encodeURIComponent(relPath)}`;
+        const resp = await fetch(cacheUrl);
         const data = await resp.json() as { content: string | null };
         if (data.content) {
           setSummaryContent(data.content);
@@ -163,10 +170,16 @@ export const EditorArea = forwardRef<EditorAreaHandle, EditorAreaProps>(
 
       // 2. Generate via SSE
       try {
-        const resp = await fetch(`${API_BASE}/api/ai-summary/generate`, {
+        const generateUrl = isDir
+          ? `${API_BASE}/api/ai-directory-summary/generate`
+          : `${API_BASE}/api/ai-summary/generate`;
+        const generateBody = isDir
+          ? JSON.stringify({ dirPath: relPath, provider: provider.id, model })
+          : JSON.stringify({ filePath: relPath, provider: provider.id, model });
+        const resp = await fetch(generateUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ filePath: relPath, provider: provider.id, model }),
+          body: generateBody,
         });
 
         if (!resp.ok || !resp.body) {
@@ -305,8 +318,11 @@ export const EditorArea = forwardRef<EditorAreaHandle, EditorAreaProps>(
                   <span style={{
                     fontSize: 11, color: 'var(--color-text-secondary)',
                     fontFamily: 'monospace',
+                    display: 'flex', alignItems: 'center', gap: 4,
                   }}>
+                    {activeFile.isDirectory && <span style={{ fontSize: 13 }}>📁</span>}
                     {toRelPath(activeFile.path)}
+                    {activeFile.isDirectory && <span style={{ color: 'var(--color-text-secondary)', fontFamily: 'sans-serif', fontStyle: 'italic' }}> — directory summary</span>}
                   </span>
                   {!summaryLoading && (summaryContent || summaryError) && (
                     <button
@@ -382,7 +398,7 @@ export const EditorArea = forwardRef<EditorAreaHandle, EditorAreaProps>(
                 />
               )
 
-            ) : (
+            ) : activeFile.isDirectory ? null : (
               /* Monaco source editor */
               <MonacoEditor
                 key={activeFile.path}

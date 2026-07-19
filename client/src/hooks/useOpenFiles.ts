@@ -55,6 +55,26 @@ export function useOpenFiles() {
     localFileMapRef.current = map;
   }, []);
 
+  const openDirectory = useCallback((node: FileNode) => {
+    if (node.type !== 'directory') return;
+    // If already open just activate it
+    if (openFilesRef.current.some(f => f.path === node.path)) {
+      setActiveFilePath(node.path);
+      return;
+    }
+    const entry: OpenFile = {
+      path: node.path,
+      name: node.name,
+      content: '',
+      savedContent: '',
+      isDirty: false,
+      language: 'plaintext',
+      isDirectory: true,
+    };
+    setOpenFiles(prev => [...prev, entry]);
+    setActiveFilePath(node.path);
+  }, []);
+
   const openFile = useCallback(async (node: FileNode) => {
     if (node.type === 'directory') return;
 
@@ -204,6 +224,7 @@ export function useOpenFiles() {
     activeFilePath,
     setActiveFilePath,
     openFile,
+    openDirectory,
     updateContent,
     saveFile,
     closeFile,

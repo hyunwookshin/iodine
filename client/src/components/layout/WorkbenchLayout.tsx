@@ -54,6 +54,7 @@ export function WorkbenchLayout() {
     activeFilePath,
     setActiveFilePath,
     openFile,
+    openDirectory,
     updateContent,
     saveFile,
     closeFile,
@@ -165,6 +166,7 @@ export function WorkbenchLayout() {
             onFileClick={openFile}
             onDeleteSuccess={handleDeleteSuccess}
             onRenameSuccess={handleRenameSuccess}
+            onDirSummary={openDirectory}
           />
 
           <ResizeDivider

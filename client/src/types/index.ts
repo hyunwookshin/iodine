@@ -15,6 +15,7 @@ export interface OpenFile {
   isDirty: boolean;
   language: string;
   isImage?: boolean;
+  isDirectory?: boolean;
 }
 
 export type SidebarView = 'explorer' | 'scm';

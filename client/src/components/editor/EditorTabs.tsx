@@ -61,7 +61,10 @@ export function EditorTabs({ openFiles, activeFilePath, onTabClick, onTabClose }
               if (dirtyDot && file.isDirty) dirtyDot.style.display = 'block';
             }}
           >
-            {/* File name */}
+            {/* Icon + name */}
+            {file.isDirectory && (
+              <span style={{ fontSize: 12, flexShrink: 0 }}>📁</span>
+            )}
             <span
               style={{
                 fontSize: 13,
@@ -69,6 +72,7 @@ export function EditorTabs({ openFiles, activeFilePath, onTabClick, onTabClose }
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',
                 flex: 1,
+                fontStyle: file.isDirectory ? 'italic' : 'normal',
               }}
             >
               {file.name}

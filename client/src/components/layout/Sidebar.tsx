@@ -11,6 +11,7 @@ interface SidebarProps {
   onDeleteSuccess: (deletedPath: string) => void;
   onRenameSuccess: (oldPath: string, newPath: string) => void;
   localTree?: FileNode | null;
+  onDirSummary?: (node: FileNode) => void;
 }
 
 export function Sidebar({
@@ -22,6 +23,7 @@ export function Sidebar({
   onDeleteSuccess,
   onRenameSuccess,
   localTree,
+  onDirSummary,
 }: SidebarProps) {
   // Helper to open a file given only its absolute path (from SCM panel)
   const handleOpenByPath = (absPath: string) => {
@@ -49,6 +51,7 @@ export function Sidebar({
           onDeleteSuccess={onDeleteSuccess}
           onRenameSuccess={onRenameSuccess}
           localTree={localTree}
+          onDirSummary={onDirSummary}
         />
       ) : (
         <SourceControlPanel workspacePath={workspacePath} onFileOpen={handleOpenByPath} />
