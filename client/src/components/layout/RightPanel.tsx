@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { CodingAssistant } from '../right/CodingAssistant';
 import { SystemView } from '../right/SystemView';
+import { BuildAssistant } from '../right/BuildAssistant';
 import type { Provider } from '../../providers';
 
-type RightTab = 'assistant' | 'system';
+type RightTab = 'assistant' | 'build' | 'system';
 
 interface RightPanelProps {
   width: number;
@@ -15,9 +16,10 @@ interface RightPanelProps {
   setProvider: (id: string) => void;
   setModel: (id: string) => void;
   getEditorContext?: () => string | null;
+  runCommandInTerminal: (cmd: string) => void;
 }
 
-export function RightPanel({ width, workspacePath, activeFilePath, onWorkspaceOpen, provider, model, setProvider, setModel, getEditorContext }: RightPanelProps) {
+export function RightPanel({ width, workspacePath, activeFilePath, onWorkspaceOpen, provider, model, setProvider, setModel, getEditorContext, runCommandInTerminal }: RightPanelProps) {
   const [activeTab, setActiveTab] = useState<RightTab>('assistant');
 
   return (
@@ -44,7 +46,8 @@ export function RightPanel({ width, workspacePath, activeFilePath, onWorkspaceOp
       >
         {([
           { id: 'assistant', label: 'Coding Assistant' },
-          { id: 'system', label: 'System View' },
+          { id: 'build',     label: 'Build' },
+          { id: 'system',    label: 'System View' },
         ] as { id: RightTab; label: string }[]).map(tab => (
           <button
             key={tab.id}
@@ -72,6 +75,8 @@ export function RightPanel({ width, workspacePath, activeFilePath, onWorkspaceOp
       {/* Tab content */}
       {activeTab === 'system'
         ? <SystemView workspacePath={workspacePath} provider={provider} model={model} />
+        : activeTab === 'build'
+        ? <BuildAssistant workspacePath={workspacePath} provider={provider} model={model} runCommandInTerminal={runCommandInTerminal} />
         : <CodingAssistant workspacePath={workspacePath} activeFilePath={activeFilePath} onWorkspaceOpen={onWorkspaceOpen}
             provider={provider} model={model} setProvider={setProvider} setModel={setModel} getEditorContext={getEditorContext} />
       }

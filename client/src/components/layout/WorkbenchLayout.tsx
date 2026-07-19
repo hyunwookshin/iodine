@@ -5,7 +5,7 @@ import { Sidebar } from './Sidebar';
 import { EditorArea, EditorAreaHandle } from './EditorArea';
 import { RightPanel } from './RightPanel';
 import { ResizeDivider } from './ResizeDivider';
-import { BottomTray } from '../bottom/BottomTray';
+import { BottomTray, BottomTrayHandle } from '../bottom/BottomTray';
 import { useOpenFiles } from '../../hooks/useOpenFiles';
 import { useFileWatcher } from '../../hooks/useFileWatcher';
 import { useTheme } from '../../hooks/useTheme';
@@ -43,6 +43,11 @@ export function WorkbenchLayout() {
 
   const editorAreaRef = useRef<EditorAreaHandle>(null);
   const getEditorContext = useCallback(() => editorAreaRef.current?.getVisibleContext() ?? null, []);
+
+  const bottomTrayRef = useRef<BottomTrayHandle>(null);
+  const runCommandInTerminal = useCallback((cmd: string) => {
+    bottomTrayRef.current?.runCommand(cmd);
+  }, []);
 
   const {
     openFiles,
@@ -200,6 +205,7 @@ export function WorkbenchLayout() {
             setProvider={setProvider}
             setModel={setModel}
             getEditorContext={getEditorContext}
+            runCommandInTerminal={runCommandInTerminal}
           />
         </div>
 
@@ -211,7 +217,7 @@ export function WorkbenchLayout() {
           min={TRAY_MIN}
           max={TRAY_MAX}
         />
-        <BottomTray height={trayHeight} workspacePath={workspacePath} />
+        <BottomTray ref={bottomTrayRef} height={trayHeight} workspacePath={workspacePath} />
       </div>
     </div>
   );

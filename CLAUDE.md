@@ -32,6 +32,21 @@ The file-content hash means the cache auto-invalidates when the file changes.
 
 **Provider/model state** is owned by `WorkbenchLayout` and passed down to `RightPanel`, `CodingAssistant`, `SystemView`, and `EditorArea` so all features share the same selection.
 
+## Build Assistant
+
+The **Build** tab in the right panel provides three sections — **Test**, **Build**, and **Build & Run** — each with an editable command field, an AI **Generate** button, and an **Execute** button. A **Save** button at the bottom persists all three commands to disk and reloads them automatically on the next workspace open.
+
+| File | Role |
+|------|------|
+| `client/src/components/right/BuildAssistant.tsx` | UI component. Loads saved config from `GET /api/build-config` on workspace change. Streams AI-generated commands via `POST /api/build-config/generate`. Execute calls `runCommandInTerminal(cmd)` which opens a new terminal tab pre-loaded with the command. |
+| `server/src/routes/buildConfig.ts` | `GET /api/build-config` reads `~/.iodine/{md5}/build-config.json`. `PUT /api/build-config` writes it. `POST /api/build-config/generate` probes the workspace for project type (package.json scripts, Makefile targets, Cargo.toml, etc.) and streams a single shell command from the selected LLM. |
+| `client/src/components/bottom/TerminalPanel.tsx` | Converted to `forwardRef`. Exposes `TerminalPanelHandle.runCommand(cmd)` which creates a new tab with `ws://localhost:3001/terminal?cwd=…&cmd=…` — the server spawns the shell with `-c cmd` automatically. The tab label shows the command's first token. |
+| `client/src/components/bottom/BottomTray.tsx` | Converted to `forwardRef`. Exposes `BottomTrayHandle.runCommand(cmd)` which activates the Terminal tab then delegates to `TerminalPanel`. |
+| `client/src/components/layout/WorkbenchLayout.tsx` | Holds `bottomTrayRef` and creates `runCommandInTerminal` callback, threading it to `RightPanel`. |
+| `client/src/components/layout/RightPanel.tsx` | Adds "Build" tab between Coding Assistant and System View. Passes `runCommandInTerminal` to `BuildAssistant`. |
+
+**Persistence path:** `~/.iodine/{MD5(workspacePath)}/build-config.json`
+
 ## User Visual Context in Coding Assistant
 
 When the user sends a message, the coding assistant automatically appends the currently visible lines (or selected text) from the Monaco editor to the API request as a **User Visual Context** block. The UI displays only the user's typed message; the context is invisible to the user but available to the LLM.

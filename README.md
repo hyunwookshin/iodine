@@ -50,7 +50,9 @@ For a visual demonstration of Iodine IDE in action, check out our demo videos on
 - 🖥️ **VS Code-like IDE shell** — Activity bar, file explorer sidebar, Monaco-powered code editor, and resizable panels
 - 📁 **File & folder management** — Hover any folder to reveal a **+** button (New File / New Folder); double-click any name to rename it inline; hover any item to reveal a trash icon to delete it. All three operations error out if the target name already exists.
 - 🤖 **AI Coding Assistant** — Your coding partner in the right panel: streaming chat with full tool use (read, write, search files, run terminal commands) backed by Claude, GPT, or Gemini. Describe what you want, and it figures out the edits.
+- 👁️ **User Visual Context** — The Coding Assistant automatically appends the lines currently visible in the Monaco editor (or your active selection) to every message, so the AI always knows what you're looking at without you having to paste code.
 - 📖 **AI Summary** — A tutor and walking encyclopedia baked into the editor. Click **🤖 Summary** on any open file and get a comprehensive, tutorial-style explanation — framework history, architecture role, API breakdown, data flow diagrams, and gotchas. Summaries are cached locally (keyed to the file's content hash) so repeat opens are instant and token costs stay flat as the codebase grows.
+- 🔨 **Build Assistant** — One-click test, build, and run. Click **✨ Generate** and the AI inspects your project (package.json scripts, Makefile targets, Cargo.toml, go.mod, etc.) and fills in the right command. Hit **▶ Execute** to open a dedicated terminal tab and run it instantly. Commands are saved per-workspace and restored automatically.
 - 🌿 **Source Control panel** — View Git status, stage/unstage files, discard changes, and commit — all from the UI
 - 📂 **File preview** — Render `.md` (with GitHub Flavored Markdown) and `.html` files inline
 - 💾 **Workspace persistence** — The last opened folder is remembered across server restarts; use **File → Close Project** to clear it and return to the clean-slate welcome screen
@@ -92,9 +94,10 @@ Additional capabilities:
 1. Open a local project folder via **File → Open Project** (searches `~` up to 3 levels deep by folder name).
 2. Browse and edit files in the Monaco-powered editor. Git status, diffs, and per-hunk revert appear automatically.
 3. Open any file and click **🤖 Summary** to get an AI-generated tutorial explaining the file — cached locally so the second open is instant.
-4. Use the **Coding Assistant** tab to chat with an AI that can read, write, search, and run commands in your workspace.
-5. Switch to the **System View** tab and click **⚡ Generate** — the AI reads your actual files and builds an interactive architecture graph.
-6. Use the integrated terminal to run commands directly in your workspace.
+4. Use the **Coding Assistant** tab to chat with an AI that can read, write, search, and run commands in your workspace. The AI automatically sees your currently visible editor lines as context.
+5. Switch to the **Build** tab, click **✨ Generate** next to Test / Build / Build & Run, and the AI fills in the right command for your project. Click **▶ Execute** to run it in a new terminal tab.
+6. Switch to the **System View** tab and click **⚡ Generate** — the AI reads your actual files and builds an interactive architecture graph.
+7. Use the integrated terminal to run commands directly in your workspace.
 
 ## Tech Stack
 
@@ -128,7 +131,7 @@ iodine/
 │           ├── sidebar/      # FileExplorer, FileTreeNode, SourceControlPanel
 │           ├── editor/       # EditorTabs, MonacoEditor, WelcomeScreen
 │           ├── bottom/       # BottomTray, TerminalPanel, TerminalSession (xterm.js)
-│           └── right/        # SimulationPanel, CodingAssistant, SystemView
+│           └── right/        # CodingAssistant, BuildAssistant, SystemView
 │
 └── server/                   # Node.js + Express backend — http://localhost:3001
     └── src/
@@ -137,7 +140,9 @@ iodine/
         ├── terminal.ts       # WebSocket terminal manager — node-pty sessions on ws://localhost:3001/terminal
         ├── routes/
         │   ├── files.ts      # File system + workspace + git endpoints
-        │   └── agent.ts      # POST /api/agent/chat, POST /api/system-graph/generate (SSE), GET /api/agent/status
+        │   ├── agent.ts      # POST /api/agent/chat, POST /api/system-graph/generate (SSE), GET /api/agent/status
+        │   ├── aiSummary.ts  # GET+POST /api/ai-summary — file summary cache + generation
+        │   └── buildConfig.ts# GET+PUT /api/build-config, POST /api/build-config/generate
         └── services/
             ├── fileSystem.ts     # Pure FS operations + path traversal guard
             ├── fileTools.ts      # Shared tool schemas + executeTool() for all agents
@@ -223,6 +228,31 @@ The **file-content hash** is the cache key. This means:
 
 Use the **↺ Regenerate** button in the summary header to discard the cached version and request a fresh one.
 
+## Build Assistant 🔨
+
+The **Build** tab in the right panel gives you one-click access to the three commands you run most — **Test**, **Build**, and **Build & Run**.
+
+### How it works
+
+Each section has:
+- An editable command field — type or paste any shell command you like
+- **✨ Generate** — the AI probes your workspace for project type signals (package.json scripts, Makefile targets, Cargo.toml, go.mod, pyproject.toml, etc.) and streams back the right command. No prompt needed.
+- **▶ Execute** — opens a new terminal tab in the bottom tray and runs the command inside it. The tab is labelled with the command so you can keep multiple runs open side by side.
+
+**Save** persists all three commands to `~/.iodine/<workspace-hash>/build-config.json`. They reload automatically the next time you open the same workspace.
+
+### Supported project types
+
+| Signal | Detected as |
+|--------|-------------|
+| `package.json` | npm/yarn/pnpm — scripts are read and preferred |
+| `Cargo.toml` | Rust — `cargo test`, `cargo build`, `cargo run` |
+| `go.mod` | Go — `go test ./...`, `go build`, `go run .` |
+| `pyproject.toml` / `requirements.txt` | Python — `pytest`, etc. |
+| `Makefile` | Make — available targets are listed for the AI |
+| `CMakeLists.txt` | C/C++ cmake |
+| `pom.xml` / `build.gradle` | Java/Kotlin Maven or Gradle |
+
 ## Coding Assistant
 
 The Coding Assistant (right panel) is your **AI coding partner**. Describe what you want in plain language — add a feature, fix a bug, refactor a module — and the AI figures out the edits, writes the code, and can run build or test commands to verify the result. It has full read/write access to your workspace and asks for explicit approval before running any shell command.
@@ -285,4 +315,7 @@ When the AI wants to run a terminal command, it presents an approval card with t
 | `POST` | `/api/system-graph/generate` | SSE stream: agentic graph generation (reads workspace) |
 | `GET` | `/api/ai-summary?path=` | Return cached AI summary for the file at `path` (or `null` if not cached) |
 | `POST` | `/api/ai-summary/generate` | SSE stream: generate tutorial-style summary, cache on completion |
+| `GET` | `/api/build-config` | Return saved build commands `{ test, build, run }` for current workspace |
+| `PUT` | `/api/build-config` | Save build commands `{ test, build, run }` for current workspace |
+| `POST` | `/api/build-config/generate` | SSE stream: AI-generated shell command for `{ type: 'test'\|'build'\|'run' }` |
 
