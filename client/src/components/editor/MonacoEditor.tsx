@@ -10,6 +10,7 @@ interface MonacoEditorProps {
   file: OpenFile;
   onContentChange: (path: string, content: string) => void;
   diffData?: DiffData | null;
+  onEditorMount?: (editor: MonacoEditorAPI.IStandaloneCodeEditor) => void;
 }
 
 // ── Hunk grouping helpers ─────────────────────────────────────────────────────
@@ -107,7 +108,7 @@ function revertDeleted(
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function MonacoEditor({ file, onContentChange, diffData }: MonacoEditorProps) {
+export function MonacoEditor({ file, onContentChange, diffData, onEditorMount }: MonacoEditorProps) {
   const editorRef = useRef<MonacoEditorAPI.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<Monaco | null>(null);
   const decorationIdsRef = useRef<string[]>([]);
@@ -125,6 +126,7 @@ export function MonacoEditor({ file, onContentChange, diffData }: MonacoEditorPr
   const handleMount: OnMount = (editor, monaco) => {
     editorRef.current = editor;
     monacoRef.current = monaco;
+    onEditorMount?.(editor);
 
     editor.onMouseDown(e => {
       if (e.target.type !== monaco.editor.MouseTargetType.GUTTER_GLYPH_MARGIN) return;

@@ -32,6 +32,19 @@ The file-content hash means the cache auto-invalidates when the file changes.
 
 **Provider/model state** is owned by `WorkbenchLayout` and passed down to `RightPanel`, `CodingAssistant`, `SystemView`, and `EditorArea` so all features share the same selection.
 
+## User Visual Context in Coding Assistant
+
+When the user sends a message, the coding assistant automatically appends the currently visible lines (or selected text) from the Monaco editor to the API request as a **User Visual Context** block. The UI displays only the user's typed message; the context is invisible to the user but available to the LLM.
+
+| File | Role |
+|------|------|
+| `client/src/components/editor/MonacoEditor.tsx` | Accepts `onEditorMount` prop; calls it with the Monaco editor instance once mounted. |
+| `client/src/components/layout/EditorArea.tsx` | Stores the editor instance in `monacoEditorRef`. Exposes `getVisibleContext()` on `EditorAreaHandle`, which reads the selection (if non-empty) or the first visible range and returns line-numbered text. |
+| `client/src/components/layout/WorkbenchLayout.tsx` | Creates `getEditorContext` callback (`editorAreaRef.current?.getVisibleContext()`) and passes it to `RightPanel`. |
+| `client/src/components/layout/RightPanel.tsx` | Threads `getEditorContext` through to `CodingAssistant`. |
+| `client/src/components/right/CodingAssistant.tsx` | Calls `getEditorContext()` in `handleSend` and passes the result to `sendMessage`. |
+| `client/src/hooks/useCodingAssistant.ts` | `sendMessage` accepts `editorContext?: string \| null`. If present, appends it as a fenced code block under `**User Visual Context**` in the API history entry only (not in the UI message). |
+
 ## Implementation Notes
 
 For the full project architecture, APIs, and feature details, inspect the relevant source files and `README.md`. Keep this document concise to preserve context-window space.

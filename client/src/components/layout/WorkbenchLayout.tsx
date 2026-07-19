@@ -42,6 +42,7 @@ export function WorkbenchLayout() {
   }, []);
 
   const editorAreaRef = useRef<EditorAreaHandle>(null);
+  const getEditorContext = useCallback(() => editorAreaRef.current?.getVisibleContext() ?? null, []);
 
   const {
     openFiles,
@@ -198,6 +199,7 @@ export function WorkbenchLayout() {
             model={model}
             setProvider={setProvider}
             setModel={setModel}
+            getEditorContext={getEditorContext}
           />
         </div>
 

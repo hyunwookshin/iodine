@@ -1,4 +1,5 @@
-import { forwardRef, useImperativeHandle, useState, useEffect, useCallback } from 'react';
+import { forwardRef, useImperativeHandle, useState, useEffect, useCallback, useRef } from 'react';
+import type { editor as MonacoEditorAPI } from 'monaco-editor';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { EditorTabs } from '../editor/EditorTabs';
@@ -26,6 +27,7 @@ interface EditorAreaProps {
 
 export interface EditorAreaHandle {
   save: () => void;
+  getVisibleContext: () => string | null;
 }
 
 function isPreviewable(path: string) {
@@ -63,6 +65,7 @@ export const EditorArea = forwardRef<EditorAreaHandle, EditorAreaProps>(
   function EditorArea({ openFiles, activeFilePath, onTabClick, onTabClose, onContentChange, workspacePath, provider, model }, ref) {
     const activeFile = openFiles.find(f => f.path === activeFilePath) ?? null;
     const diffData   = useFileDiff(activeFile?.isImage ? null : (activeFile?.path ?? null));
+    const monacoEditorRef = useRef<MonacoEditorAPI.IStandaloneCodeEditor | null>(null);
 
     const [editorView,       setEditorView]       = useState<EditorView>('source');
     const [summaryContent,   setSummaryContent]   = useState('');
@@ -91,7 +94,40 @@ export const EditorArea = forwardRef<EditorAreaHandle, EditorAreaProps>(
         .catch(() => {});
     }, [activeFile?.path, workspacePath]);
 
-    useImperativeHandle(ref, () => ({ save: () => {} }));
+    useImperativeHandle(ref, () => ({
+      save: () => {},
+      getVisibleContext: () => {
+        const editor = monacoEditorRef.current;
+        if (!editor) return null;
+        const model = editor.getModel();
+        if (!model) return null;
+        const fileName = activeFile?.name ?? '';
+
+        // Prefer selected text
+        const selection = editor.getSelection();
+        if (selection && !selection.isEmpty()) {
+          const startLine = selection.startLineNumber;
+          const endLine = selection.endLineNumber;
+          const lines: string[] = [];
+          for (let i = startLine; i <= endLine; i++) {
+            lines.push(`${i}: ${model.getLineContent(i)}`);
+          }
+          return `File: ${fileName} (selected lines ${startLine}-${endLine})\n${lines.join('\n')}`;
+        }
+
+        // Fall back to visible range
+        const ranges = editor.getVisibleRanges();
+        if (!ranges.length) return null;
+        const range = ranges[0];
+        const startLine = range.startLineNumber;
+        const endLine = range.endLineNumber;
+        const lines: string[] = [];
+        for (let i = startLine; i <= endLine; i++) {
+          lines.push(`${i}: ${model.getLineContent(i)}`);
+        }
+        return `File: ${fileName} (visible lines ${startLine}-${endLine})\n${lines.join('\n')}`;
+      },
+    }));
 
     const showPreviewButton = !!activeFile && !activeFile.isImage && isPreviewable(activeFile.path);
     const showSummaryButton = !!activeFile && !activeFile.isImage && !!workspacePath;
@@ -353,6 +389,7 @@ export const EditorArea = forwardRef<EditorAreaHandle, EditorAreaProps>(
                 file={activeFile}
                 onContentChange={onContentChange}
                 diffData={diffData}
+                onEditorMount={editor => { monacoEditorRef.current = editor; }}
               />
             )
           ) : (

@@ -59,14 +59,17 @@ export function useCodingAssistant(provider: Provider, model: string) {
     if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
   }, []);
 
-  const sendMessage = useCallback(async (text: string, activeFilePath?: string | null) => {
+  const sendMessage = useCallback(async (text: string, activeFilePath?: string | null, editorContext?: string | null) => {
     if (!text.trim() || isLoading) return;
 
     const userMsg: UIMessage = { id: uid(), role: 'user', content: text };
     const assistantId = uid();
     const assistantMsg: UIMessage = { id: assistantId, role: 'assistant', blocks: [], isStreaming: true };
 
-    const newHistory: HistoryMessage[] = [...history, { role: 'user', content: text }];
+    const apiContent = editorContext
+      ? `${text}\n\n---\n**User Visual Context** (currently visible in editor):\n\`\`\`\n${editorContext}\n\`\`\``
+      : text;
+    const newHistory: HistoryMessage[] = [...history, { role: 'user', content: apiContent }];
     const controller = new AbortController();
     abortControllerRef.current = controller;
 

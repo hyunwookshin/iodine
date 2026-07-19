@@ -14,9 +14,10 @@ interface RightPanelProps {
   model: string;
   setProvider: (id: string) => void;
   setModel: (id: string) => void;
+  getEditorContext?: () => string | null;
 }
 
-export function RightPanel({ width, workspacePath, activeFilePath, onWorkspaceOpen, provider, model, setProvider, setModel }: RightPanelProps) {
+export function RightPanel({ width, workspacePath, activeFilePath, onWorkspaceOpen, provider, model, setProvider, setModel, getEditorContext }: RightPanelProps) {
   const [activeTab, setActiveTab] = useState<RightTab>('assistant');
 
   return (
@@ -72,7 +73,7 @@ export function RightPanel({ width, workspacePath, activeFilePath, onWorkspaceOp
       {activeTab === 'system'
         ? <SystemView workspacePath={workspacePath} provider={provider} model={model} />
         : <CodingAssistant workspacePath={workspacePath} activeFilePath={activeFilePath} onWorkspaceOpen={onWorkspaceOpen}
-            provider={provider} model={model} setProvider={setProvider} setModel={setModel} />
+            provider={provider} model={model} setProvider={setProvider} setModel={setModel} getEditorContext={getEditorContext} />
       }
     </div>
   );

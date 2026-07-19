@@ -318,9 +318,10 @@ interface CodingAssistantProps {
   model: string;
   setProvider: (id: string) => void;
   setModel: (id: string) => void;
+  getEditorContext?: () => string | null;
 }
 
-export function CodingAssistant({ workspacePath, activeFilePath, onWorkspaceOpen, provider, model, setProvider, setModel }: CodingAssistantProps) {
+export function CodingAssistant({ workspacePath, activeFilePath, onWorkspaceOpen, provider, model, setProvider, setModel, getEditorContext }: CodingAssistantProps) {
   const { uiMessages, isLoading, sendMessage, stopExecution, clearMessages, sendApproval } = useCodingAssistant(provider, model);
   const [input, setInput] = useState('');
   const [providerStatus, setProviderStatus] = useState<Record<string, boolean>>({});
@@ -367,7 +368,8 @@ export function CodingAssistant({ workspacePath, activeFilePath, onWorkspaceOpen
     const text = input.trim();
     if (!text || isLoading) return;
     setInput('');
-    sendMessage(text, activeFilePath);
+    const editorContext = getEditorContext?.() ?? null;
+    sendMessage(text, activeFilePath, editorContext);
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
