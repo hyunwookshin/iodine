@@ -219,9 +219,10 @@ function ChangeSection({ title, items, actionIcon, actionTitle, onAction, onDisc
 
 // ─── branch rows ──────────────────────────────────────────────────────────────
 
-function BranchRow({ name, isCurrent, upstream, onClick }: {
+function BranchRow({ name, isCurrent, upstream, onClick, onOpenGithub }: {
   name: string; isCurrent: boolean; upstream?: string | null;
   onClick?: () => void;
+  onOpenGithub?: () => void;
 }) {
   const [hovered, setHovered] = useState(false);
   const clickable = !!onClick && !isCurrent;
@@ -255,6 +256,18 @@ function BranchRow({ name, isCurrent, upstream, onClick }: {
           {upstream}
         </span>
       )}
+      {onOpenGithub && hovered && (
+        <IconButton
+          onClick={e => {
+            e.stopPropagation();
+            onOpenGithub();
+          }}
+          title="Open on GitHub"
+          style={{ fontSize: 12, width: 18, height: 18, flexShrink: 0, color: 'var(--color-text-secondary)' }}
+        >
+          ↗
+        </IconButton>
+      )}
     </div>
   );
 }
@@ -284,6 +297,14 @@ function RemoteBranchesSection({ branches, onCheckout }: {
 }) {
   const [open, setOpen] = useState(false); // collapsed by default
   if (branches.length === 0) return null;
+
+  const handleOpenGithub = async (branchName: string) => {
+    try {
+      const { githubUrl } = await fetchRefGithubUrl(branchName);
+      if (githubUrl) window.open(githubUrl, '_blank', 'noopener,noreferrer');
+    } catch { /* ignore */ }
+  };
+
   return (
     <div>
       <SectionHeader open={open} onToggle={() => setOpen(v => !v)} title="Remote Branches" count={branches.length} />
@@ -293,6 +314,7 @@ function RemoteBranchesSection({ branches, onCheckout }: {
           <BranchRow
             key={b.name} name={b.name} isCurrent={false}
             onClick={localName ? () => onCheckout(localName) : undefined}
+            onOpenGithub={() => handleOpenGithub(b.name)}
           />
         );
       })}
