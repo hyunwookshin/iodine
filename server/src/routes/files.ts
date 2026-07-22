@@ -82,6 +82,43 @@ function parseDiff(diffOutput: string): DiffResult {
   return { added, modified, deleted };
 }
 
+// ── Helper to convert git remote URL to HTTPS GitHub URL ────────────────────
+
+function remoteUrlToGithubUrl(remoteUrl: string): string | null {
+  // Handle SSH format: git@github.com:owner/repo.git
+  const sshMatch = remoteUrl.match(/git@github\.com:(.+?)\/(.+?)(\.git)?$/);
+  if (sshMatch) {
+    return `https://github.com/${sshMatch[1]}/${sshMatch[2]}`;
+  }
+
+  // Handle HTTPS format: https://github.com/owner/repo.git
+  const httpsMatch = remoteUrl.match(/https:\/\/github\.com\/(.+?)\/(.+?)(\.git)?$/);
+  if (httpsMatch) {
+    return `https://github.com/${httpsMatch[1]}/${httpsMatch[2]}`;
+  }
+
+  // Not a GitHub URL
+  return null;
+}
+
+// ── Helper to extract branch/tag name from ref ────────────────────────────────
+
+function extractRefName(ref: string): string | null {
+  // Ref format examples: "origin/main", "tag: v1.0", "HEAD", "main"
+  if (ref.startsWith('tag: ')) {
+    return ref.slice('tag: '.length);
+  }
+  if (ref.includes('/')) {
+    // Remote reference: extract the part after the remote name
+    const parts = ref.split('/');
+    if (parts.length >= 2) {
+      return parts.slice(1).join('/');
+    }
+  }
+  // Local branch
+  return ref;
+}
+
 const IMAGE_MIME: Record<string, string> = {
   png: 'image/png',
   jpg: 'image/jpeg',
@@ -416,6 +453,54 @@ router.post('/git/commit', async (req, res) => {
   } catch (err: unknown) {
     const e = err as { stderr?: string; message: string };
     return res.status(500).json({ error: e.stderr ?? e.message });
+  }
+});
+
+// --- Git remote URL for opening on GitHub ---
+
+router.get('/git/remote-url', async (_req, res) => {
+  if (!rootPath) return res.json({ url: null, githubUrl: null });
+
+  try {
+    const { stdout } = await execFileAsync('git', ['config', '--get', 'remote.origin.url'], { cwd: rootPath });
+    const url = stdout.trim();
+    const githubUrl = remoteUrlToGithubUrl(url);
+    return res.json({ url, githubUrl });
+  } catch {
+    return res.json({ url: null, githubUrl: null });
+  }
+});
+
+// --- Endpoint to get GitHub URL for a specific ref (branch/tag) ---
+
+router.get('/git/ref-url', async (req, res) => {
+  if (!rootPath) return res.json({ githubUrl: null, refName: null });
+
+  const ref = req.query.ref as string;
+  if (!ref) return res.status(400).json({ error: 'ref query param is required' });
+
+  try {
+    const { stdout } = await execFileAsync('git', ['config', '--get', 'remote.origin.url'], { cwd: rootPath });
+    const remoteUrl = stdout.trim();
+    const baseGithubUrl = remoteUrlToGithubUrl(remoteUrl);
+
+    if (!baseGithubUrl) return res.json({ githubUrl: null, refName: null });
+
+    const refName = extractRefName(ref);
+    if (!refName) return res.json({ githubUrl: null, refName: null });
+
+    // Build the GitHub URL with the branch/tag
+    // Format: https://github.com/owner/repo/tree/branch or /releases/tag/tag-name
+    let githubUrl = baseGithubUrl;
+    if (ref.startsWith('tag: ')) {
+      githubUrl += `/releases/tag/${encodeURIComponent(refName)}`;
+    } else {
+      githubUrl += `/tree/${encodeURIComponent(refName)}`;
+    }
+
+    return res.json({ githubUrl, refName });
+  } catch {
+    return res.json({ githubUrl: null, refName: null });
   }
 });
 

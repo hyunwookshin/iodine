@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useSourceControl } from '../../hooks/useSourceControl';
+import { fetchRefGithubUrl } from '../../api/files';
 import type { GitChange, GitCommit, GitBranchInfo } from '../../hooks/useSourceControl';
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
@@ -84,14 +85,29 @@ function SectionHeader({ open, onToggle, title, count }: {
 function RefBadge({ name }: { name: string }) {
   if (name === 'HEAD') return null;
   const label = name.startsWith('tag: ') ? name.slice(5) : name;
+  const isRemote = name.includes('/') || name.startsWith('tag: ');
+
+  const handleClick = isRemote ? async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const { githubUrl } = await fetchRefGithubUrl(name);
+      if (githubUrl) window.open(githubUrl, '_blank', 'noopener,noreferrer');
+    } catch { /* ignore */ }
+  } : undefined;
+
   return (
-    <span style={{
-      ...refStyle(name),
-      fontSize: 10, padding: '1px 5px', borderRadius: 3,
-      display: 'inline-block',
-      maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-      lineHeight: '16px',
-    }}>
+    <span
+      onClick={handleClick}
+      title={isRemote ? `Open ${label} on GitHub` : label}
+      style={{
+        ...refStyle(name),
+        fontSize: 10, padding: '1px 5px', borderRadius: 3,
+        display: 'inline-block',
+        maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        lineHeight: '16px',
+        cursor: isRemote ? 'pointer' : 'default',
+      }}
+    >
       {label}
     </span>
   );

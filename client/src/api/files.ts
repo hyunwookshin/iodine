@@ -177,6 +177,15 @@ export async function pushBranch(): Promise<void> {
   await request('/api/git/push', { method: 'POST' });
 }
 
+export interface RefGithubUrl {
+  githubUrl: string | null;
+  refName: string | null;
+}
+
+export async function fetchRefGithubUrl(ref: string): Promise<RefGithubUrl> {
+  return request<RefGithubUrl>(`/api/git/ref-url?ref=${encodeURIComponent(ref)}`);
+}
+
 export interface GraphNode {
   id: string;
   name: string;
