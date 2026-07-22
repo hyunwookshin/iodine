@@ -12,7 +12,7 @@ import { useTheme } from '../../hooks/useTheme';
 import { getWorkspace, closeWorkspace } from '../../api/files';
 import { PROVIDERS, DEFAULT_PROVIDER, DEFAULT_MODEL } from '../../providers';
 import type { Provider } from '../../providers';
-import type { SidebarView } from '../../types';
+import type { FileNode, SidebarView } from '../../types';
 
 const SIDEBAR_DEFAULT = 240;
 const RIGHT_PANEL_DEFAULT = 400;
@@ -31,6 +31,9 @@ export function WorkbenchLayout() {
   const [trayHeight, setTrayHeight] = useState(TRAY_DEFAULT);
   const [workspacePath, setWorkspacePath] = useState<string | null>(null);
   const { theme, toggleTheme } = useTheme();
+
+  // When set, the EditorArea should switch to the AI summary view for this file path.
+  const [summaryRequestPath, setSummaryRequestPath] = useState<string | null>(null);
 
   // AI provider/model — shared by RightPanel (chat/system view) and EditorArea (AI summary)
   const [provider, setProviderState] = useState<Provider>(DEFAULT_PROVIDER);
@@ -63,6 +66,12 @@ export function WorkbenchLayout() {
   } = useOpenFiles();
 
   useFileWatcher(workspacePath, refreshFile);
+
+  /** Open a file and request the editor to display its AI summary. */
+  const handleFileSummary = useCallback((node: FileNode) => {
+    openFile(node);
+    setSummaryRequestPath(node.path);
+  }, [openFile]);
 
   // Restore workspace from server on mount
   useEffect(() => {
@@ -167,6 +176,7 @@ export function WorkbenchLayout() {
             onDeleteSuccess={handleDeleteSuccess}
             onRenameSuccess={handleRenameSuccess}
             onDirSummary={openDirectory}
+            onFileSummary={handleFileSummary}
           />
 
           <ResizeDivider
@@ -187,6 +197,8 @@ export function WorkbenchLayout() {
             workspacePath={workspacePath}
             provider={provider}
             model={model}
+            summaryRequestPath={summaryRequestPath}
+            onSummaryHandled={() => setSummaryRequestPath(null)}
           />
 
           <ResizeDivider

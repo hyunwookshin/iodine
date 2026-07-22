@@ -23,6 +23,10 @@ interface EditorAreaProps {
   workspacePath: string | null;
   provider: Provider;
   model: string;
+  /** When set to the active file's path, the editor switches to the AI summary view. */
+  summaryRequestPath?: string | null;
+  /** Called once the summary request has been consumed. */
+  onSummaryHandled?: () => void;
 }
 
 export interface EditorAreaHandle {
@@ -62,7 +66,7 @@ const btnStyle: React.CSSProperties = {
 };
 
 export const EditorArea = forwardRef<EditorAreaHandle, EditorAreaProps>(
-  function EditorArea({ openFiles, activeFilePath, onTabClick, onTabClose, onContentChange, workspacePath, provider, model }, ref) {
+  function EditorArea({ openFiles, activeFilePath, onTabClick, onTabClose, onContentChange, workspacePath, provider, model, summaryRequestPath, onSummaryHandled }, ref) {
     const activeFile = openFiles.find(f => f.path === activeFilePath) ?? null;
     const diffData   = useFileDiff(activeFile?.isImage ? null : (activeFile?.path ?? null));
     const monacoEditorRef = useRef<MonacoEditorAPI.IStandaloneCodeEditor | null>(null);
@@ -96,6 +100,17 @@ export const EditorArea = forwardRef<EditorAreaHandle, EditorAreaProps>(
         .then((data: { content: string | null }) => setHasCachedSummary(!!data.content))
         .catch(() => {});
     }, [activeFile?.path, workspacePath]);
+
+    // Honor an external request to show the AI summary for the active file.
+    // Switching the view to 'summary' with empty content triggers the
+    // generation/cache-load effect below.
+    useEffect(() => {
+      if (!summaryRequestPath || !activeFile) return;
+      if (activeFile.path !== summaryRequestPath) return;
+      setEditorView('summary');
+      onSummaryHandled?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [summaryRequestPath, activeFile?.path]);
 
     useImperativeHandle(ref, () => ({
       save: () => {},
@@ -240,7 +255,7 @@ export const EditorArea = forwardRef<EditorAreaHandle, EditorAreaProps>(
         handleSwitchToSummary();
       }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [summaryContent, summaryLoading]);
+    }, [summaryContent, summaryLoading, editorView]);
 
     return (
       <div

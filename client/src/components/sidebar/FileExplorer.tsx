@@ -14,6 +14,7 @@ interface FileExplorerProps {
   onRenameSuccess: (oldPath: string, newPath: string) => void;
   localTree?: FileNode | null;
   onDirSummary?: (node: FileNode) => void;
+  onFileSummary?: (node: FileNode) => void;
 }
 
 // Merge two GitFileStatus values into a single representative value for a directory.
@@ -68,6 +69,7 @@ export function FileExplorer({
   onRenameSuccess,
   localTree,
   onDirSummary,
+  onFileSummary,
 }: FileExplorerProps) {
   const { tree, expandedPaths, toggleExpand, loading, error, refetch } = useFileTree(workspacePath, localTree);
   const rawGitStatus = useGitStatus(workspacePath);
@@ -357,6 +359,7 @@ export function FileExplorer({
                 onRename={handleRename}
                 workspacePath={workspacePath}
                 onDirSummary={onDirSummary}
+                onFileSummary={onFileSummary}
               />
             ))}
           </div>

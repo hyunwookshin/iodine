@@ -15,6 +15,7 @@ interface FileTreeNodeProps {
   onRename: (node: FileNode, newName: string) => Promise<void>;
   workspacePath?: string | null;
   onDirSummary?: (node: FileNode) => void;
+  onFileSummary?: (node: FileNode) => void;
 }
 
 const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg']);
@@ -95,6 +96,7 @@ export function FileTreeNode({
   onRename,
   workspacePath,
   onDirSummary,
+  onFileSummary,
 }: FileTreeNodeProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -102,7 +104,7 @@ export function FileTreeNode({
   const [newName, setNewName] = useState('Untitled');
   const [createError, setCreateError] = useState<string | null>(null);
   // null = not probed yet, false = no cache, true = has cache
-  const [dirSummaryCached, setDirSummaryCached] = useState<boolean | null>(null);
+  const [summaryCached, setSummaryCached] = useState<boolean | null>(null);
 
   const [renaming, setRenaming] = useState(false);
   const [renameName, setRenameName] = useState('');
@@ -118,6 +120,15 @@ export function FileTreeNode({
   const isDir = node.type === 'directory';
   const isImage = !isDir && isImageFile(node.name);
   const isSymlink = !!node.isSymlink;
+
+  // Whether this node offers an AI summary action in its dropdown menu.
+  const canSummarizeDir = isDir && !!onDirSummary;
+  const canSummarizeFile = !isDir && !isImage && !!onFileSummary;
+  const canSummarize = canSummarizeDir || canSummarizeFile;
+
+  // Which nodes get the "+" dropdown button: directories (new file/folder + summary)
+  // and summarizable files (summary only).
+  const hasDropdown = isDir || canSummarizeFile;
 
   const gs = gitStatus[node.path];
   const nameFontWeight = (gs === 'unstaged' || gs === 'both') ? 'bold' : undefined;
@@ -141,17 +152,21 @@ export function FileTreeNode({
     }
   }, [renaming]);
 
-  // Probe directory summary cache when the dropdown opens for the first time
+  // Probe the summary cache when the dropdown opens for the first time so the
+  // menu item reads "View Summary" (cached) vs "Generate Summary" (not cached).
   useEffect(() => {
-    if (!dropdownOpen || !isDir || !workspacePath || dirSummaryCached !== null) return;
+    if (!dropdownOpen || !workspacePath || summaryCached !== null || !canSummarize) return;
     const relPath = node.path.startsWith(workspacePath + '/')
       ? node.path.slice(workspacePath.length + 1)
       : node.path;
-    fetch(`${API_BASE}/api/ai-directory-summary?path=${encodeURIComponent(relPath)}`)
+    const url = isDir
+      ? `${API_BASE}/api/ai-directory-summary?path=${encodeURIComponent(relPath)}`
+      : `${API_BASE}/api/ai-summary?path=${encodeURIComponent(relPath)}`;
+    fetch(url)
       .then(r => r.json())
-      .then((data: { content: string | null }) => setDirSummaryCached(!!data.content))
+      .then((data: { content: string | null }) => setSummaryCached(!!data.content))
       .catch(() => {});
-  }, [dropdownOpen, isDir, workspacePath, node.path, dirSummaryCached]);
+  }, [dropdownOpen, isDir, workspacePath, node.path, summaryCached, canSummarize]);
 
   const handleClick = () => {
     if (isDir) {
@@ -173,6 +188,12 @@ export function FileTreeNode({
     setCreatingType(null);
     setNewName('Untitled');
     setCreateError(null);
+  };
+
+  const handleSummary = () => {
+    setDropdownOpen(false);
+    if (isDir) onDirSummary?.(node);
+    else onFileSummary?.(node);
   };
 
   const startRenaming = (e: React.MouseEvent) => {
@@ -320,11 +341,11 @@ export function FileTreeNode({
         {/* Action buttons — visible on hover */}
         {showActions && (
           <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
-            {isDir && (
+            {hasDropdown && (
               /* Wrapper div is position:relative so the dropdown positions correctly */
               <div style={{ position: 'relative' }}>
                 <button
-                  title="New file or folder"
+                  title={isDir ? 'New file or folder' : 'Generate summary'}
                   onClick={e => {
                     e.stopPropagation();
                     setDropdownOpen(v => !v);
@@ -363,7 +384,7 @@ export function FileTreeNode({
                       boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
                       overflow: 'hidden',
                     }}>
-                      {(['file', 'directory'] as const).map(type => (
+                      {isDir && (['file', 'directory'] as const).map(type => (
                         <button
                           key={type}
                           onClick={e => { e.stopPropagation(); startCreating(type); }}
@@ -389,14 +410,13 @@ export function FileTreeNode({
                           {type === 'directory' ? 'New Folder' : 'New File'}
                         </button>
                       ))}
-                      {onDirSummary && (
+                      {canSummarize && (
                         <>
-                          <div style={{ height: 1, background: 'var(--color-border)', margin: '2px 0' }} />
+                          {isDir && <div style={{ height: 1, background: 'var(--color-border)', margin: '2px 0' }} />}
                           <button
                             onClick={e => {
                               e.stopPropagation();
-                              setDropdownOpen(false);
-                              onDirSummary(node);
+                              handleSummary();
                             }}
                             style={{
                               display: 'flex',
@@ -415,9 +435,9 @@ export function FileTreeNode({
                             onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                           >
                             <span style={{ fontSize: 11 }}>
-                              {dirSummaryCached === true ? '📖' : '✨'}
+                              {summaryCached === true ? '📖' : '✨'}
                             </span>
-                            {dirSummaryCached === true ? 'View Summary' : 'Generate Summary'}
+                            {summaryCached === true ? 'View Summary' : 'Generate Summary'}
                           </button>
                         </>
                       )}
@@ -536,6 +556,7 @@ export function FileTreeNode({
               onRename={onRename}
               workspacePath={workspacePath}
               onDirSummary={onDirSummary}
+              onFileSummary={onFileSummary}
             />
           ))}
         </>
