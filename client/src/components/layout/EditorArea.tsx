@@ -149,7 +149,7 @@ export const EditorArea = forwardRef<EditorAreaHandle, EditorAreaProps>(
     }));
 
     const showPreviewButton = !!activeFile && !activeFile.isImage && !activeFile.isDirectory && isPreviewable(activeFile.path);
-    const showSummaryButton = !!activeFile && !activeFile.isImage && !activeFile.isDirectory && !!workspacePath;
+    const showSummaryButton = !!activeFile && !activeFile.isImage && !activeFile.isDirectory && !!workspacePath && !activeFile.path.endsWith('.md');
 
     /** Convert an absolute file path to a workspace-relative path. */
     const toRelPath = (abs: string) =>

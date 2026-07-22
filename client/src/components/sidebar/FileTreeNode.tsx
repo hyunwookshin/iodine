@@ -20,6 +20,7 @@ interface FileTreeNodeProps {
 }
 
 const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg']);
+const SUMMARY_EXCLUDED_EXTENSIONS = new Set(['md']);
 
 function getFileExtension(filename: string): string {
   return filename.split('.').pop()?.toLowerCase() ?? '';
@@ -27,6 +28,10 @@ function getFileExtension(filename: string): string {
 
 function isImageFile(filename: string): boolean {
   return IMAGE_EXTENSIONS.has(getFileExtension(filename));
+}
+
+function isSummarizable(filename: string): boolean {
+  return !SUMMARY_EXCLUDED_EXTENSIONS.has(getFileExtension(filename));
 }
 
 const ChevronRight = () => (
@@ -125,7 +130,7 @@ export function FileTreeNode({
 
   // Whether this node offers an AI summary action in its dropdown menu.
   const canSummarizeDir = isDir && !!onDirSummary;
-  const canSummarizeFile = !isDir && !isImage && !!onFileSummary;
+  const canSummarizeFile = !isDir && !isImage && isSummarizable(node.name) && !!onFileSummary;
   const canSummarize = canSummarizeDir || canSummarizeFile;
 
   // Which nodes get the "+" dropdown button: directories (new file/folder + summary + context)
