@@ -6,6 +6,7 @@ import { openWorkspace } from '../../api/files';
 import { UIMessage, UIBlock } from '../../types';
 import { PROVIDERS } from '../../providers';
 import type { Provider } from '../../providers';
+import type { FileNode } from '../../types';
 
 // Go directly to Express for SSE — Vite proxy closes the backend connection prematurely.
 // See DEBUGGING.md for details. Non-streaming requests (workspace, status) use relative
@@ -319,9 +320,12 @@ interface CodingAssistantProps {
   setProvider: (id: string) => void;
   setModel: (id: string) => void;
   getEditorContext?: () => string | null;
+  contextNodes: FileNode[];
+  onRemoveContextNode: (path: string) => void;
+  onClearContextNodes: () => void;
 }
 
-export function CodingAssistant({ workspacePath, activeFilePath, onWorkspaceOpen, provider, model, setProvider, setModel, getEditorContext }: CodingAssistantProps) {
+export function CodingAssistant({ workspacePath, activeFilePath, onWorkspaceOpen, provider, model, setProvider, setModel, getEditorContext, contextNodes, onRemoveContextNode, onClearContextNodes }: CodingAssistantProps) {
   const { uiMessages, isLoading, sendMessage, stopExecution, clearMessages, sendApproval } = useCodingAssistant(provider, model);
   const [input, setInput] = useState('');
   const [providerStatus, setProviderStatus] = useState<Record<string, boolean>>({});
@@ -369,7 +373,12 @@ export function CodingAssistant({ workspacePath, activeFilePath, onWorkspaceOpen
     if (!text || isLoading) return;
     setInput('');
     const editorContext = getEditorContext?.() ?? null;
-    sendMessage(text, activeFilePath, editorContext);
+    const ctxPaths = contextNodes.map(n => {
+      if (!workspacePath) return n.path;
+      return n.path.startsWith(workspacePath + '/') ? n.path.slice(workspacePath.length + 1) : n.path;
+    });
+    onClearContextNodes();
+    sendMessage(text, activeFilePath, editorContext, ctxPaths.length > 0 ? ctxPaths : undefined);
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -653,6 +662,53 @@ export function CodingAssistant({ workspacePath, activeFilePath, onWorkspaceOpen
           flexShrink: 0,
         }}
       >
+        {/* Context chips */}
+        {contextNodes.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+            {contextNodes.map(node => (
+              <div
+                key={node.path}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 3,
+                  background: 'var(--color-bg-subtle)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 10,
+                  padding: '2px 6px 2px 7px',
+                  fontSize: 11,
+                  color: 'var(--color-text-secondary)',
+                  maxWidth: '100%',
+                }}
+              >
+                <span style={{ fontSize: 10, flexShrink: 0 }}>
+                  {node.type === 'directory' ? '📁' : '📄'}
+                </span>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {node.name}
+                </span>
+                <button
+                  onClick={() => onRemoveContextNode(node.path)}
+                  title="Remove from context"
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: 'var(--color-text-secondary)',
+                    fontSize: 12,
+                    lineHeight: 1,
+                    padding: '0 1px',
+                    flexShrink: 0,
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.color = '#f48771')}
+                  onMouseLeave={e => (e.currentTarget.style.color = 'var(--color-text-secondary)')}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
         <textarea
           value={input}
           onChange={e => setInput(e.target.value)}

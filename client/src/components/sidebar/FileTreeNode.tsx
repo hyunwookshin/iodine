@@ -16,6 +16,7 @@ interface FileTreeNodeProps {
   workspacePath?: string | null;
   onDirSummary?: (node: FileNode) => void;
   onFileSummary?: (node: FileNode) => void;
+  onAddToContext?: (node: FileNode) => void;
 }
 
 const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg']);
@@ -97,6 +98,7 @@ export function FileTreeNode({
   workspacePath,
   onDirSummary,
   onFileSummary,
+  onAddToContext,
 }: FileTreeNodeProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -126,9 +128,10 @@ export function FileTreeNode({
   const canSummarizeFile = !isDir && !isImage && !!onFileSummary;
   const canSummarize = canSummarizeDir || canSummarizeFile;
 
-  // Which nodes get the "+" dropdown button: directories (new file/folder + summary)
-  // and summarizable files (summary only).
-  const hasDropdown = isDir || canSummarizeFile;
+  // Which nodes get the "+" dropdown button: directories (new file/folder + summary + context)
+  // and files that have summary or context actions.
+  const canAddToContext = !!onAddToContext;
+  const hasDropdown = isDir || canSummarizeFile || (!isDir && canAddToContext);
 
   const gs = gitStatus[node.path];
   const nameFontWeight = (gs === 'unstaged' || gs === 'both') ? 'bold' : undefined;
@@ -441,6 +444,36 @@ export function FileTreeNode({
                           </button>
                         </>
                       )}
+                      {canAddToContext && (
+                        <>
+                          <div style={{ height: 1, background: 'var(--color-border)', margin: '2px 0' }} />
+                          <button
+                            onClick={e => {
+                              e.stopPropagation();
+                              setDropdownOpen(false);
+                              onAddToContext!(node);
+                            }}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 8,
+                              width: '100%',
+                              padding: '6px 10px',
+                              background: 'transparent',
+                              color: 'var(--color-text-primary)',
+                              fontSize: 12,
+                              textAlign: 'left',
+                              cursor: 'pointer',
+                              whiteSpace: 'nowrap',
+                            }}
+                            onMouseEnter={e => (e.currentTarget.style.background = 'var(--color-bg-hover)')}
+                            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                          >
+                            <span style={{ fontSize: 11 }}>+</span>
+                            Add to Context
+                          </button>
+                        </>
+                      )}
                     </div>
                   </>
                 )}
@@ -557,6 +590,7 @@ export function FileTreeNode({
               workspacePath={workspacePath}
               onDirSummary={onDirSummary}
               onFileSummary={onFileSummary}
+              onAddToContext={onAddToContext}
             />
           ))}
         </>

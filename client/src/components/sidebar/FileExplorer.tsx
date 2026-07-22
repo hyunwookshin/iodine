@@ -15,6 +15,7 @@ interface FileExplorerProps {
   localTree?: FileNode | null;
   onDirSummary?: (node: FileNode) => void;
   onFileSummary?: (node: FileNode) => void;
+  onAddToContext?: (node: FileNode) => void;
 }
 
 // Merge two GitFileStatus values into a single representative value for a directory.
@@ -70,6 +71,7 @@ export function FileExplorer({
   localTree,
   onDirSummary,
   onFileSummary,
+  onAddToContext,
 }: FileExplorerProps) {
   const { tree, expandedPaths, toggleExpand, loading, error, refetch } = useFileTree(workspacePath, localTree);
   const rawGitStatus = useGitStatus(workspacePath);
@@ -360,6 +362,7 @@ export function FileExplorer({
                 workspacePath={workspacePath}
                 onDirSummary={onDirSummary}
                 onFileSummary={onFileSummary}
+                onAddToContext={onAddToContext}
               />
             ))}
           </div>

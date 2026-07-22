@@ -3,6 +3,7 @@ import { CodingAssistant } from '../right/CodingAssistant';
 import { SystemView } from '../right/SystemView';
 import { BuildAssistant } from '../right/BuildAssistant';
 import type { Provider } from '../../providers';
+import type { FileNode } from '../../types';
 
 type RightTab = 'assistant' | 'build' | 'system';
 
@@ -17,9 +18,12 @@ interface RightPanelProps {
   setModel: (id: string) => void;
   getEditorContext?: () => string | null;
   runCommandInTerminal: (cmd: string) => void;
+  contextNodes: FileNode[];
+  onRemoveContextNode: (path: string) => void;
+  onClearContextNodes: () => void;
 }
 
-export function RightPanel({ width, workspacePath, activeFilePath, onWorkspaceOpen, provider, model, setProvider, setModel, getEditorContext, runCommandInTerminal }: RightPanelProps) {
+export function RightPanel({ width, workspacePath, activeFilePath, onWorkspaceOpen, provider, model, setProvider, setModel, getEditorContext, runCommandInTerminal, contextNodes, onRemoveContextNode, onClearContextNodes }: RightPanelProps) {
   const [activeTab, setActiveTab] = useState<RightTab>('assistant');
 
   return (
@@ -78,7 +82,8 @@ export function RightPanel({ width, workspacePath, activeFilePath, onWorkspaceOp
         : activeTab === 'build'
         ? <BuildAssistant workspacePath={workspacePath} provider={provider} model={model} runCommandInTerminal={runCommandInTerminal} />
         : <CodingAssistant workspacePath={workspacePath} activeFilePath={activeFilePath} onWorkspaceOpen={onWorkspaceOpen}
-            provider={provider} model={model} setProvider={setProvider} setModel={setModel} getEditorContext={getEditorContext} />
+            provider={provider} model={model} setProvider={setProvider} setModel={setModel} getEditorContext={getEditorContext}
+            contextNodes={contextNodes} onRemoveContextNode={onRemoveContextNode} onClearContextNodes={onClearContextNodes} />
       }
     </div>
   );

@@ -13,6 +13,7 @@ interface SidebarProps {
   localTree?: FileNode | null;
   onDirSummary?: (node: FileNode) => void;
   onFileSummary?: (node: FileNode) => void;
+  onAddToContext?: (node: FileNode) => void;
 }
 
 export function Sidebar({
@@ -26,6 +27,7 @@ export function Sidebar({
   localTree,
   onDirSummary,
   onFileSummary,
+  onAddToContext,
 }: SidebarProps) {
   // Helper to open a file given only its absolute path (from SCM panel)
   const handleOpenByPath = (absPath: string) => {
@@ -55,6 +57,7 @@ export function Sidebar({
           localTree={localTree}
           onDirSummary={onDirSummary}
           onFileSummary={onFileSummary}
+          onAddToContext={onAddToContext}
         />
       ) : (
         <SourceControlPanel workspacePath={workspacePath} onFileOpen={handleOpenByPath} />

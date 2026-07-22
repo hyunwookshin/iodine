@@ -24,11 +24,14 @@ The editor pane has a three-way view toggle: **source / preview / summary**.
 
 | File | Role |
 |------|------|
-| `client/src/components/layout/EditorArea.tsx` | Owns `editorView` state (`'source' \| 'preview' \| 'summary'`). Renders the `🤖 Summary` button for any non-image file when a workspace is open. Streams `text_delta` SSE events from the server and renders partial Markdown progressively. Provides a `↺ Regenerate` button to clear the in-session cache and re-run. |
-| `server/src/routes/aiSummary.ts` | `GET /api/ai-summary?path=` checks the disk cache and returns cached content. `POST /api/ai-summary/generate` streams an LLM-generated tutorial-style summary, then writes it to the cache. |
+| `client/src/components/layout/EditorArea.tsx` | Owns `editorView` state (`'source' \| 'preview' \| 'summary'`). Renders the `🤖 Summary` button for any non-image file when a workspace is open. Streams `text_delta` SSE events from the server and renders partial Markdown progressively. Provides a `↺ Regenerate` button to clear the in-session cache and re-run. Accepts `summaryRequestPath` prop to open in summary view when triggered externally (both files and directories). |
+| `server/src/routes/aiSummary.ts` | `GET /api/ai-summary?path=` and `GET /api/ai-directory-summary?path=` check the disk cache. `POST /api/ai-summary/generate` and `POST /api/ai-directory-summary/generate` stream LLM-generated summaries, then write to cache. |
 
-**Cache path:** `~/.iodine/<workspace-md5>/<relpath-md5>/<file-content-md5>_ai_summary.md`
-The file-content hash means the cache auto-invalidates when the file changes.
+**File cache path:** `~/.iodine/<workspace-md5>/<relpath-md5>/<file-content-md5>_ai_summary.md`
+**Directory cache path:** `~/.iodine/<workspace-md5>/<relpath-md5>/<dir-contents-md5>_ai_dir_summary.md`
+The content hash means the cache auto-invalidates when the file/directory structure changes.
+
+**Directory summary** is accessible via the `+` hover menu on any folder in the file tree ("View/Generate Summary"). Directories open as synthetic tabs with `isDirectory: true`; `WorkbenchLayout` calls `handleDirSummary` which opens the tab and sets `summaryRequestPath`, triggering `EditorArea` to auto-switch to summary view and start generation.
 
 **Provider/model state** is owned by `WorkbenchLayout` and passed down to `RightPanel`, `CodingAssistant`, `SystemView`, and `EditorArea` so all features share the same selection.
 
@@ -59,6 +62,20 @@ When the user sends a message, the coding assistant automatically appends the cu
 | `client/src/components/layout/RightPanel.tsx` | Threads `getEditorContext` through to `CodingAssistant`. |
 | `client/src/components/right/CodingAssistant.tsx` | Calls `getEditorContext()` in `handleSend` and passes the result to `sendMessage`. |
 | `client/src/hooks/useCodingAssistant.ts` | `sendMessage` accepts `editorContext?: string \| null`. If present, appends it as a fenced code block under `**User Visual Context**` in the API history entry only (not in the UI message). |
+
+## Coding Assistant Context Chips ("Add to Context")
+
+Files and folders can be pinned to the Coding Assistant via the `+` hover menu in the file tree. Pinned items appear as chips above the chat input and inject a **Relevant paths hint** block into the API message when the user sends, guiding the LLM to those paths first.
+
+| File | Role |
+|------|------|
+| `client/src/components/sidebar/FileTreeNode.tsx` | "Add to Context" option in the `+` dropdown for every file and directory. Calls `onAddToContext(node)`. |
+| `client/src/components/sidebar/FileExplorer.tsx` | Threads `onAddToContext` down to `FileTreeNode`. |
+| `client/src/components/layout/Sidebar.tsx` | Threads `onAddToContext` down to `FileExplorer`. |
+| `client/src/components/layout/WorkbenchLayout.tsx` | Owns `contextNodes: FileNode[]` state. `handleAddToContext` de-dupes and appends; `handleRemoveContextNode` removes one; `handleClearContextNodes` clears all (called after send). Passes all three to `RightPanel`. |
+| `client/src/components/layout/RightPanel.tsx` | Threads `contextNodes`, `onRemoveContextNode`, `onClearContextNodes` to `CodingAssistant`. |
+| `client/src/components/right/CodingAssistant.tsx` | Renders chips above the textarea. In `handleSend` converts nodes to workspace-relative paths, clears chips, and passes paths to `sendMessage`. |
+| `client/src/hooks/useCodingAssistant.ts` | `sendMessage` accepts `contextPaths?: string[]`. If present, prepends a `**Relevant paths hint**` block to the API content (before User Visual Context). |
 
 ## Implementation Notes
 

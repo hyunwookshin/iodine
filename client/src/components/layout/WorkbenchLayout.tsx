@@ -35,6 +35,9 @@ export function WorkbenchLayout() {
   // When set, the EditorArea should switch to the AI summary view for this file path.
   const [summaryRequestPath, setSummaryRequestPath] = useState<string | null>(null);
 
+  // Paths/nodes added to the Coding Assistant context via the file-tree dropdown.
+  const [contextNodes, setContextNodes] = useState<FileNode[]>([]);
+
   // AI provider/model — shared by RightPanel (chat/system view) and EditorArea (AI summary)
   const [provider, setProviderState] = useState<Provider>(DEFAULT_PROVIDER);
   const [model, setModel] = useState<string>(DEFAULT_MODEL);
@@ -72,6 +75,27 @@ export function WorkbenchLayout() {
     openFile(node);
     setSummaryRequestPath(node.path);
   }, [openFile]);
+
+  /** Open a directory tab and request the editor to display its AI summary. */
+  const handleDirSummary = useCallback((node: FileNode) => {
+    openDirectory(node);
+    setSummaryRequestPath(node.path);
+  }, [openDirectory]);
+
+  /** Add a file or directory to the Coding Assistant context chips. */
+  const handleAddToContext = useCallback((node: FileNode) => {
+    setContextNodes(prev => prev.some(n => n.path === node.path) ? prev : [...prev, node]);
+  }, []);
+
+  /** Remove a single path from the context chips. */
+  const handleRemoveContextNode = useCallback((path: string) => {
+    setContextNodes(prev => prev.filter(n => n.path !== path));
+  }, []);
+
+  /** Clear all context chips (called by CodingAssistant after sending). */
+  const handleClearContextNodes = useCallback(() => {
+    setContextNodes([]);
+  }, []);
 
   // Restore workspace from server on mount
   useEffect(() => {
@@ -175,8 +199,9 @@ export function WorkbenchLayout() {
             onFileClick={openFile}
             onDeleteSuccess={handleDeleteSuccess}
             onRenameSuccess={handleRenameSuccess}
-            onDirSummary={openDirectory}
+            onDirSummary={handleDirSummary}
             onFileSummary={handleFileSummary}
+            onAddToContext={handleAddToContext}
           />
 
           <ResizeDivider
@@ -220,6 +245,9 @@ export function WorkbenchLayout() {
             setModel={setModel}
             getEditorContext={getEditorContext}
             runCommandInTerminal={runCommandInTerminal}
+            contextNodes={contextNodes}
+            onRemoveContextNode={handleRemoveContextNode}
+            onClearContextNodes={handleClearContextNodes}
           />
         </div>
 
