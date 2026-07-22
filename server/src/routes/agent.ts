@@ -39,6 +39,12 @@ router.post('/agent/chat', async (req, res) => {
   const abortSignal = { aborted: false };
   res.on('close', () => { abortSignal.aborted = true; });
 
+  // Send an SSE comment every 15 s so the TCP connection stays alive during
+  // silent periods (e.g. while the agent is executing a file-write tool call).
+  const heartbeat = setInterval(() => {
+    if (!abortSignal.aborted) res.write(': heartbeat\n\n');
+  }, 15_000);
+
   try {
     if (selectedProvider === 'openai') {
       await runOpenAIAgentLoop(messages, selectedModel, res, abortSignal, activeFile ?? null);
@@ -54,6 +60,7 @@ router.post('/agent/chat', async (req, res) => {
       res.write(`event: error\ndata: ${JSON.stringify({ message: msg })}\n\n`);
     }
   } finally {
+    clearInterval(heartbeat);
     if (!abortSignal.aborted) res.end();
   }
 });
