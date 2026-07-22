@@ -313,7 +313,7 @@ export function FileTreeNode({
             onClick={e => e.stopPropagation()}
             style={{
               flex: 1,
-              background: '#3c3c3c',
+              background: 'var(--color-bg-input)',
               border: `1px solid ${renameError ? '#f48771' : 'var(--color-accent)'}`,
               borderRadius: 2,
               color: 'var(--color-text-primary)',
@@ -362,7 +362,7 @@ export function FileTreeNode({
                     background: 'transparent',
                     flexShrink: 0,
                   }}
-                  onMouseEnter={e => (e.currentTarget.style.color = '#9cdcfe')}
+                  onMouseEnter={e => (e.currentTarget.style.color = 'var(--color-accent)')}
                   onMouseLeave={e => (e.currentTarget.style.color = 'var(--color-text-secondary)')}
                 >
                   <PlusIcon />
@@ -380,11 +380,11 @@ export function FileTreeNode({
                       top: 20,
                       right: 0,
                       zIndex: 100,
-                      background: '#2d2d2d',
-                      border: '1px solid #555',
+                      background: 'var(--color-bg-sidebar)',
+                      border: '1px solid var(--color-border)',
                       borderRadius: 4,
                       minWidth: 130,
-                      boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.35)',
                       overflow: 'hidden',
                     }}>
                       {isDir && (['file', 'directory'] as const).map(type => (
@@ -549,7 +549,7 @@ export function FileTreeNode({
                   onClick={e => e.stopPropagation()}
                   style={{
                     flex: 1,
-                    background: '#3c3c3c',
+                    background: 'var(--color-bg-input)',
                     border: `1px solid ${createError ? '#f48771' : 'var(--color-accent)'}`,
                     borderRadius: 2,
                     color: 'var(--color-text-primary)',
