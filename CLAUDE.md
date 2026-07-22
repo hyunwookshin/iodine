@@ -18,6 +18,16 @@ Theme support is client-side and uses shared CSS variables so components do not 
 
 When adding or changing UI, use the existing `--color-*` variables rather than hard-coded dark colors. Add a semantic token to both `:root` and `:root[data-theme='light']` when no suitable variable exists. Canvas-rendered or third-party widgets such as xterm and Monaco do not automatically inherit CSS colors; explicitly update their theme when `data-theme` changes.
 
+## Editor Tabs
+
+Open files render as tabs in a strip above the editor. The strip supports drag-to-reorder and horizontal scrolling (VS Code-style).
+
+| File | Role |
+|------|------|
+| `client/src/components/editor/EditorTabs.tsx` | Renders the tab strip. Each tab is `draggable`; `onDragStart` records the source index in `dragIndexRef`, `onDragOver` sets `dragOverIndex` (draws an accent left border as a drop hint), and `onDrop` calls `onTabReorder(fromIndex, toIndex)`. `handleWheel` converts a predominantly-vertical mouse-wheel gesture into horizontal `scrollLeft` when the strip overflows (`overflowX: 'auto'`). Active tabs get an accent top border; dirty files show a dot that swaps to a close button on hover. |
+| `client/src/components/layout/EditorArea.tsx` | Accepts the optional `onTabReorder?: (fromIndex, toIndex) => void` prop and threads it (along with `openFiles`, `activeFilePath`, `onTabClick`, `onTabClose`) into `EditorTabs`. |
+| `client/src/hooks/useOpenFiles.ts` | `reorderFiles(fromIndex, toIndex)` is the state updater: it bounds-checks the indices then splices the moved entry into its new position in `openFiles`. Exposed from the hook and wired to `EditorArea`'s `onTabReorder` in `WorkbenchLayout`. |
+
 ## AI Summary
 
 The editor pane has a three-way view toggle: **source / preview / summary**.

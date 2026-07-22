@@ -19,6 +19,7 @@ interface EditorAreaProps {
   activeFilePath: string | null;
   onTabClick: (path: string) => void;
   onTabClose: (path: string) => void;
+  onTabReorder?: (fromIndex: number, toIndex: number) => void;
   onContentChange: (path: string, content: string) => void;
   workspacePath: string | null;
   provider: Provider;
@@ -66,7 +67,7 @@ const btnStyle: React.CSSProperties = {
 };
 
 export const EditorArea = forwardRef<EditorAreaHandle, EditorAreaProps>(
-  function EditorArea({ openFiles, activeFilePath, onTabClick, onTabClose, onContentChange, workspacePath, provider, model, summaryRequestPath, onSummaryHandled }, ref) {
+  function EditorArea({ openFiles, activeFilePath, onTabClick, onTabClose, onTabReorder, onContentChange, workspacePath, provider, model, summaryRequestPath, onSummaryHandled }, ref) {
     const activeFile = openFiles.find(f => f.path === activeFilePath) ?? null;
     const diffData   = useFileDiff(activeFile?.isImage ? null : (activeFile?.path ?? null));
     const monacoEditorRef = useRef<MonacoEditorAPI.IStandaloneCodeEditor | null>(null);
@@ -273,6 +274,7 @@ export const EditorArea = forwardRef<EditorAreaHandle, EditorAreaProps>(
           activeFilePath={activeFilePath}
           onTabClick={onTabClick}
           onTabClose={onTabClose}
+          onTabReorder={onTabReorder}
         />
         <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
 

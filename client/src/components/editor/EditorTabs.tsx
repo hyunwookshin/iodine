@@ -1,3 +1,4 @@
+import { useRef, useState } from 'react';
 import type { OpenFile } from '../../types';
 
 interface EditorTabsProps {
@@ -5,13 +6,33 @@ interface EditorTabsProps {
   activeFilePath: string | null;
   onTabClick: (path: string) => void;
   onTabClose: (path: string) => void;
+  onTabReorder?: (fromIndex: number, toIndex: number) => void;
 }
 
-export function EditorTabs({ openFiles, activeFilePath, onTabClick, onTabClose }: EditorTabsProps) {
+export function EditorTabs({ openFiles, activeFilePath, onTabClick, onTabClose, onTabReorder }: EditorTabsProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const dragIndexRef = useRef<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+
   if (openFiles.length === 0) return null;
+
+  // Convert vertical mouse-wheel scrolling into horizontal scrolling over the tab strip.
+  const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    const el = containerRef.current;
+    if (!el) return;
+    // Only hijack the wheel when there's actually horizontal overflow and the
+    // gesture is predominantly vertical (typical mouse wheel).
+    if (el.scrollWidth <= el.clientWidth) return;
+    if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+      el.scrollLeft += e.deltaY;
+      e.preventDefault();
+    }
+  };
 
   return (
     <div
+      ref={containerRef}
+      onWheel={handleWheel}
       style={{
         display: 'flex',
         height: 'var(--tab-height)',
@@ -20,15 +41,44 @@ export function EditorTabs({ openFiles, activeFilePath, onTabClick, onTabClose }
         overflowX: 'auto',
         overflowY: 'hidden',
         flexShrink: 0,
+        scrollbarWidth: 'thin',
       }}
     >
-      {openFiles.map(file => {
+      {openFiles.map((file, index) => {
         const isActive = file.path === activeFilePath;
+        const isDragOver = dragOverIndex === index;
 
         return (
           <div
             key={file.path}
+            draggable
             onClick={() => onTabClick(file.path)}
+            onDragStart={e => {
+              dragIndexRef.current = index;
+              e.dataTransfer.effectAllowed = 'move';
+              // Firefox requires data to be set for drag to initiate
+              e.dataTransfer.setData('text/plain', file.path);
+            }}
+            onDragOver={e => {
+              e.preventDefault();
+              if (dragIndexRef.current === null || dragIndexRef.current === index) return;
+              setDragOverIndex(index);
+            }}
+            onDragLeave={() => {
+              setDragOverIndex(current => (current === index ? null : current));
+            }}
+            onDrop={e => {
+              e.preventDefault();
+              const fromIndex = dragIndexRef.current;
+              dragIndexRef.current = null;
+              setDragOverIndex(null);
+              if (fromIndex === null || fromIndex === index) return;
+              onTabReorder?.(fromIndex, index);
+            }}
+            onDragEnd={() => {
+              dragIndexRef.current = null;
+              setDragOverIndex(null);
+            }}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -40,6 +90,7 @@ export function EditorTabs({ openFiles, activeFilePath, onTabClick, onTabClose }
               cursor: 'pointer',
               background: isActive ? 'var(--color-bg-tab-active)' : 'var(--color-bg-tab-inactive)',
               borderTop: isActive ? '1px solid var(--color-accent)' : '1px solid transparent',
+              borderLeft: isDragOver ? '2px solid var(--color-accent)' : 'none',
               borderRight: '1px solid var(--color-border)',
               color: isActive ? 'var(--color-text-active)' : 'var(--color-text-secondary)',
               userSelect: 'none',

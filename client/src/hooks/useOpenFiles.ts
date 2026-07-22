@@ -216,6 +216,23 @@ export function useOpenFiles() {
     setActiveFilePath(null);
   }, []);
 
+  /** Move the tab at `fromIndex` so it sits at `toIndex` (drag-to-reorder). */
+  const reorderFiles = useCallback((fromIndex: number, toIndex: number) => {
+    setOpenFiles(prev => {
+      if (
+        fromIndex === toIndex ||
+        fromIndex < 0 || fromIndex >= prev.length ||
+        toIndex < 0 || toIndex >= prev.length
+      ) {
+        return prev;
+      }
+      const next = [...prev];
+      const [moved] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, moved);
+      return next;
+    });
+  }, []);
+
   const activeFile = openFiles.find(f => f.path === activeFilePath) ?? null;
 
   return {
@@ -229,6 +246,7 @@ export function useOpenFiles() {
     saveFile,
     closeFile,
     closeAllFiles,
+    reorderFiles,
     refreshFile,
     setLocalFileMap,
   };

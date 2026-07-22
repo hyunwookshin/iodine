@@ -65,6 +65,7 @@ export function WorkbenchLayout() {
     saveFile,
     closeFile,
     closeAllFiles,
+    reorderFiles,
     refreshFile,
   } = useOpenFiles();
 
@@ -218,6 +219,7 @@ export function WorkbenchLayout() {
             activeFilePath={activeFilePath}
             onTabClick={setActiveFilePath}
             onTabClose={closeFile}
+            onTabReorder={reorderFiles}
             onContentChange={updateContent}
             workspacePath={workspacePath}
             provider={provider}

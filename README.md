@@ -48,6 +48,7 @@ For a visual demonstration of Iodine IDE in action, check out our demo videos on
 ## Features
 
 - 🖥️ **VS Code-like IDE shell** — Activity bar, file explorer sidebar, Monaco-powered code editor, and resizable panels
+- 📑 **Editor tabs** — Open files appear as tabs above the editor. **Drag any tab left or right to reorder** it, and when tabs overflow the strip you can scroll horizontally (drag the scrollbar or use the mouse wheel — vertical wheel scrolling is translated into horizontal movement). Hover a tab to reveal its close button; a dot marks unsaved changes.
 - 📁 **File & folder management** — Hover any folder to reveal a **+** button (New File / New Folder); double-click any name to rename it inline; hover any item to reveal a trash icon to delete it. All three operations error out if the target name already exists.
 - 🤖 **AI Coding Assistant** — Your coding partner in the right panel: streaming chat with full tool use (read, write, search files, run terminal commands) backed by Claude, GPT, or Gemini. Describe what you want, and it figures out the edits.
 - 👁️ **User Visual Context** — The Coding Assistant automatically appends the lines currently visible in the Monaco editor (or your active selection) to every message, so the AI always knows what you're looking at without you having to paste code.
@@ -99,6 +100,16 @@ Additional capabilities:
 6. Switch to the **System View** tab and click **⚡ Generate** — the AI reads your actual files and builds an interactive architecture graph.
 7. Use the integrated terminal to run commands directly in your workspace.
 
+## Editor Tabs 📑
+
+Every file you open gets a tab in the strip above the editor. The tab strip behaves like the one in VS Code:
+
+- **Drag to reorder** — grab any tab and drag it left or right to change its position. Dropping it triggers `onTabReorder`, which is wired to `reorderFiles` in the `useOpenFiles` hook so the underlying `openFiles` order updates too.
+- **Horizontal scrolling** — when more tabs are open than fit on screen, the strip scrolls horizontally. Drag the thin scrollbar, or use the mouse wheel: a vertical wheel gesture is translated into horizontal scrolling as long as there's overflow.
+- **Active + dirty indicators** — the active tab is highlighted with an accent top border; files with unsaved edits show a dot that turns into a close button on hover.
+
+The relevant pieces live in `client/src/components/editor/EditorTabs.tsx` (rendering, drag handlers, wheel-to-scroll), `client/src/components/layout/EditorArea.tsx` (passes the `onTabReorder` prop through), and `client/src/hooks/useOpenFiles.ts` (the `reorderFiles` state updater).
+
 ## Tech Stack
 
 | Layer | Technology |
@@ -129,7 +140,7 @@ iodine/
 │       └── components/
 │           ├── layout/       # WorkbenchLayout, MenuBar, ActivityBar, Sidebar, EditorArea, RightPanel
 │           ├── sidebar/      # FileExplorer, FileTreeNode, SourceControlPanel
-│           ├── editor/       # EditorTabs, MonacoEditor, WelcomeScreen
+│           ├── editor/       # EditorTabs (draggable/scrollable tab strip), MonacoEditor, WelcomeScreen
 │           ├── bottom/       # BottomTray, TerminalPanel, TerminalSession (xterm.js)
 │           └── right/        # CodingAssistant, BuildAssistant, SystemView
 │
@@ -318,4 +329,3 @@ When the AI wants to run a terminal command, it presents an approval card with t
 | `GET` | `/api/build-config` | Return saved build commands `{ test, build, run }` for current workspace |
 | `PUT` | `/api/build-config` | Save build commands `{ test, build, run }` for current workspace |
 | `POST` | `/api/build-config/generate` | SSE stream: AI-generated shell command for `{ type: 'test'\|'build'\|'run' }` |
-
