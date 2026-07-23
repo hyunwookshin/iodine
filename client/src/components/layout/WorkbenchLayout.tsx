@@ -9,6 +9,7 @@ import { BottomTray, BottomTrayHandle } from '../bottom/BottomTray';
 import { useOpenFiles } from '../../hooks/useOpenFiles';
 import { useFileWatcher } from '../../hooks/useFileWatcher';
 import { useTheme } from '../../hooks/useTheme';
+import { useSourceControl } from '../../hooks/useSourceControl';
 import { getWorkspace, closeWorkspace } from '../../api/files';
 import { PROVIDERS, DEFAULT_PROVIDER, DEFAULT_MODEL } from '../../providers';
 import type { Provider } from '../../providers';
@@ -46,6 +47,10 @@ export function WorkbenchLayout() {
     setProviderState(p);
     setModel(p.models[0].id);
   }, []);
+
+  // Git status for badge
+  const sc = useSourceControl(workspacePath);
+  const gitChangeCount = sc.staged.length + sc.unstaged.length;
 
   const editorAreaRef = useRef<EditorAreaHandle>(null);
   const getEditorContext = useCallback(() => editorAreaRef.current?.getVisibleContext() ?? null, []);
@@ -190,7 +195,7 @@ export function WorkbenchLayout() {
       <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
         {/* Main row: sidebar + editor + right panel */}
         <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-          <ActivityBar activeView={activeView} onViewChange={handleViewChange} />
+          <ActivityBar activeView={activeView} onViewChange={handleViewChange} gitChangeCount={gitChangeCount} />
 
           <Sidebar
             activeView={activeView}

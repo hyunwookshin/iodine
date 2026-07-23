@@ -3,6 +3,7 @@ import type { SidebarView } from '../../types';
 interface ActivityBarProps {
   activeView: SidebarView | null;
   onViewChange: (view: SidebarView) => void;
+  gitChangeCount?: number;
 }
 
 interface NavItem {
@@ -29,7 +30,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'scm', label: 'Source Control', icon: <BranchIcon /> },
 ];
 
-export function ActivityBar({ activeView, onViewChange }: ActivityBarProps) {
+export function ActivityBar({ activeView, onViewChange, gitChangeCount = 0 }: ActivityBarProps) {
   return (
     <div
       style={{
@@ -45,6 +46,7 @@ export function ActivityBar({ activeView, onViewChange }: ActivityBarProps) {
     >
       {NAV_ITEMS.map(item => {
         const isActive = activeView === item.id;
+        const isGitIcon = item.id === 'scm';
         return (
           <button
             key={item.id}
@@ -70,6 +72,28 @@ export function ActivityBar({ activeView, onViewChange }: ActivityBarProps) {
             }}
           >
             {item.icon}
+            {isGitIcon && gitChangeCount > 0 && (
+              <span
+                style={{
+                  position: 'absolute',
+                  top: -4,
+                  right: 4,
+                  background: 'var(--color-accent)',
+                  color: '#fff',
+                  borderRadius: '50%',
+                  width: 18,
+                  height: 18,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  minWidth: 18,
+                }}
+              >
+                {gitChangeCount}
+              </span>
+            )}
           </button>
         );
       })}
