@@ -239,6 +239,11 @@ export async function downloadProjectMetadata(): Promise<void> {
   URL.revokeObjectURL(url);
 }
 
+/** Delete the entire ~/.iodine/<md5>/ cache directory for the current workspace. */
+export async function clearProjectMetadata(): Promise<void> {
+  await request('/api/project/metadata', { method: 'DELETE' });
+}
+
 /** Upload a metadata zip and extract it into the current workspace's cache directory. */
 export async function importProjectMetadata(file: File): Promise<void> {
   const res = await fetch('/api/project/metadata/import', {

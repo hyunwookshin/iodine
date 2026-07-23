@@ -96,4 +96,20 @@ router.post(
   }
 );
 
+// DELETE /api/project/metadata
+// Removes the entire ~/.iodine/<workspace-md5>/ cache directory.
+router.delete('/metadata', async (_req, res) => {
+  const cacheDir = workspaceCacheDir();
+  if (!cacheDir) {
+    return res.status(400).json({ error: 'No workspace open' });
+  }
+
+  try {
+    await fs.promises.rm(cacheDir, { recursive: true, force: true });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
 export default router;

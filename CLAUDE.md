@@ -95,6 +95,18 @@ The right panel contains three tabs: **Coding Assistant**, **Build**, and **Syst
 |------|------|
 | `client/src/components/layout/RightPanel.tsx` | Conditionally renders the Provider/Model info box only when `activeTab !== 'assistant'`. The callout is hidden for the Coding Assistant tab to avoid redundancy. |
 
+## Project Metadata (Download / Import / Clear)
+
+The **Project** menu (visible only when a workspace is open) manages the workspace's `~/.iodine/<workspace-md5>/` cache directory, which holds AI summaries and build config.
+
+| Action | Client | Server |
+|--------|--------|--------|
+| Download | `downloadProjectMetadata()` in `client/src/api/files.ts` fetches the endpoint, receives a blob, and triggers a browser download via a temporary object URL | `GET /api/project/metadata/download` — spawns `zip -r - .` from the cache dir and pipes stdout to the response as `application/zip` |
+| Import | `importProjectMetadata(file)` POSTs the raw `File` object as `application/octet-stream` | `POST /api/project/metadata/import` — uses `express.raw()` to receive the zip body, writes it to a temp file, runs `unzip -o`, then cleans up |
+| Clear | `clearProjectMetadata()` sends `DELETE` | `DELETE /api/project/metadata` — calls `fs.rm(cacheDir, { recursive: true, force: true })` |
+
+The server route is in `server/src/routes/project.ts`, registered at `/api/project` in `server/src/app.ts`. The Project menu is in `client/src/components/layout/MenuBar.tsx`; "Clear Metadata" shows a custom confirm dialog before deleting.
+
 ## Implementation Notes
 
 For the full project architecture, APIs, and feature details, inspect the relevant source files and `README.md`. Keep this document concise to preserve context-window space.

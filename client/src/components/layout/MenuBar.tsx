@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { findWorkspace, openWorkspace, downloadProjectMetadata, importProjectMetadata } from '../../api/files';
+import { findWorkspace, openWorkspace, downloadProjectMetadata, importProjectMetadata, clearProjectMetadata } from '../../api/files';
 import type { Theme } from '../../hooks/useTheme';
 
 interface MenuBarProps {
@@ -21,7 +21,8 @@ export function MenuBar({ onOpenProject, onCloseProject, onCloseAllTabs, workspa
   const [pathInput, setPathInput] = useState('');
   const [opening, setOpening] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [projectStatus, setProjectStatus] = useState<{ type: 'downloading' | 'importing' | 'success' | 'error'; message: string } | null>(null);
+  const [projectStatus, setProjectStatus] = useState<{ type: 'downloading' | 'importing' | 'clearing' | 'success' | 'error'; message: string } | null>(null);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
 
@@ -111,6 +112,19 @@ export function MenuBar({ onOpenProject, onCloseProject, onCloseAllTabs, workspa
   const handleImportMetadataClick = () => {
     setProjectMenuOpen(false);
     importInputRef.current?.click();
+  };
+
+  const handleClearMetadata = async () => {
+    setShowClearConfirm(false);
+    setProjectStatus({ type: 'clearing', message: 'Clearing…' });
+    try {
+      await clearProjectMetadata();
+      setProjectStatus({ type: 'success', message: 'Metadata cleared' });
+      setTimeout(() => setProjectStatus(null), 3000);
+    } catch (err) {
+      setProjectStatus({ type: 'error', message: (err as Error).message });
+      setTimeout(() => setProjectStatus(null), 6000);
+    }
   };
 
   const handleImportFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -349,6 +363,7 @@ export function MenuBar({ onOpenProject, onCloseProject, onCloseAllTabs, workspa
                 {([
                   { label: 'Download Metadata', action: handleDownloadMetadata },
                   { label: 'Import Metadata…',  action: handleImportMetadataClick },
+                  { label: 'Clear Metadata',    action: () => { setProjectMenuOpen(false); setShowClearConfirm(true); } },
                 ]).map(item => (
                   <button
                     key={item.label}
@@ -555,6 +570,62 @@ export function MenuBar({ onOpenProject, onCloseProject, onCloseAllTabs, workspa
                 onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
               >
                 Close All
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Clear Metadata confirmation dialog */}
+      {showClearConfirm && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 500,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'rgba(0,0,0,0.5)',
+          }}
+          onClick={e => { if (e.target === e.currentTarget) setShowClearConfirm(false); }}
+        >
+          <div
+            style={{
+              background: 'var(--color-bg-sidebar)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 6,
+              padding: '20px 24px',
+              width: 380,
+              boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+            }}
+          >
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 6 }}>
+              Clear Metadata
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 20, lineHeight: 1.6 }}>
+              This will delete all cached AI summaries and build config for this workspace. This cannot be undone.
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button
+                onClick={() => setShowClearConfirm(false)}
+                style={{
+                  padding: '6px 16px', borderRadius: 3, fontSize: 13, cursor: 'pointer',
+                  color: 'var(--color-text-secondary)', background: 'var(--color-bg-hover)',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'var(--color-bg-selected)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'var(--color-bg-hover)')}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleClearMetadata}
+                style={{
+                  padding: '6px 16px', borderRadius: 3, fontSize: 13, fontWeight: 600,
+                  cursor: 'pointer', background: '#c53030', border: '1px solid #c53030', color: '#fff',
+                }}
+              >
+                Clear
               </button>
             </div>
           </div>
