@@ -162,8 +162,9 @@ export function FileTreeNode({
 
   // Probe the summary cache when the dropdown opens for the first time so the
   // menu item reads "View Summary" (cached) vs "Generate Summary" (not cached).
+  // Also probe on mount if the node can be summarized to show the asterisk indicator.
   useEffect(() => {
-    if (!dropdownOpen || !workspacePath || summaryCached !== null || !canSummarize) return;
+    if (!workspacePath || summaryCached !== null || !canSummarize) return;
     const relPath = node.path.startsWith(workspacePath + '/')
       ? node.path.slice(workspacePath.length + 1)
       : node.path;
@@ -174,7 +175,7 @@ export function FileTreeNode({
       .then(r => r.json())
       .then((data: { content: string | null }) => setSummaryCached(!!data.content))
       .catch(() => {});
-  }, [dropdownOpen, isDir, workspacePath, node.path, summaryCached, canSummarize]);
+  }, [isDir, workspacePath, node.path, summaryCached, canSummarize]);
 
   const handleClick = () => {
     if (isDir) {
@@ -343,6 +344,16 @@ export function FileTreeNode({
             }}
           >
             {node.name}
+            {summaryCached === true && (
+              <span style={{
+                color: 'var(--color-text-secondary)',
+                fontSize: 11,
+                marginLeft: 4,
+                opacity: 0.7,
+              }}>
+                *
+              </span>
+            )}
           </span>
         )}
 
