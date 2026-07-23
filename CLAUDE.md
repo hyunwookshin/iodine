@@ -87,6 +87,14 @@ Files and folders can be pinned to the Coding Assistant via the `+` hover menu i
 | `client/src/components/right/CodingAssistant.tsx` | Renders chips above the textarea. In `handleSend` converts nodes to workspace-relative paths, clears chips, and passes paths to `sendMessage`. |
 | `client/src/hooks/useCodingAssistant.ts` | `sendMessage` accepts `contextPaths?: string[]`. If present, prepends a `**Relevant paths hint**` block to the API content (before User Visual Context). |
 
+## Right Panel & Provider/Model Display
+
+The right panel contains three tabs: **Coding Assistant**, **Build**, and **System View**. Each tab can use a different LLM provider and model. The **Provider/Model callout** (showing current provider name and model label) appears above all three tabs *except* the Coding Assistant tab, where the provider and model are set directly within the chat UI and displaying them would be redundant.
+
+| File | Role |
+|------|------|
+| `client/src/components/layout/RightPanel.tsx` | Conditionally renders the Provider/Model info box only when `activeTab !== 'assistant'`. The callout is hidden for the Coding Assistant tab to avoid redundancy. |
+
 ## Implementation Notes
 
 For the full project architecture, APIs, and feature details, inspect the relevant source files and `README.md`. Keep this document concise to preserve context-window space.

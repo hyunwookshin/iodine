@@ -26,6 +26,42 @@ interface RightPanelProps {
 export function RightPanel({ width, workspacePath, activeFilePath, onWorkspaceOpen, provider, model, setProvider, setModel, getEditorContext, runCommandInTerminal, contextNodes, onRemoveContextNode, onClearContextNodes }: RightPanelProps) {
   const [activeTab, setActiveTab] = useState<RightTab>('assistant');
 
+  const getModelLabel = (modelId: string): string => {
+    for (const p of [provider]) {
+      const foundModel = p.models.find(m => m.id === modelId);
+      if (foundModel) return foundModel.label;
+    }
+    return modelId;
+  };
+
+  const modelLabel = getModelLabel(model);
+
+  const renderModelInfo = (tabId: RightTab) => {
+    const isEditable = tabId === 'assistant';
+    const editableNote = isEditable ? ' <i style="color: var(--color-text-secondary);">Set in Coding Assistant</i>' : '';
+    
+    return (
+      <div
+        style={{
+          padding: '8px 12px',
+          borderBottom: '1px solid var(--color-border)',
+          backgroundColor: 'var(--color-bg-secondary, #f3f3f3)',
+          fontSize: 12,
+          lineHeight: '1.5',
+          flexShrink: 0,
+        }}
+      >
+        <div style={{ color: 'var(--color-text-secondary)' }}>
+          <strong>Provider:</strong> {provider.name}
+        </div>
+        <div style={{ color: 'var(--color-text-secondary)' }}>
+          <strong>Model:</strong> {modelLabel}
+          {editableNote && <span dangerouslySetInnerHTML={{ __html: editableNote }} />}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div
       style={{
@@ -69,12 +105,18 @@ export function RightPanel({ width, workspacePath, activeFilePath, onWorkspaceOp
               color: activeTab === tab.id ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
               flexShrink: 0,
               whiteSpace: 'nowrap',
+              flex: 1,
+              display: 'flex',
+              alignItems: 'center',
             }}
           >
             {tab.label}
           </button>
         ))}
       </div>
+
+      {/* Model info section - only show for non-assistant tabs */}
+      {activeTab !== 'assistant' && renderModelInfo(activeTab)}
 
       {/* Tab content */}
       {activeTab === 'system'
