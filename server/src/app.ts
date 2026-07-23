@@ -7,6 +7,7 @@ import agentRouter from './routes/agent';
 import terminalCommandsRouter from './routes/terminalCommands';
 import aiSummaryRouter from './routes/aiSummary';
 import buildConfigRouter from './routes/buildConfig';
+import projectRouter from './routes/project';
 
 export function createApp() {
   const app = express();
@@ -21,6 +22,7 @@ export function createApp() {
   app.use('/api', terminalCommandsRouter);
   app.use('/api', aiSummaryRouter);
   app.use('/api', buildConfigRouter);
+  app.use('/api/project', projectRouter);
 
   return app;
 }

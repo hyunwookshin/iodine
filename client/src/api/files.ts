@@ -220,3 +220,34 @@ export async function putSystemGraph(graph: SystemGraph): Promise<void> {
     body: JSON.stringify({ graph }),
   });
 }
+
+/** Download the current workspace's ~/.iodine/<md5>/ cache as a zip file. */
+export async function downloadProjectMetadata(): Promise<void> {
+  const res = await fetch('/api/project/metadata/download');
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error((err as { error?: string }).error ?? 'Download failed');
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  const cd = res.headers.get('Content-Disposition') ?? '';
+  const match = cd.match(/filename="([^"]+)"/);
+  a.download = match?.[1] ?? 'iodine-metadata.zip';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+/** Upload a metadata zip and extract it into the current workspace's cache directory. */
+export async function importProjectMetadata(file: File): Promise<void> {
+  const res = await fetch('/api/project/metadata/import', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/octet-stream' },
+    body: file,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error((err as { error?: string }).error ?? 'Import failed');
+  }
+}

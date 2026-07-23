@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { findWorkspace, openWorkspace } from '../../api/files';
+import { findWorkspace, openWorkspace, downloadProjectMetadata, importProjectMetadata } from '../../api/files';
 import type { Theme } from '../../hooks/useTheme';
 
 interface MenuBarProps {
@@ -15,12 +15,15 @@ interface MenuBarProps {
 export function MenuBar({ onOpenProject, onCloseProject, onCloseAllTabs, workspacePath, theme, onToggleTheme, openTabsCount }: MenuBarProps) {
   const [fileMenuOpen, setFileMenuOpen] = useState(false);
   const [editorMenuOpen, setEditorMenuOpen] = useState(false);
+  const [projectMenuOpen, setProjectMenuOpen] = useState(false);
   const [showFallback, setShowFallback] = useState(false);
   const [showCloseAllDialog, setShowCloseAllDialog] = useState(false);
   const [pathInput, setPathInput] = useState('');
   const [opening, setOpening] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [projectStatus, setProjectStatus] = useState<{ type: 'downloading' | 'importing' | 'success' | 'error'; message: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const importInputRef = useRef<HTMLInputElement>(null);
 
   const handleOpenProjectClick = () => {
     setFileMenuOpen(false);
@@ -92,6 +95,39 @@ export function MenuBar({ onOpenProject, onCloseProject, onCloseAllTabs, workspa
     setError(null);
   };
 
+  const handleDownloadMetadata = async () => {
+    setProjectMenuOpen(false);
+    setProjectStatus({ type: 'downloading', message: 'Downloading…' });
+    try {
+      await downloadProjectMetadata();
+      setProjectStatus({ type: 'success', message: 'Downloaded' });
+      setTimeout(() => setProjectStatus(null), 3000);
+    } catch (err) {
+      setProjectStatus({ type: 'error', message: (err as Error).message });
+      setTimeout(() => setProjectStatus(null), 6000);
+    }
+  };
+
+  const handleImportMetadataClick = () => {
+    setProjectMenuOpen(false);
+    importInputRef.current?.click();
+  };
+
+  const handleImportFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setProjectStatus({ type: 'importing', message: 'Importing…' });
+    try {
+      await importProjectMetadata(file);
+      setProjectStatus({ type: 'success', message: 'Imported successfully' });
+      setTimeout(() => setProjectStatus(null), 3000);
+    } catch (err) {
+      setProjectStatus({ type: 'error', message: (err as Error).message });
+      setTimeout(() => setProjectStatus(null), 6000);
+    }
+  };
+
   const handleCloseAllTabsClick = () => {
     if (openTabsCount === 0) {
       setEditorMenuOpen(false);
@@ -120,6 +156,15 @@ export function MenuBar({ onOpenProject, onCloseProject, onCloseAllTabs, workspa
         webkitdirectory=""
         style={{ display: 'none' }}
         onChange={handleFileInputChange}
+      />
+
+      {/* Hidden zip import picker */}
+      <input
+        ref={importInputRef}
+        type="file"
+        accept=".zip"
+        style={{ display: 'none' }}
+        onChange={handleImportFileChange}
       />
 
       <div
@@ -265,9 +310,83 @@ export function MenuBar({ onOpenProject, onCloseProject, onCloseAllTabs, workspa
           )}
         </div>
 
+        {/* Project menu — only visible when a workspace is open */}
+        {workspacePath && (
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => setProjectMenuOpen(v => !v)}
+              onBlur={() => setTimeout(() => setProjectMenuOpen(false), 150)}
+              style={{
+                padding: '0 10px',
+                height: 24,
+                borderRadius: 3,
+                background: projectMenuOpen ? 'var(--color-bg-hover)' : 'none',
+                color: 'var(--color-text-primary)',
+                fontSize: 13,
+              }}
+              onMouseEnter={e => { if (!projectMenuOpen) e.currentTarget.style.background = 'var(--color-bg-hover)'; }}
+              onMouseLeave={e => { if (!projectMenuOpen) e.currentTarget.style.background = 'none'; }}
+            >
+              Project
+            </button>
+
+            {projectMenuOpen && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: 0,
+                  marginTop: 2,
+                  background: 'var(--color-bg-sidebar)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 4,
+                  padding: '4px 0',
+                  minWidth: 200,
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
+                  zIndex: 200,
+                }}
+              >
+                {([
+                  { label: 'Download Metadata', action: handleDownloadMetadata },
+                  { label: 'Import Metadata…',  action: handleImportMetadataClick },
+                ]).map(item => (
+                  <button
+                    key={item.label}
+                    onMouseDown={item.action}
+                    style={{
+                      display: 'block',
+                      width: '100%',
+                      padding: '5px 16px',
+                      textAlign: 'left',
+                      color: 'var(--color-text-primary)',
+                      fontSize: 13,
+                    }}
+                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--color-bg-selected)')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {opening && (
           <span style={{ marginLeft: 8, fontSize: 12, color: 'var(--color-text-secondary)' }}>
             Opening…
+          </span>
+        )}
+
+        {projectStatus && (
+          <span style={{
+            marginLeft: 8,
+            fontSize: 12,
+            color: projectStatus.type === 'error' ? '#f48771'
+                 : projectStatus.type === 'success' ? '#89d185'
+                 : 'var(--color-text-secondary)',
+          }}>
+            {projectStatus.message}
           </span>
         )}
 
