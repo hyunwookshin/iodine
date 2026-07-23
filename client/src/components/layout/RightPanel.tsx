@@ -118,15 +118,20 @@ export function RightPanel({ width, workspacePath, activeFilePath, onWorkspaceOp
       {/* Model info section - only show for non-assistant tabs */}
       {activeTab !== 'assistant' && renderModelInfo(activeTab)}
 
-      {/* Tab content */}
-      {activeTab === 'system'
-        ? <SystemView workspacePath={workspacePath} provider={provider} model={model} />
-        : activeTab === 'build'
-        ? <BuildAssistant workspacePath={workspacePath} provider={provider} model={model} runCommandInTerminal={runCommandInTerminal} />
-        : <CodingAssistant workspacePath={workspacePath} activeFilePath={activeFilePath} onWorkspaceOpen={onWorkspaceOpen}
-            provider={provider} model={model} setProvider={setProvider} setModel={setModel} getEditorContext={getEditorContext}
-            contextNodes={contextNodes} onRemoveContextNode={onRemoveContextNode} onClearContextNodes={onClearContextNodes} />
-      }
+      {/* Tab content - keep all components mounted to preserve state */}
+      <div style={{ flex: 1, display: activeTab === 'system' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden' }}>
+        <SystemView workspacePath={workspacePath} provider={provider} model={model} />
+      </div>
+
+      <div style={{ flex: 1, display: activeTab === 'build' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden' }}>
+        <BuildAssistant workspacePath={workspacePath} provider={provider} model={model} runCommandInTerminal={runCommandInTerminal} />
+      </div>
+
+      <div style={{ flex: 1, display: activeTab === 'assistant' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden' }}>
+        <CodingAssistant workspacePath={workspacePath} activeFilePath={activeFilePath} onWorkspaceOpen={onWorkspaceOpen}
+          provider={provider} model={model} setProvider={setProvider} setModel={setModel} getEditorContext={getEditorContext}
+          contextNodes={contextNodes} onRemoveContextNode={onRemoveContextNode} onClearContextNodes={onClearContextNodes} />
+      </div>
     </div>
   );
 }
