@@ -6,6 +6,7 @@ interface MenuBarProps {
   onOpenProject: (path: string) => void;
   onCloseProject: () => void;
   onCloseAllTabs: () => void;
+  onCloseUneditedTabs: () => void;
   onSortTabsByFileStructure: () => void;
   workspacePath: string | null;
   theme: Theme;
@@ -13,7 +14,7 @@ interface MenuBarProps {
   openTabsCount: number;
 }
 
-export function MenuBar({ onOpenProject, onCloseProject, onCloseAllTabs, onSortTabsByFileStructure, workspacePath, theme, onToggleTheme, openTabsCount }: MenuBarProps) {
+export function MenuBar({ onOpenProject, onCloseProject, onCloseAllTabs, onCloseUneditedTabs, onSortTabsByFileStructure, workspacePath, theme, onToggleTheme, openTabsCount }: MenuBarProps) {
   const [fileMenuOpen, setFileMenuOpen] = useState(false);
   const [editorMenuOpen, setEditorMenuOpen] = useState(false);
   const [projectMenuOpen, setProjectMenuOpen] = useState(false);
@@ -159,6 +160,11 @@ export function MenuBar({ onOpenProject, onCloseProject, onCloseAllTabs, onSortT
 
   const handleCancelCloseAllTabs = () => {
     setShowCloseAllDialog(false);
+  };
+
+  const handleCloseUneditedTabsClick = () => {
+    setEditorMenuOpen(false);
+    onCloseUneditedTabs();
   };
 
   const handleSortTabsClick = () => {
@@ -325,6 +331,24 @@ export function MenuBar({ onOpenProject, onCloseProject, onCloseAllTabs, onSortT
                 onMouseLeave={e => (e.currentTarget.style.background = 'none')}
               >
                 Close All Tabs
+              </button>
+
+              <button
+                onMouseDown={handleCloseUneditedTabsClick}
+                disabled={openTabsCount === 0}
+                style={{
+                  display: 'block',
+                  width: '100%',
+                  padding: '5px 16px',
+                  textAlign: 'left',
+                  color: openTabsCount === 0 ? 'var(--color-text-secondary)' : 'var(--color-text-primary)',
+                  fontSize: 13,
+                  cursor: openTabsCount === 0 ? 'default' : 'pointer',
+                }}
+                onMouseEnter={e => { if (openTabsCount > 0) e.currentTarget.style.background = 'var(--color-bg-selected)'; }}
+                onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+              >
+                Close Unedited Files
               </button>
 
               <div style={{ height: 1, background: 'var(--color-border)', margin: '4px 0' }} />

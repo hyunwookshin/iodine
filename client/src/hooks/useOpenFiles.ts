@@ -216,6 +216,27 @@ export function useOpenFiles() {
     setActiveFilePath(null);
   }, []);
 
+  /** Close all files that are NOT dirty (unedited). Keep files that have unsaved changes. */
+  const closeUneditedFiles = useCallback(() => {
+    setOpenFiles(prev => {
+      // Keep only files that ARE dirty (have unsaved changes)
+      // Close all files that are NOT dirty (!isDirty)
+      const next = prev.filter(f => f.isDirty);
+
+      // Update active file if the currently active file was closed
+      setActiveFilePath(current => {
+        // If active file is still open, keep it
+        if (current && next.find(f => f.path === current)) return current;
+        // If no files remain, clear active
+        if (next.length === 0) return null;
+        // Otherwise activate the first remaining file
+        return next[0].path;
+      });
+
+      return next;
+    });
+  }, []);
+
   /** Replace the open files array with a pre-sorted copy (used by sort-by-structure). */
   const setSortedFiles = useCallback((sorted: OpenFile[]) => {
     setOpenFiles(sorted);
@@ -251,6 +272,7 @@ export function useOpenFiles() {
     saveFile,
     closeFile,
     closeAllFiles,
+    closeUneditedFiles,
     reorderFiles,
     refreshFile,
     setLocalFileMap,

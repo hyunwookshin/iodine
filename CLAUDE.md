@@ -28,6 +28,23 @@ Open files render as tabs in a strip above the editor. The strip supports drag-t
 | `client/src/components/layout/EditorArea.tsx` | Accepts the optional `onTabReorder?: (fromIndex, toIndex) => void` prop and threads it (along with `openFiles`, `activeFilePath`, `onTabClick`, `onTabClose`) into `EditorTabs`. |
 | `client/src/hooks/useOpenFiles.ts` | `reorderFiles(fromIndex, toIndex)` is the state updater: it bounds-checks the indices then splices the moved entry into its new position in `openFiles`. Exposed from the hook and wired to `EditorArea`'s `onTabReorder` in `WorkbenchLayout`. |
 
+## Editor Menu — Tab Management
+
+The **Editor** menu in the menu bar provides three tab-management actions:
+
+| Action | Description | Implementation |
+|--------|-------------|-----------------|
+| **Close All Tabs** | Closes all open tabs with a confirmation dialog | `MenuBar.tsx` shows a dialog asking "Are you sure you want to close all N tabs?" |
+| **Close Unedited Files** | Closes all tabs that have no unsaved changes (no dirty indicator dot) | `MenuBar.tsx` calls `onCloseUneditedTabs()`, which filters `openFiles` in `useOpenFiles.ts` to retain only files where `isDirty === true` |
+| **Sort Tabs by File Structure** | Arranges tabs in the order they appear in the file tree | `MenuBar.tsx` calls `onSortTabsByFileStructure()`, which sorts `openFiles` by workspace-relative path |
+
+These actions are wired in `MenuBar.tsx` via callbacks from `WorkbenchLayout.tsx`:
+- `MenuBarProps.onCloseAllTabs` → closes all files
+- `MenuBarProps.onCloseUneditedTabs` → closes only unedited files  
+- `MenuBarProps.onSortTabsByFileStructure` → reorders tabs by path
+
+The "Close All Tabs" action requires confirmation. "Close Unedited Files" runs immediately with no dialog since it only affects clean files. All three buttons are disabled when no tabs are open.
+
 ## AI Summary
 
 The editor pane has a three-way view toggle: **source / preview / summary**.

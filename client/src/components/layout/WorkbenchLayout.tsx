@@ -77,6 +77,7 @@ export function WorkbenchLayout() {
     saveFile,
     closeFile,
     closeAllFiles,
+    closeUneditedFiles,
     reorderFiles,
     refreshFile,
     setSortedFiles,
@@ -252,6 +253,7 @@ export function WorkbenchLayout() {
         onOpenProject={handleWorkspaceOpen}
         onCloseProject={handleCloseProject}
         onCloseAllTabs={closeAllFiles}
+        onCloseUneditedTabs={closeUneditedFiles}
         onSortTabsByFileStructure={handleSortTabsByFileStructure}
         workspacePath={workspacePath}
         theme={theme}
