@@ -36,6 +36,13 @@ export function WorkbenchLayout() {
   // When set, the EditorArea should switch to the AI summary view for this file path.
   const [summaryRequestPath, setSummaryRequestPath] = useState<string | null>(null);
 
+  // Custom confirm dialog for workspace switching (replaces window.confirm)
+  const [workspaceConfirm, setWorkspaceConfirm] = useState<{
+    message: string;
+    hasUnsaved: boolean;
+    onConfirm: () => void;
+  } | null>(null);
+
   // Paths/nodes added to the Coding Assistant context via the file-tree dropdown.
   const [contextNodes, setContextNodes] = useState<FileNode[]>([]);
 
@@ -135,22 +142,28 @@ export function WorkbenchLayout() {
       return;
     }
 
-    // Warn only about files with unsaved changes (not written to disk yet).
-    // Files that are saved but uncommitted in git have isDirty === false — no warning needed.
-    const unsaved = openFiles.filter(f => f.isDirty);
-    if (unsaved.length > 0) {
-      const list = unsaved.map(f => `• ${f.name}`).join('\n');
-      const confirmed = window.confirm(
-        `Switching workspaces will close all open files.\n\n` +
-        `The following ${unsaved.length === 1 ? 'file has' : 'files have'} unsaved changes that have not been written to disk:\n\n` +
-        `${list}\n\nDiscard changes and switch workspace?`
-      );
-      if (!confirmed) return;
+    const doSwitch = () => {
+      closeAllFiles();
+      setWorkspacePath(path);
+      setActiveView('explorer');
+    };
+
+    if (openFiles.length > 0) {
+      const unsaved = openFiles.filter(f => f.isDirty);
+      const message = unsaved.length > 0
+        ? `Switching workspaces will close all open tabs.\n\n` +
+          `The following ${unsaved.length === 1 ? 'file has' : 'files have'} unsaved changes:\n\n` +
+          unsaved.map(f => `• ${f.name}`).join('\n')
+        : `Switching workspaces will close ${openFiles.length} open ${openFiles.length === 1 ? 'tab' : 'tabs'}.`;
+      setWorkspaceConfirm({
+        message,
+        hasUnsaved: unsaved.length > 0,
+        onConfirm: () => { setWorkspaceConfirm(null); doSwitch(); },
+      });
+      return;
     }
 
-    closeAllFiles();
-    setWorkspacePath(path);
-    setActiveView('explorer');
+    doSwitch();
   }, [workspacePath, openFiles, closeAllFiles]);
 
   const handleCloseProject = useCallback(() => {
@@ -184,6 +197,51 @@ export function WorkbenchLayout() {
         background: 'var(--color-bg-workbench)',
       }}
     >
+      {/* Workspace switch confirmation dialog */}
+      {workspaceConfirm && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 1000,
+          background: 'rgba(0,0,0,0.55)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <div style={{
+            background: 'var(--color-bg-sidebar)',
+            border: '1px solid var(--color-border)',
+            borderRadius: 6,
+            padding: '20px 24px',
+            maxWidth: 420,
+            width: '90%',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+          }}>
+            <div style={{ fontSize: 13, color: 'var(--color-text-primary)', whiteSpace: 'pre-wrap', marginBottom: 20, lineHeight: 1.6 }}>
+              {workspaceConfirm.message}
+            </div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setWorkspaceConfirm(null)}
+                style={{
+                  padding: '5px 14px', fontSize: 12, borderRadius: 4, cursor: 'pointer',
+                  background: 'transparent', border: '1px solid var(--color-border)',
+                  color: 'var(--color-text-primary)',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={workspaceConfirm.onConfirm}
+                style={{
+                  padding: '5px 14px', fontSize: 12, borderRadius: 4, cursor: 'pointer',
+                  background: workspaceConfirm.hasUnsaved ? '#c53030' : 'var(--color-accent)',
+                  border: workspaceConfirm.hasUnsaved ? '1px solid #c53030' : '1px solid var(--color-accent)',
+                  color: '#fff', fontWeight: 600,
+                }}
+              >
+                {workspaceConfirm.hasUnsaved ? 'Discard & Switch' : 'Switch'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <MenuBar
         onOpenProject={handleWorkspaceOpen}
         onCloseProject={handleCloseProject}

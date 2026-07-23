@@ -286,7 +286,12 @@ Write as if *teaching*, not just listing. Explain the *why* behind the structure
 
 /** Walk a directory recursively and return all relative file paths (sorted). */
 function walkDir(root: string, base: string = root): string[] {
-  const entries = fs.readdirSync(root, { withFileTypes: true });
+  let entries: fs.Dirent[];
+  try {
+    entries = fs.readdirSync(root, { withFileTypes: true });
+  } catch {
+    return []; // skip unreadable directories (e.g. permission denied)
+  }
   const results: string[] = [];
   for (const entry of entries) {
     // Skip hidden dirs and node_modules

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useSourceControl } from '../../hooks/useSourceControl';
 import { fetchRefGithubUrl } from '../../api/files';
-import type { GitChange, GitCommit, GitBranchInfo } from '../../hooks/useSourceControl';
+import type { GitChange, GitCommit, GitBranchInfo, ConfirmDialog } from '../../hooks/useSourceControl';
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -398,6 +398,62 @@ function HistorySection({ commits, onCheckout }: {
   );
 }
 
+// ─── confirm dialog overlay ───────────────────────────────────────────────────
+
+function ConfirmDialogOverlay({ dialog }: { dialog: ConfirmDialog }) {
+  if (!dialog.type) return null;
+
+  const isStash = dialog.type === 'stash';
+  const confirmLabel = isStash ? 'Stash & Switch' : 'Checkout';
+
+  return (
+    <div style={{
+      position: 'absolute', inset: 0, zIndex: 200,
+      background: 'rgba(0,0,0,0.55)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      padding: 16,
+    }}>
+      <div style={{
+        background: 'var(--color-bg-sidebar)',
+        border: '1px solid var(--color-border)',
+        borderRadius: 6,
+        padding: '16px 16px 12px',
+        width: '100%',
+        boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+      }}>
+        <div style={{
+          fontSize: 12, color: 'var(--color-text-primary)',
+          whiteSpace: 'pre-wrap', lineHeight: 1.6, marginBottom: 14,
+        }}>
+          {dialog.message}
+        </div>
+        <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+          <button
+            onClick={dialog.onCancel}
+            style={{
+              padding: '4px 12px', fontSize: 12,
+              background: 'var(--color-bg-hover)', color: 'var(--color-text-primary)',
+              border: '1px solid var(--color-border)', borderRadius: 4, cursor: 'pointer',
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={dialog.onConfirm}
+            style={{
+              padding: '4px 12px', fontSize: 12, fontWeight: 600,
+              background: 'var(--color-accent)', color: '#fff',
+              border: 'none', borderRadius: 4, cursor: 'pointer',
+            }}
+          >
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── main panel ───────────────────────────────────────────────────────────────
 
 export function SourceControlPanel({ workspacePath, onFileOpen }: { workspacePath: string | null; onFileOpen: (absPath: string) => void }) {
@@ -422,7 +478,8 @@ export function SourceControlPanel({ workspacePath, onFileOpen }: { workspacePat
     : 'var(--color-text-secondary)';
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', position: 'relative' }}>
+      <ConfirmDialogOverlay dialog={sc.confirmDialog} />
       {/* ── header ── */}
       <div style={{
         height: 'var(--sidebar-header-height)',

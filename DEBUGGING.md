@@ -301,3 +301,47 @@ down to ~30 (capped at 60 fps), eliminating the stutter entirely.
 `command_approval`, `done`, `error`) calls `flushNow()` before processing — which cancels
 the pending RAF and synchronously drains the buffers — so block ordering in the UI is
 always correct even when structural events arrive immediately after text.
+
+---
+
+## Server Crash on Open Project — EACCES permission denied (scandir)
+
+### Symptom
+
+Opening or switching a workspace would fail with the MenuBar fallback dialog "Could not
+locate X automatically. Enter the absolute path:" even for projects that had previously
+been found automatically. The server process exited with:
+
+```
+Error: EACCES: permission denied, scandir '/Users/.../Documents/Library'
+    at Object.readdirSync (node:fs:1504:3)
+    at walkDir (.../server/src/routes/aiSummary.ts:...)
+```
+
+### Root Cause
+
+`walkDir` in `server/src/routes/aiSummary.ts` used `fs.readdirSync` without any error
+handling. On macOS, `~/Documents/Library` is a system-protected symlink that is not
+readable by user processes. When a directory AI summary request caused `walkDir` to
+descend into `~/Documents`, it hit this entry, threw an uncaught `EACCES`, and crashed
+the entire Express server. With the server down, every subsequent API call — including
+`POST /api/workspace/find` — failed with a network error, which the MenuBar caught and
+treated as "workspace not found", showing the fallback dialog.
+
+### Fix
+
+Wrap the `readdirSync` call in a try/catch and return `[]` for any unreadable directory,
+allowing the walk to skip over permission-denied entries and continue normally:
+
+```typescript
+// server/src/routes/aiSummary.ts — walkDir
+function walkDir(root: string, base: string = root): string[] {
+  let entries: fs.Dirent[];
+  try {
+    entries = fs.readdirSync(root, { withFileTypes: true });
+  } catch {
+    return []; // skip unreadable directories (e.g. permission denied)
+  }
+  // ...
+}
+```

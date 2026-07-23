@@ -8,6 +8,14 @@ import type { GitChange, GitCommit, GitBranchInfo, GitBranches } from '../api/fi
 
 export type { GitChange, GitCommit, GitBranchInfo };
 
+export type ConfirmDialog = {
+  type: 'stash' | 'detached-commit' | null;
+  label: string;
+  message: string;
+  onConfirm: () => Promise<void>;
+  onCancel: () => void;
+};
+
 export function useSourceControl(workspacePath: string | null) {
   const [branch, setBranch] = useState('');
   const [staged, setStaged] = useState<GitChange[]>([]);
@@ -20,6 +28,7 @@ export function useSourceControl(workspacePath: string | null) {
   const [commitMessage, setCommitMessage] = useState('');
   const [pushStatus, setPushStatus] = useState<null | 'pushing' | 'success' | 'error'>(null);
   const [pushError, setPushError] = useState('');
+  const [confirmDialog, setConfirmDialog] = useState<ConfirmDialog>({ type: null, label: '', message: '', onConfirm: async () => {}, onCancel: () => {} });
 
   const refresh = useCallback(async () => {
     if (!workspacePath) {
@@ -91,17 +100,29 @@ export function useSourceControl(workspacePath: string | null) {
   const guardChanges = async (label: string): Promise<boolean> => {
     const hasChanges = staged.length > 0 || unstaged.length > 0;
     if (!hasChanges) return true;
-    const ok = window.confirm(
-      `You have uncommitted changes.\n\nCommit or stash them before switching.\n\nOK = Stash and switch to ${label}\nCancel = Abort`,
-    );
-    if (!ok) return false;
-    try {
-      await stashChanges();
-      return true;
-    } catch (err: unknown) {
-      window.alert(`Failed to stash changes:\n${(err as Error).message}`);
-      return false;
-    }
+
+    return new Promise((resolve) => {
+      setConfirmDialog({
+        type: 'stash',
+        label,
+        message: `You have uncommitted changes.\n\nCommit or stash them before switching.\n\nStash and switch to ${label} or abort?`,
+        onConfirm: async () => {
+          try {
+            await stashChanges();
+            setConfirmDialog({ type: null, label: '', message: '', onConfirm: async () => {}, onCancel: () => {} });
+            resolve(true);
+          } catch (err: unknown) {
+            window.alert(`Failed to stash changes:\n${(err as Error).message}`);
+            setConfirmDialog({ type: null, label: '', message: '', onConfirm: async () => {}, onCancel: () => {} });
+            resolve(false);
+          }
+        },
+        onCancel: () => {
+          setConfirmDialog({ type: null, label: '', message: '', onConfirm: async () => {}, onCancel: () => {} });
+          resolve(false);
+        },
+      });
+    });
   };
 
   // Checkout a branch, stashing uncommitted changes first if needed
@@ -119,17 +140,31 @@ export function useSourceControl(workspacePath: string | null) {
   // Checkout a specific commit (detached HEAD), stashing changes first if needed
   const checkoutCommit = async (hash: string, shortHash: string) => {
     if (!await guardChanges(`commit ${shortHash}`)) return;
-    const ok = window.confirm(
-      `Checkout commit ${shortHash}?\n\nYou will be in 'detached HEAD' state — commits made here won't belong to any branch unless you create one.`,
-    );
-    if (!ok) return;
+
+    const confirmed = await new Promise<boolean>((resolve) => {
+      setConfirmDialog({
+        type: 'detached-commit',
+        label: shortHash,
+        message: `Checkout commit ${shortHash}?\n\nYou will be in detached HEAD state — commits made here won't belong to any branch unless you create one.`,
+        onConfirm: async () => {
+          setConfirmDialog({ type: null, label: '', message: '', onConfirm: async () => {}, onCancel: () => {} });
+          resolve(true);
+        },
+        onCancel: () => {
+          setConfirmDialog({ type: null, label: '', message: '', onConfirm: async () => {}, onCancel: () => {} });
+          resolve(false);
+        },
+      });
+    });
+
+    if (!confirmed) return;
+
     try {
       await checkoutBranch(hash, true /* detach */);
+      await refresh();
     } catch (err: unknown) {
       window.alert(`Checkout failed:\n${(err as Error).message}`);
-      return;
     }
-    await refresh();
   };
 
   const push = async () => {
@@ -153,6 +188,7 @@ export function useSourceControl(workspacePath: string | null) {
     branch, staged, unstaged, commits, localBranches, remoteBranches,
     loaded, loading, commitMessage, setCommitMessage,
     pushStatus, pushError,
+    confirmDialog,
     stage, unstage, stageAllChanges, discard, commit, checkout, checkoutCommit, push,
   };
 }

@@ -79,6 +79,9 @@ export function FileExplorer({
   // Memoise aggregated status to avoid unnecessary recalculations.
   const gitStatus = useMemo(() => aggregateGitStatus(rawGitStatus), [rawGitStatus]);
 
+  // Delete confirmation dialog state
+  const [deleteDialog, setDeleteDialog] = useState<{ node: FileNode; error: string | null } | null>(null);
+
   // Root-level creation state (for the header "+" button)
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [creatingType, setCreatingType] = useState<'file' | 'directory' | null>(null);
@@ -105,15 +108,20 @@ export function FileExplorer({
     refetch();
   };
 
-  const handleDelete = async (node: FileNode) => {
-    const label = node.type === 'directory' ? `folder "${node.name}" and all its contents` : `"${node.name}"`;
-    if (!window.confirm(`Delete ${label}?\n\nThis cannot be undone.`)) return;
+  const handleDelete = (node: FileNode) => {
+    setDeleteDialog({ node, error: null });
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteDialog) return;
+    const node = deleteDialog.node;
     try {
       await deleteNode(node.path);
+      setDeleteDialog(null);
       onDeleteSuccess(node.path);
       refetch();
     } catch (err) {
-      alert(`Delete failed: ${err instanceof Error ? err.message : String(err)}`);
+      setDeleteDialog(prev => prev ? { ...prev, error: err instanceof Error ? err.message : String(err) } : null);
     }
   };
 
@@ -153,7 +161,62 @@ export function FileExplorer({
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', position: 'relative' }}>
+      {/* Delete confirmation dialog */}
+      {deleteDialog && (
+        <div style={{
+          position: 'absolute', inset: 0, zIndex: 200,
+          background: 'rgba(0,0,0,0.55)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <div style={{
+            background: 'var(--color-bg-sidebar)',
+            border: '1px solid var(--color-border)',
+            borderRadius: 6,
+            padding: '16px 20px',
+            maxWidth: 320,
+            width: '90%',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+          }}>
+            <div style={{ fontSize: 13, color: 'var(--color-text-primary)', marginBottom: 8, lineHeight: 1.5 }}>
+              Delete {deleteDialog.node.type === 'directory'
+                ? <><strong>{deleteDialog.node.name}</strong> and all its contents</>
+                : <strong>{deleteDialog.node.name}</strong>
+              }?
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 16 }}>
+              This cannot be undone.
+            </div>
+            {deleteDialog.error && (
+              <div style={{ fontSize: 12, color: '#f48771', marginBottom: 12 }}>
+                Delete failed: {deleteDialog.error}
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setDeleteDialog(null)}
+                style={{
+                  padding: '5px 14px', fontSize: 12, borderRadius: 4, cursor: 'pointer',
+                  background: 'transparent', border: '1px solid var(--color-border)',
+                  color: 'var(--color-text-primary)',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                style={{
+                  padding: '5px 14px', fontSize: 12, borderRadius: 4, cursor: 'pointer',
+                  background: '#c53030', border: '1px solid #c53030',
+                  color: '#fff', fontWeight: 600,
+                }}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Header */}
       <div
         style={{

@@ -52,7 +52,7 @@ export function RightPanel({ width, workspacePath, activeFilePath, onWorkspaceOp
         }}
       >
         <div style={{ color: 'var(--color-text-secondary)' }}>
-          <strong>Provider:</strong> {provider.name}
+          <strong>Provider:</strong> {provider.label}
         </div>
         <div style={{ color: 'var(--color-text-secondary)' }}>
           <strong>Model:</strong> {modelLabel}
