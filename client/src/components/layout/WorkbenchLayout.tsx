@@ -187,9 +187,11 @@ export function WorkbenchLayout() {
       <MenuBar
         onOpenProject={handleWorkspaceOpen}
         onCloseProject={handleCloseProject}
+        onCloseAllTabs={closeAllFiles}
         workspacePath={workspacePath}
         theme={theme}
         onToggleTheme={toggleTheme}
+        openTabsCount={openFiles.length}
       />
 
       <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>

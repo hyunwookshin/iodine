@@ -5,14 +5,18 @@ import type { Theme } from '../../hooks/useTheme';
 interface MenuBarProps {
   onOpenProject: (path: string) => void;
   onCloseProject: () => void;
+  onCloseAllTabs: () => void;
   workspacePath: string | null;
   theme: Theme;
   onToggleTheme: () => void;
+  openTabsCount: number;
 }
 
-export function MenuBar({ onOpenProject, onCloseProject, workspacePath, theme, onToggleTheme }: MenuBarProps) {
+export function MenuBar({ onOpenProject, onCloseProject, onCloseAllTabs, workspacePath, theme, onToggleTheme, openTabsCount }: MenuBarProps) {
   const [fileMenuOpen, setFileMenuOpen] = useState(false);
+  const [editorMenuOpen, setEditorMenuOpen] = useState(false);
   const [showFallback, setShowFallback] = useState(false);
+  const [showCloseAllDialog, setShowCloseAllDialog] = useState(false);
   const [pathInput, setPathInput] = useState('');
   const [opening, setOpening] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -86,6 +90,24 @@ export function MenuBar({ onOpenProject, onCloseProject, workspacePath, theme, o
     setShowFallback(false);
     setPathInput('');
     setError(null);
+  };
+
+  const handleCloseAllTabsClick = () => {
+    if (openTabsCount === 0) {
+      setEditorMenuOpen(false);
+      return;
+    }
+    setShowCloseAllDialog(true);
+  };
+
+  const handleConfirmCloseAllTabs = () => {
+    setShowCloseAllDialog(false);
+    setEditorMenuOpen(false);
+    onCloseAllTabs();
+  };
+
+  const handleCancelCloseAllTabs = () => {
+    setShowCloseAllDialog(false);
   };
 
   return (
@@ -183,6 +205,62 @@ export function MenuBar({ onOpenProject, onCloseProject, workspacePath, theme, o
                   </button>
                 </>
               )}
+            </div>
+          )}
+        </div>
+
+        {/* Editor menu */}
+        <div style={{ position: 'relative' }}>
+          <button
+            onClick={() => setEditorMenuOpen(v => !v)}
+            onBlur={() => setTimeout(() => setEditorMenuOpen(false), 150)}
+            style={{
+              padding: '0 10px',
+              height: 24,
+              borderRadius: 3,
+              background: editorMenuOpen ? 'var(--color-bg-hover)' : 'none',
+              color: 'var(--color-text-primary)',
+              fontSize: 13,
+            }}
+            onMouseEnter={e => { if (!editorMenuOpen) e.currentTarget.style.background = 'var(--color-bg-hover)'; }}
+            onMouseLeave={e => { if (!editorMenuOpen) e.currentTarget.style.background = 'none'; }}
+          >
+            Editor
+          </button>
+
+          {editorMenuOpen && (
+            <div
+              style={{
+                position: 'absolute',
+                top: '100%',
+                left: 0,
+                marginTop: 2,
+                background: 'var(--color-bg-sidebar)',
+                border: '1px solid var(--color-border)',
+                borderRadius: 4,
+                padding: '4px 0',
+                minWidth: 180,
+                boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
+                zIndex: 200,
+              }}
+            >
+              <button
+                onMouseDown={handleCloseAllTabsClick}
+                disabled={openTabsCount === 0}
+                style={{
+                  display: 'block',
+                  width: '100%',
+                  padding: '5px 16px',
+                  textAlign: 'left',
+                  color: openTabsCount === 0 ? 'var(--color-text-secondary)' : 'var(--color-text-primary)',
+                  fontSize: 13,
+                  cursor: openTabsCount === 0 ? 'default' : 'pointer',
+                }}
+                onMouseEnter={e => { if (openTabsCount > 0) e.currentTarget.style.background = 'var(--color-bg-selected)'; }}
+                onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+              >
+                Close All Tabs
+              </button>
             </div>
           )}
         </div>
@@ -291,6 +369,73 @@ export function MenuBar({ onOpenProject, onCloseProject, workspacePath, theme, o
                 }}
               >
                 {opening ? 'Opening…' : 'Open'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Close All Tabs confirmation dialog */}
+      {showCloseAllDialog && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 500,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'rgba(0,0,0,0.5)',
+          }}
+          onClick={e => { if (e.target === e.currentTarget) handleCancelCloseAllTabs(); }}
+        >
+          <div
+            style={{
+              background: 'var(--color-bg-sidebar)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 6,
+              padding: '20px 24px',
+              width: 420,
+              boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+            }}
+          >
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 6 }}>
+              Close All Tabs
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 12 }}>
+              Are you sure you want to close all {openTabsCount} tab{openTabsCount !== 1 ? 's' : ''}?
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button
+                onClick={handleCancelCloseAllTabs}
+                style={{
+                  padding: '6px 16px',
+                  borderRadius: 3,
+                  color: 'var(--color-text-secondary)',
+                  background: 'var(--color-bg-hover)',
+                  fontSize: 13,
+                  cursor: 'pointer',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'var(--color-bg-selected)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'var(--color-bg-hover)')}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmCloseAllTabs}
+                style={{
+                  padding: '6px 16px',
+                  borderRadius: 3,
+                  background: 'var(--color-accent)',
+                  color: '#fff',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.opacity = '0.8')}
+                onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
+              >
+                Close All
               </button>
             </div>
           </div>
