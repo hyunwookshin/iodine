@@ -216,6 +216,11 @@ export function useOpenFiles() {
     setActiveFilePath(null);
   }, []);
 
+  /** Replace the open files array with a pre-sorted copy (used by sort-by-structure). */
+  const setSortedFiles = useCallback((sorted: OpenFile[]) => {
+    setOpenFiles(sorted);
+  }, []);
+
   /** Move the tab at `fromIndex` so it sits at `toIndex` (drag-to-reorder). */
   const reorderFiles = useCallback((fromIndex: number, toIndex: number) => {
     setOpenFiles(prev => {
@@ -249,5 +254,24 @@ export function useOpenFiles() {
     reorderFiles,
     refreshFile,
     setLocalFileMap,
+    setSortedFiles,
   };
+}
+
+/**
+ * Sort open files to match the file-explorer tree order:
+ * segment-by-segment alphabetical comparison so files in the same directory
+ * are grouped together, matching the visual order in the sidebar.
+ */
+export function sortOpenFilesByStructure(files: OpenFile[]): OpenFile[] {
+  return [...files].sort((a, b) => {
+    const ap = a.path.split('/');
+    const bp = b.path.split('/');
+    const len = Math.min(ap.length, bp.length);
+    for (let i = 0; i < len; i++) {
+      const cmp = ap[i].localeCompare(bp[i], undefined, { sensitivity: 'base', numeric: true });
+      if (cmp !== 0) return cmp;
+    }
+    return ap.length - bp.length;
+  });
 }

@@ -6,13 +6,14 @@ interface MenuBarProps {
   onOpenProject: (path: string) => void;
   onCloseProject: () => void;
   onCloseAllTabs: () => void;
+  onSortTabsByFileStructure: () => void;
   workspacePath: string | null;
   theme: Theme;
   onToggleTheme: () => void;
   openTabsCount: number;
 }
 
-export function MenuBar({ onOpenProject, onCloseProject, onCloseAllTabs, workspacePath, theme, onToggleTheme, openTabsCount }: MenuBarProps) {
+export function MenuBar({ onOpenProject, onCloseProject, onCloseAllTabs, onSortTabsByFileStructure, workspacePath, theme, onToggleTheme, openTabsCount }: MenuBarProps) {
   const [fileMenuOpen, setFileMenuOpen] = useState(false);
   const [editorMenuOpen, setEditorMenuOpen] = useState(false);
   const [projectMenuOpen, setProjectMenuOpen] = useState(false);
@@ -160,6 +161,11 @@ export function MenuBar({ onOpenProject, onCloseProject, onCloseAllTabs, workspa
     setShowCloseAllDialog(false);
   };
 
+  const handleSortTabsClick = () => {
+    setEditorMenuOpen(false);
+    onSortTabsByFileStructure();
+  };
+
   return (
     <>
       {/* Hidden directory picker */}
@@ -298,7 +304,7 @@ export function MenuBar({ onOpenProject, onCloseProject, onCloseAllTabs, workspa
                 border: '1px solid var(--color-border)',
                 borderRadius: 4,
                 padding: '4px 0',
-                minWidth: 180,
+                minWidth: 220,
                 boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
                 zIndex: 200,
               }}
@@ -319,6 +325,26 @@ export function MenuBar({ onOpenProject, onCloseProject, onCloseAllTabs, workspa
                 onMouseLeave={e => (e.currentTarget.style.background = 'none')}
               >
                 Close All Tabs
+              </button>
+
+              <div style={{ height: 1, background: 'var(--color-border)', margin: '4px 0' }} />
+
+              <button
+                onMouseDown={handleSortTabsClick}
+                disabled={openTabsCount === 0}
+                style={{
+                  display: 'block',
+                  width: '100%',
+                  padding: '5px 16px',
+                  textAlign: 'left',
+                  color: openTabsCount === 0 ? 'var(--color-text-secondary)' : 'var(--color-text-primary)',
+                  fontSize: 13,
+                  cursor: openTabsCount === 0 ? 'default' : 'pointer',
+                }}
+                onMouseEnter={e => { if (openTabsCount > 0) e.currentTarget.style.background = 'var(--color-bg-selected)'; }}
+                onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+              >
+                Sort Tabs by File Structure
               </button>
             </div>
           )}

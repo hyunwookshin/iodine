@@ -6,7 +6,7 @@ import { EditorArea, EditorAreaHandle } from './EditorArea';
 import { RightPanel } from './RightPanel';
 import { ResizeDivider } from './ResizeDivider';
 import { BottomTray, BottomTrayHandle } from '../bottom/BottomTray';
-import { useOpenFiles } from '../../hooks/useOpenFiles';
+import { useOpenFiles, sortOpenFilesByStructure } from '../../hooks/useOpenFiles';
 import { useFileWatcher } from '../../hooks/useFileWatcher';
 import { useTheme } from '../../hooks/useTheme';
 import { useSourceControl } from '../../hooks/useSourceControl';
@@ -79,6 +79,7 @@ export function WorkbenchLayout() {
     closeAllFiles,
     reorderFiles,
     refreshFile,
+    setSortedFiles,
   } = useOpenFiles();
 
   useFileWatcher(workspacePath, refreshFile);
@@ -186,6 +187,11 @@ export function WorkbenchLayout() {
       .forEach(f => closeFile(f.path));
   }, [openFiles, closeFile]);
 
+  /** Sort tabs by file structure using tree traversal order. */
+  const handleSortTabsByFileStructure = useCallback(() => {
+    setSortedFiles(sortOpenFilesByStructure(openFiles));
+  }, [openFiles, setSortedFiles]);
+
   return (
     <div
       style={{
@@ -246,6 +252,7 @@ export function WorkbenchLayout() {
         onOpenProject={handleWorkspaceOpen}
         onCloseProject={handleCloseProject}
         onCloseAllTabs={closeAllFiles}
+        onSortTabsByFileStructure={handleSortTabsByFileStructure}
         workspacePath={workspacePath}
         theme={theme}
         onToggleTheme={toggleTheme}
