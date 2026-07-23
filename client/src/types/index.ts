@@ -15,6 +15,7 @@ export interface OpenFile {
   isDirty: boolean;
   language: string;
   isImage?: boolean;
+  isPdf?: boolean;
   isDirectory?: boolean;
 }
 

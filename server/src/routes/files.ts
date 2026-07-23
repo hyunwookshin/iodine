@@ -290,6 +290,40 @@ router.get('/files/image', async (req, res) => {
   }
 });
 
+// ── PDF viewer ────────────────────────────────────────────────────────────────
+
+router.get('/files/pdf', async (req, res) => {
+  if (!rootPath) {
+    return res.status(400).json({ error: 'No workspace open' });
+  }
+  const filePath = req.query.path as string;
+  if (!filePath) {
+    return res.status(400).json({ error: 'path query param is required' });
+  }
+
+  // Resolve and guard against path traversal
+  const resolved = path.resolve(filePath);
+  if (!resolved.startsWith(rootPath + path.sep) && resolved !== rootPath) {
+    return res.status(400).json({ error: 'Path outside workspace' });
+  }
+
+  const ext = resolved.split('.').pop()?.toLowerCase() ?? '';
+  if (ext !== 'pdf') {
+    return res.status(400).json({ error: 'Only PDF files are supported' });
+  }
+
+  try {
+    const data = await fs.promises.readFile(resolved);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Cache-Control', 'no-store');
+    return res.send(data);
+  } catch (err: unknown) {
+    const e = err as NodeJS.ErrnoException;
+    if (e.code === 'ENOENT') return res.status(404).json({ error: 'File not found' });
+    return res.status(500).json({ error: 'Failed to read PDF' });
+  }
+});
+
 // ── Git diff & status ─────────────────────────────────────────────────────────
 
 router.get('/git/diff', async (req, res) => {

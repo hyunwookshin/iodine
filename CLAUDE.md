@@ -45,13 +45,28 @@ These actions are wired in `MenuBar.tsx` via callbacks from `WorkbenchLayout.tsx
 
 The "Close All Tabs" action requires confirmation. "Close Unedited Files" runs immediately with no dialog since it only affects clean files. All three buttons are disabled when no tabs are open.
 
+## Image & PDF Viewers
+
+Binary files (images and PDFs) are displayed in dedicated viewers instead of being loaded into the text editor.
+
+| File | Role |
+|------|------|
+| `client/src/components/editor/ImageViewer.tsx` | Renders JPEG, PNG, GIF, WebP, SVG and other image formats with zoom controls (`In`, `Out`, `Reset`). Displays the filename in a toolbar. Shows an error message if the image fails to load. |
+| `client/src/components/editor/PdfViewer.tsx` | Renders PDF files using an iframe that connects to `GET /api/files/pdf?path=`. Displays the filename in a toolbar. Shows an error message if the PDF fails to load. |
+| `client/src/hooks/useOpenFiles.ts` | `isPdfFile(path)` helper detects `.pdf` extensions. When opening a PDF, it's marked with `isPdf: true` and no content is fetched (similar to images). `refreshFile()` skips PDFs since they don't need content updates. |
+| `client/src/types/index.ts` | `OpenFile` interface includes optional `isPdf?: boolean` property to indicate PDF files. |
+| `client/src/components/layout/EditorArea.tsx` | Checks `activeFile.isImage` or `activeFile.isPdf` and renders the appropriate viewer component. PDFs are excluded from AI summary and preview features (only text files support these). |
+| `server/src/routes/files.ts` | `GET /api/files/image?path=` and `GET /api/files/pdf?path=` retrieve files from the workspace using a relative path query parameter. Both endpoints set appropriate MIME types and handle errors. |
+
+**Key behavior:** Images and PDFs do not appear in the editor pane as source code; they render in purpose-built viewers. Neither format supports the AI Summary feature (image and PDF analysis is out of scope). The "Preview" button is also hidden for these file types.
+
 ## AI Summary
 
 The editor pane has a three-way view toggle: **source / preview / summary**.
 
 | File | Role |
 |------|------|
-| `client/src/components/layout/EditorArea.tsx` | Owns `editorView` state (`'source' \| 'preview' \| 'summary'`). Renders the `🤖 Summary` button for any non-image file when a workspace is open. Streams `text_delta` SSE events from the server and renders partial Markdown progressively. Provides a `↺ Regenerate` button to clear the in-session cache and re-run. Accepts `summaryRequestPath` prop to open in summary view when triggered externally (both files and directories). |
+| `client/src/components/layout/EditorArea.tsx` | Owns `editorView` state (`'source' \| 'preview' \| 'summary'`). Renders the `🤖 Summary` button for any non-image, non-PDF file when a workspace is open. Streams `text_delta` SSE events from the server and renders partial Markdown progressively. Provides a `↺ Regenerate` button to clear the in-session cache and re-run. Accepts `summaryRequestPath` prop to open in summary view when triggered externally (both files and directories). |
 | `server/src/routes/aiSummary.ts` | `GET /api/ai-summary?path=` and `GET /api/ai-directory-summary?path=` check the disk cache. `POST /api/ai-summary/generate` and `POST /api/ai-directory-summary/generate` stream LLM-generated summaries, then write to cache. |
 
 **File cache path:** `~/.iodine/<workspace-md5>/<relpath-md5>/<file-content-md5>_ai_summary.md`

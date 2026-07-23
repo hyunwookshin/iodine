@@ -1,5 +1,7 @@
 import type { FileNode, WorkspaceInfo } from '../types';
 
+const API_BASE = import.meta.env.DEV ? 'http://localhost:3001' : '';
+
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
   const res = await fetch(url, options);
   const data = await res.json();
@@ -73,7 +75,12 @@ export async function putFileContent(path: string, content: string): Promise<voi
 
 /** Returns the URL to stream an image file from the server. */
 export function getImageUrl(path: string): string {
-  return `/api/files/image?path=${encodeURIComponent(path)}`;
+  return `${API_BASE}/api/files/image?path=${encodeURIComponent(path)}`;
+}
+
+/** Returns the URL to stream a PDF file from the server. */
+export function getPdfUrl(path: string): string {
+  return `${API_BASE}/api/files/pdf?path=${encodeURIComponent(path)}`;
 }
 
 export type ModifiedLine = { line: number; originalLine: string };

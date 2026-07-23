@@ -6,6 +6,7 @@ import { EditorTabs } from '../editor/EditorTabs';
 import { MonacoEditor } from '../editor/MonacoEditor';
 import { WelcomeScreen } from '../editor/WelcomeScreen';
 import { ImageViewer } from '../editor/ImageViewer';
+import { PdfViewer } from '../editor/PdfViewer';
 import { useFileDiff } from '../../hooks/useFileDiff';
 import type { OpenFile } from '../../types';
 import type { Provider } from '../../providers';
@@ -88,8 +89,9 @@ export const EditorArea = forwardRef<EditorAreaHandle, EditorAreaProps>(
     }, [activeFile?.path]);
 
     // Probe cache whenever the active file/dir changes so the button label is accurate
+    // PDFs and images are excluded from AI summary
     useEffect(() => {
-      if (!activeFile || activeFile.isImage || !workspacePath) return;
+      if (!activeFile || activeFile.isImage || activeFile.isPdf || !workspacePath) return;
       const relPath = activeFile.path.startsWith(workspacePath + '/')
         ? activeFile.path.slice(workspacePath.length + 1)
         : activeFile.path;
@@ -148,8 +150,8 @@ export const EditorArea = forwardRef<EditorAreaHandle, EditorAreaProps>(
       },
     }));
 
-    const showPreviewButton = !!activeFile && !activeFile.isImage && !activeFile.isDirectory && isPreviewable(activeFile.path);
-    const showSummaryButton = !!activeFile && !activeFile.isImage && !activeFile.isDirectory && !!workspacePath && !activeFile.path.endsWith('.md');
+    const showPreviewButton = !!activeFile && !activeFile.isImage && !activeFile.isPdf && !activeFile.isDirectory && isPreviewable(activeFile.path);
+    const showSummaryButton = !!activeFile && !activeFile.isImage && !activeFile.isPdf && !activeFile.isDirectory && !!workspacePath && !activeFile.path.endsWith('.md');
 
     /** Convert an absolute file path to a workspace-relative path. */
     const toRelPath = (abs: string) =>
@@ -314,6 +316,9 @@ export const EditorArea = forwardRef<EditorAreaHandle, EditorAreaProps>(
           {activeFile ? (
             activeFile.isImage ? (
               <ImageViewer path={activeFile.path} name={activeFile.name} />
+
+            ) : activeFile.isPdf ? (
+              <PdfViewer path={activeFile.path} name={activeFile.name} />
 
             ) : editorView === 'summary' ? (
               /* AI Summary view */

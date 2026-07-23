@@ -25,6 +25,7 @@ const EXT_TO_LANGUAGE: Record<string, string> = {
 };
 
 const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg']);
+const PDF_EXTENSIONS = new Set(['pdf']);
 
 function detectLanguage(filename: string): string {
   const lower = filename.toLowerCase();
@@ -36,6 +37,11 @@ function detectLanguage(filename: string): string {
 function isImageFile(filename: string): boolean {
   const ext = filename.split('.').pop()?.toLowerCase() ?? '';
   return IMAGE_EXTENSIONS.has(ext);
+}
+
+function isPdfFile(filename: string): boolean {
+  const ext = filename.split('.').pop()?.toLowerCase() ?? '';
+  return PDF_EXTENSIONS.has(ext);
 }
 
 export function useOpenFiles() {
@@ -102,6 +108,25 @@ export function useOpenFiles() {
           isDirty: false,
           language: 'plaintext',
           isImage: true,
+        };
+        setOpenFiles(prev => {
+          if (prev.some(f => f.path === node.path)) return prev;
+          return [...prev, newFile];
+        });
+        setActiveFilePath(node.path);
+        return;
+      }
+
+      // PDF files are rendered directly via URL — no text content needed
+      if (isPdfFile(node.name)) {
+        const newFile: OpenFile = {
+          path: node.path,
+          name: node.name,
+          content: '',
+          savedContent: '',
+          isDirty: false,
+          language: 'plaintext',
+          isPdf: true,
         };
         setOpenFiles(prev => {
           if (prev.some(f => f.path === node.path)) return prev;
@@ -182,7 +207,7 @@ export function useOpenFiles() {
   /** Re-fetches a file from disk if it's open and not dirty (called by file watcher). */
   const refreshFile = useCallback((absPath: string) => {
     const file = openFilesRef.current.find(f => f.path === absPath);
-    if (!file || file.isDirty || file.isImage || localFileMapRef.current?.has(absPath)) return;
+    if (!file || file.isDirty || file.isImage || file.isPdf || localFileMapRef.current?.has(absPath)) return;
     fetchFileContent(absPath)
       .then(content => {
         setOpenFiles(prev =>
