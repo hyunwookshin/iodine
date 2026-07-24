@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { fetchFileDiff, fetchFileDiffWithContent, type DiffData } from '../api/files';
+import { fetchFileDiffWithContent, type DiffData } from '../api/files';
 
 export type { DiffData };
 
@@ -13,17 +13,21 @@ export function useFileDiff(
   filePathRef.current = filePath;
   contentRef.current = content;
 
+  const fetchDiff = useCallback(async (): Promise<DiffData | null> => {
+    const path = filePathRef.current;
+    if (!path) return null;
+    return fetchFileDiffWithContent(path, contentRef.current);
+  }, []);
+
   /** Force an immediate content-based refresh (used after in-editor reverts). */
   const refreshDiff = useCallback(async () => {
-    const path = filePathRef.current;
-    if (!path) { setDiff(null); return; }
     try {
-      const data = await fetchFileDiffWithContent(path, contentRef.current);
+      const data = await fetchDiff();
       setDiff(data);
     } catch {
       setDiff(null);
     }
-  }, []);
+  }, [fetchDiff]);
 
   useEffect(() => {
     if (!filePath) { setDiff(null); return; }
@@ -32,7 +36,7 @@ export function useFileDiff(
 
     const poll = async () => {
       try {
-        const data = await fetchFileDiff(filePath);
+        const data = await fetchDiff();
         if (!cancelled) setDiff(data);
       } catch {
         if (!cancelled) setDiff(null);
@@ -48,7 +52,7 @@ export function useFileDiff(
       clearInterval(interval);
       window.removeEventListener('focus', poll);
     };
-  }, [filePath]);
+  }, [filePath, fetchDiff]);
 
   return { diff, refreshDiff };
 }
