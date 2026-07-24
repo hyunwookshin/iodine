@@ -69,60 +69,42 @@ router.get('/metadata/download', async (_req, res) => {
     const commitHash = await getGitCommitHash();
     const gitDiff = await getGitDiff();
 
-    // Create a temporary directory to hold git metadata files
-    const tmpMetaDir = path.join(os.tmpdir(), `iodine-meta-${Date.now()}`);
-    await fs.promises.mkdir(tmpMetaDir, { recursive: true });
+    // Use a temporary working directory to assemble the zip
+    const tmpWorkDir = path.join(os.tmpdir(), `iodine-zip-${Date.now()}`);
+    await fs.promises.mkdir(tmpWorkDir, { recursive: true });
 
     try {
-      // Write git metadata files
+      // Copy cache dir contents directly to tmpWorkDir root so import unpacks correctly
+      await execFileAsync('sh', ['-c', `cp -r "${cacheDir}/." "${tmpWorkDir}/"`]);
+
+      // Write git metadata alongside cache files
       if (commitHash) {
-        await fs.promises.writeFile(path.join(tmpMetaDir, 'git-commit'), commitHash);
+        await fs.promises.writeFile(path.join(tmpWorkDir, 'git-commit'), commitHash);
       }
       if (gitDiff) {
-        await fs.promises.writeFile(path.join(tmpMetaDir, 'git-diff'), gitDiff);
+        await fs.promises.writeFile(path.join(tmpWorkDir, 'git-diff'), gitDiff);
       }
 
-      // Use a temporary working directory to create the zip
-      const tmpWorkDir = path.join(os.tmpdir(), `iodine-zip-${Date.now()}`);
-      await fs.promises.mkdir(tmpWorkDir, { recursive: true });
+      const zipProcess = spawn('zip', ['-r', '-', '.'], { cwd: tmpWorkDir });
 
-      try {
-        // Copy cache dir contents
-        await execFileAsync('cp', ['-r', '.', path.join(tmpWorkDir, 'metadata')], { cwd: cacheDir });
+      zipProcess.stderr.on('data', () => {}); // suppress zip progress output
 
-        // Copy git metadata files to root
-        if (commitHash) {
-          await execFileAsync('cp', [path.join(tmpMetaDir, 'git-commit'), path.join(tmpWorkDir, 'git-commit')]);
+      zipProcess.on('error', (err) => {
+        if (!res.headersSent) {
+          res.status(500).json({ error: `zip failed: ${err.message}` });
+        } else {
+          res.destroy();
         }
-        if (gitDiff) {
-          await execFileAsync('cp', [path.join(tmpMetaDir, 'git-diff'), path.join(tmpWorkDir, 'git-diff')]);
-        }
+      });
 
-        // Create zip from tmpWorkDir (this puts everything at root + metadata/)
-        const zipProcess = spawn('zip', ['-r', '-', '.'], { cwd: tmpWorkDir });
+      zipProcess.on('close', () => {
+        fs.promises.rm(tmpWorkDir, { recursive: true, force: true }).catch(() => {});
+      });
 
-        zipProcess.stderr.on('data', () => {}); // suppress zip progress output
-
-        zipProcess.on('error', (err) => {
-          if (!res.headersSent) {
-            res.status(500).json({ error: `zip failed: ${err.message}` });
-          } else {
-            res.destroy();
-          }
-        });
-
-        zipProcess.on('close', () => {
-          // Clean up temp directories
-          fs.promises.rm(tmpWorkDir, { recursive: true, force: true }).catch(() => {});
-        });
-
-        zipProcess.stdout.pipe(res);
-      } catch (err) {
-        await fs.promises.rm(tmpWorkDir, { recursive: true, force: true }).catch(() => {});
-        throw err;
-      }
-    } finally {
-      await fs.promises.rm(tmpMetaDir, { recursive: true, force: true }).catch(() => {});
+      zipProcess.stdout.pipe(res);
+    } catch (err) {
+      await fs.promises.rm(tmpWorkDir, { recursive: true, force: true }).catch(() => {});
+      throw err;
     }
   } catch (err) {
     if (!res.headersSent) {
