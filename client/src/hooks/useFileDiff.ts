@@ -1,18 +1,24 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { fetchFileDiff, type DiffData } from '../api/files';
+import { fetchFileDiff, fetchFileDiffWithContent, type DiffData } from '../api/files';
 
 export type { DiffData };
 
-export function useFileDiff(filePath: string | null): { diff: DiffData | null; refreshDiff: () => void } {
+export function useFileDiff(
+  filePath: string | null,
+  content: string,
+): { diff: DiffData | null; refreshDiff: () => void } {
   const [diff, setDiff] = useState<DiffData | null>(null);
   const filePathRef = useRef(filePath);
+  const contentRef = useRef(content);
   filePathRef.current = filePath;
+  contentRef.current = content;
 
-  const refresh = useCallback(async () => {
+  /** Force an immediate content-based refresh (used after in-editor reverts). */
+  const refreshDiff = useCallback(async () => {
     const path = filePathRef.current;
     if (!path) { setDiff(null); return; }
     try {
-      const data = await fetchFileDiff(path);
+      const data = await fetchFileDiffWithContent(path, contentRef.current);
       setDiff(data);
     } catch {
       setDiff(null);
@@ -44,5 +50,5 @@ export function useFileDiff(filePath: string | null): { diff: DiffData | null; r
     };
   }, [filePath]);
 
-  return { diff, refreshDiff: refresh };
+  return { diff, refreshDiff };
 }

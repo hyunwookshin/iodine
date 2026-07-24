@@ -22,7 +22,6 @@ interface EditorAreaProps {
   onTabClose: (path: string) => void;
   onTabReorder?: (fromIndex: number, toIndex: number) => void;
   onContentChange: (path: string, content: string) => void;
-  onSaveFile: (path: string | null) => void;
   workspacePath: string | null;
   provider: Provider;
   model: string;
@@ -69,9 +68,12 @@ const btnStyle: React.CSSProperties = {
 };
 
 export const EditorArea = forwardRef<EditorAreaHandle, EditorAreaProps>(
-  function EditorArea({ openFiles, activeFilePath, onTabClick, onTabClose, onTabReorder, onContentChange, onSaveFile, workspacePath, provider, model, summaryRequestPath, onSummaryHandled }, ref) {
+  function EditorArea({ openFiles, activeFilePath, onTabClick, onTabClose, onTabReorder, onContentChange, workspacePath, provider, model, summaryRequestPath, onSummaryHandled }, ref) {
     const activeFile = openFiles.find(f => f.path === activeFilePath) ?? null;
-    const { diff: diffData, refreshDiff } = useFileDiff(activeFile?.isImage ? null : (activeFile?.path ?? null));
+    const { diff: diffData, refreshDiff } = useFileDiff(
+      activeFile?.isImage ? null : (activeFile?.path ?? null),
+      activeFile?.content ?? '',
+    );
     const monacoEditorRef = useRef<MonacoEditorAPI.IStandaloneCodeEditor | null>(null);
 
     const [editorView,       setEditorView]       = useState<EditorView>('source');
@@ -430,12 +432,10 @@ export const EditorArea = forwardRef<EditorAreaHandle, EditorAreaProps>(
                 diffData={diffData}
                 onEditorMount={editor => { monacoEditorRef.current = editor; }}
                 onAfterRevert={() => {
-                  // Save with a short delay so Monaco's onChange has propagated
-                  // the executeEdits result into React state before putFileContent reads it.
-                  setTimeout(() => {
-                    onSaveFile(activeFilePath);
-                    refreshDiff();
-                  }, 50);
+                  // Monaco's onChange fires synchronously from executeEdits, so
+                  // content state updates in the same microtask batch. A short
+                  // delay lets React flush before we read contentRef in refreshDiff.
+                  setTimeout(refreshDiff, 50);
                 }}
               />
             )

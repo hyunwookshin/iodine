@@ -339,6 +339,44 @@ router.get('/git/diff', async (req, res) => {
   }
 });
 
+/** Diff provided editor content against HEAD (no disk I/O required on the client side). */
+router.post('/git/diff', async (req, res) => {
+  if (!rootPath) return res.json({ added: [], modified: [], deleted: [] });
+  const { path: filePath, content } = req.body as { path: string; content: string };
+  if (!filePath || content === undefined) return res.status(400).json({ error: 'path and content required' });
+
+  const relPath = path.relative(rootPath, filePath);
+
+  let headContent: string;
+  try {
+    const r = await execFileAsync('git', ['show', `HEAD:${relPath}`], { cwd: rootPath });
+    headContent = r.stdout;
+  } catch {
+    // File not tracked in HEAD — treat as fully new, no diff to show
+    return res.json({ added: [], modified: [], deleted: [] });
+  }
+
+  const tmpA = path.join(os.tmpdir(), `iodine-head-${Date.now()}`);
+  const tmpB = path.join(os.tmpdir(), `iodine-edit-${Date.now()}`);
+  try {
+    await Promise.all([fs.promises.writeFile(tmpA, headContent), fs.promises.writeFile(tmpB, content)]);
+    let diffOut = '';
+    try {
+      const r = await execFileAsync('git', ['diff', '--no-index', '--', tmpA, tmpB]);
+      diffOut = r.stdout;
+    } catch (e: unknown) {
+      // git diff --no-index exits with code 1 when files differ; stdout still has the diff
+      diffOut = (e as { stdout?: string }).stdout ?? '';
+    }
+    return res.json(parseDiff(diffOut));
+  } finally {
+    await Promise.all([
+      fs.promises.rm(tmpA, { force: true }).catch(() => {}),
+      fs.promises.rm(tmpB, { force: true }).catch(() => {}),
+    ]);
+  }
+});
+
 router.get('/git/status', async (_req, res) => {
   if (!rootPath) return res.json({ status: {} });
 

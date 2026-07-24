@@ -91,6 +91,15 @@ export async function fetchFileDiff(filePath: string): Promise<DiffData> {
   return request<DiffData>(`/api/git/diff?path=${encodeURIComponent(filePath)}`);
 }
 
+/** Diff the provided in-memory content against HEAD without requiring a disk save. */
+export async function fetchFileDiffWithContent(filePath: string, content: string): Promise<DiffData> {
+  return request<DiffData>('/api/git/diff', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path: filePath, content }),
+  });
+}
+
 export type GitFileStatus = 'unstaged' | 'staged' | 'both';
 
 export async function fetchGitStatus(): Promise<Record<string, GitFileStatus>> {
