@@ -351,7 +351,7 @@ export function FileTreeNode({
                 marginLeft: 4,
                 opacity: 0.7,
               }}>
-                *
+                AI
               </span>
             )}
           </span>
