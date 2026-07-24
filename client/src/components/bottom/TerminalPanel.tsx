@@ -22,7 +22,9 @@ function buildWsUrl(workspacePath: string | null, cmd?: string): string {
   const params = new URLSearchParams();
   if (workspacePath) params.set('cwd', workspacePath);
   if (cmd) params.set('cmd', cmd);
-  return `ws://localhost:3001/terminal?${params}`;
+  const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const host = import.meta.env.DEV ? 'localhost:3001' : window.location.host;
+  return `${proto}//${host}/terminal?${params}`;
 }
 
 export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>(

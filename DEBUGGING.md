@@ -345,3 +345,51 @@ function walkDir(root: string, base: string = root): string[] {
   // ...
 }
 ```
+
+---
+
+## Terminal `posix_spawnp failed`
+
+### Symptom
+
+Opening the terminal tray showed:
+
+```
+Failed to start terminal: Error: posix_spawnp failed.
+Shell: /bin/zsh
+Cwd: /some/path/that/no/longer/exists
+```
+
+### Root Cause
+
+`terminal.ts` computed the working directory as:
+
+```typescript
+const cwd = cwdParam || rootPath || os.homedir();
+```
+
+If the `cwd` URL param (sent by `TerminalPanel` from `workspacePath`) referenced a
+directory that no longer existed on disk — for example after switching workspaces, deleting
+a folder, or an external rename — the value passed to `pty.spawn()` was an invalid path.
+
+`node-pty` passes the `cwd` directly to `posix_spawnp(3)`. POSIX specifies that if the
+working directory cannot be accessed, `posix_spawnp` returns `ENOENT`, which node-pty
+surfaces as `Error: posix_spawnp failed` with no further detail.
+
+The shell binary itself was irrelevant — the error occurs before the shell is even
+loaded, during the fork/chdir phase.
+
+### Fix
+
+Validate each `cwd` candidate with `existsSync` before using it, falling through to
+the next candidate if unavailable:
+
+```typescript
+// server/src/terminal.ts
+const cwdCandidates = [cwdParam, rootPath, os.homedir()].filter(Boolean) as string[];
+const cwd = cwdCandidates.find(c => existsSync(c)) ?? os.homedir();
+```
+
+Also made the WebSocket URL in `TerminalPanel.tsx` dynamic (protocol + host derived from
+`window.location`) instead of hardcoded to `ws://localhost:3001`, so terminals work
+correctly in production builds served from non-localhost origins.
