@@ -295,6 +295,7 @@ export function WorkbenchLayout() {
             onTabClose={closeFile}
             onTabReorder={reorderFiles}
             onContentChange={updateContent}
+            onSaveFile={saveFile}
             workspacePath={workspacePath}
             provider={provider}
             model={model}

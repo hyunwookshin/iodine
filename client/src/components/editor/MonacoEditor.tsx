@@ -11,6 +11,7 @@ interface MonacoEditorProps {
   onContentChange: (path: string, content: string) => void;
   diffData?: DiffData | null;
   onEditorMount?: (editor: MonacoEditorAPI.IStandaloneCodeEditor) => void;
+  onAfterRevert?: () => void;
 }
 
 // ── Hunk grouping helpers ─────────────────────────────────────────────────────
@@ -108,12 +109,14 @@ function revertDeleted(
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function MonacoEditor({ file, onContentChange, diffData, onEditorMount }: MonacoEditorProps) {
+export function MonacoEditor({ file, onContentChange, diffData, onEditorMount, onAfterRevert }: MonacoEditorProps) {
   const editorRef = useRef<MonacoEditorAPI.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<Monaco | null>(null);
   const decorationIdsRef = useRef<string[]>([]);
   const viewZoneIdsRef = useRef<Map<number, string>>(new Map());
   const diffDataRef = useRef<DiffData | null>(diffData ?? null);
+  const onAfterRevertRef = useRef(onAfterRevert);
+  onAfterRevertRef.current = onAfterRevert;
   const [mounted, setMounted] = useState(false);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
 
@@ -153,6 +156,7 @@ export function MonacoEditor({ file, onContentChange, diffData, onEditorMount }:
       const addedGroup = groupContiguous(data.added).find(([s, e]) => lineNumber >= s && lineNumber <= e);
       if (addedGroup) {
         revertAdded(editor, addedGroup[0], addedGroup[1]);
+        onAfterRevertRef.current?.();
         return;
       }
 
@@ -160,6 +164,7 @@ export function MonacoEditor({ file, onContentChange, diffData, onEditorMount }:
       const modifiedGroup = groupModified(data.modified).find(g => lineNumber >= g.start && lineNumber <= g.end);
       if (modifiedGroup) {
         revertModified(editor, modifiedGroup.start, modifiedGroup.end, modifiedGroup.originals);
+        onAfterRevertRef.current?.();
         return;
       }
     });
@@ -280,6 +285,7 @@ export function MonacoEditor({ file, onContentChange, diffData, onEditorMount }:
             next.delete(block.afterLine);
             return next;
           });
+          onAfterRevertRef.current?.();
         });
 
         domNode.appendChild(linesDiv);
