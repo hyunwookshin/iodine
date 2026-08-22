@@ -16,7 +16,10 @@ router.post('/files/create', async (req, res) => {
   if (!currentRoot) return res.status(400).json({ error: 'No workspace open' });
 
   const resolved = path.resolve(filePath);
-  if (!resolved.startsWith(currentRoot + path.sep) && resolved !== currentRoot) {
+  // Resolve symlinks so a symlink inside workspace pointing outside is caught
+  const realResolved = fs.realpathSync(resolved);
+  const realRoot = fs.realpathSync(currentRoot);
+  if (!realResolved.startsWith(realRoot + path.sep) && realResolved !== realRoot) {
     return res.status(400).json({ error: 'Path outside workspace' });
   }
 
@@ -52,12 +55,17 @@ router.post('/files/rename', async (req, res) => {
   if (!currentRoot) return res.status(400).json({ error: 'No workspace open' });
 
   const resolvedOld = path.resolve(oldPath);
-  if (!resolvedOld.startsWith(currentRoot + path.sep) && resolvedOld !== currentRoot) {
+  // Resolve symlinks so a symlink inside workspace pointing outside is caught
+  const realResolvedOld = fs.realpathSync(resolvedOld);
+  const realRoot = fs.realpathSync(currentRoot);
+  if (!realResolvedOld.startsWith(realRoot + path.sep) && realResolvedOld !== realRoot) {
     return res.status(400).json({ error: 'Path outside workspace' });
   }
 
   const newPath = path.join(path.dirname(resolvedOld), newName);
-  if (!newPath.startsWith(currentRoot + path.sep) && newPath !== currentRoot) {
+  // Check the new path against the real workspace root too
+  const realNewPath = path.join(path.dirname(realResolvedOld), newName);
+  if (!realNewPath.startsWith(realRoot + path.sep) && realNewPath !== realRoot) {
     return res.status(400).json({ error: 'New path outside workspace' });
   }
 
