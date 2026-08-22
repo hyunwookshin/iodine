@@ -28,7 +28,27 @@ const BINARY_EXTENSIONS = new Set([
 export function validatePath(filePath: string, rootPath: string): void {
   const resolved = path.resolve(filePath);
   const resolvedRoot = path.resolve(rootPath);
-  if (resolved !== resolvedRoot && !resolved.startsWith(resolvedRoot + path.sep)) {
+  // Resolve symlinks so a symlink inside workspace pointing outside is caught.
+  // Walk up to the first existing ancestor so this works for new files too.
+  const realRoot = fs.realpathSync(resolvedRoot);
+  let candidate = resolved;
+  let existingParent: string | null = null;
+  while (candidate !== path.dirname(candidate)) {
+    try {
+      existingParent = fs.realpathSync(candidate);
+      break;
+    } catch {
+      candidate = path.dirname(candidate);
+    }
+  }
+  if (!existingParent) {
+    throw Object.assign(new Error('Path is outside workspace root'), { code: 'OUTSIDE_ROOT' });
+  }
+  // existingParent is the real path of the nearest existing ancestor;
+  // append the remaining unresolved tail to reconstruct the full real path.
+  const tail = resolved.slice(candidate.length);
+  const realResolved = existingParent + tail;
+  if (realResolved !== realRoot && !realResolved.startsWith(realRoot + path.sep)) {
     throw Object.assign(new Error('Path is outside workspace root'), { code: 'OUTSIDE_ROOT' });
   }
 }
