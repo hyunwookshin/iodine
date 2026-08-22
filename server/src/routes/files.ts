@@ -422,7 +422,10 @@ router.get('/files/image', async (req, res) => {
 
   // Resolve and guard against path traversal
   const resolved = path.resolve(filePath);
-  if (!resolved.startsWith(rootPath + path.sep) && resolved !== rootPath) {
+  // Resolve symlinks so a symlink inside workspace pointing outside is caught
+  const realResolved = fs.realpathSync(resolved);
+  const realRoot = fs.realpathSync(rootPath);
+  if (!realResolved.startsWith(realRoot + path.sep) && realResolved !== realRoot) {
     return res.status(400).json({ error: 'Path outside workspace' });
   }
 
@@ -457,7 +460,10 @@ router.get('/files/pdf', async (req, res) => {
 
   // Resolve and guard against path traversal
   const resolved = path.resolve(filePath);
-  if (!resolved.startsWith(rootPath + path.sep) && resolved !== rootPath) {
+  // Resolve symlinks so a symlink inside workspace pointing outside is caught
+  const realResolved = fs.realpathSync(resolved);
+  const realRoot = fs.realpathSync(rootPath);
+  if (!realResolved.startsWith(realRoot + path.sep) && realResolved !== realRoot) {
     return res.status(400).json({ error: 'Path outside workspace' });
   }
 

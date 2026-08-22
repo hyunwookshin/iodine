@@ -37,7 +37,10 @@ export function watchFile(filePath: string) {
   // Only watch files inside current workspace root
   if (!rootPath) return;
   const resolved = path.resolve(filePath);
-  if (resolved !== rootPath && !resolved.startsWith(rootPath + path.sep)) return;
+  // Resolve symlinks so a symlink inside workspace pointing outside is caught
+  const realResolved = fs.realpathSync(resolved);
+  const realRoot = fs.realpathSync(rootPath);
+  if (realResolved !== realRoot && !realResolved.startsWith(realRoot + path.sep)) return;
 
   try {
     const watcher = fs.watch(resolved, { persistent: false }, async (eventType) => {
