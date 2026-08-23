@@ -75,7 +75,8 @@ router.get('/metadata/download', async (_req, res) => {
 
     try {
       // Copy cache dir contents directly to tmpWorkDir root so import unpacks correctly
-      await execFileAsync('sh', ['-c', `cp -r "${cacheDir}/." "${tmpWorkDir}/"`]);
+      // Use execFile (not sh -c) to avoid shell injection via path strings
+      await execFileAsync('cp', ['-r', `${cacheDir}/.`, `${tmpWorkDir}/`]);
 
       // Write git metadata alongside cache files
       if (commitHash) {
@@ -139,6 +140,27 @@ router.post(
     const tmpFile = path.join(os.tmpdir(), `iodine-import-${Date.now()}.zip`);
     try {
       await fs.promises.writeFile(tmpFile, req.body);
+
+      // Pre-validate zip entries for path traversal (zip slip) before extraction.
+      // Entries with ".." or absolute paths could escape the target directory.
+      const { stdout: listOutput } = await execFileAsync('unzip', ['-l', tmpFile]);
+      const entries = listOutput.split('\n')
+        .slice(3, -2) // skip header lines and final summary
+        .map(line => {
+          const parts = line.trim().split(/\s+/);
+          // Filename is everything after the 4 numeric columns (size, date, time)
+          return parts.slice(4).join(' ');
+        })
+        .filter(Boolean);
+
+      const hasTraversal = entries.some(entry => {
+        const segments = entry.split('/');
+        return segments.some(s => s === '..') || path.isAbsolute(entry);
+      });
+
+      if (hasTraversal) {
+        return res.status(400).json({ error: 'Zip file contains unsafe paths (path traversal detected)' });
+      }
 
       await new Promise<void>((resolve, reject) => {
         execFile('unzip', ['-o', tmpFile, '-d', cacheDir], (_err, _stdout, stderr) => {
