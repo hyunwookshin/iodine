@@ -3,11 +3,12 @@ load_dotenv()
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from services.route_llm import router as route_router, lifespan
+from services.route_llm import lifespan
+from api import api_router
 
 CLIENT_BASE = "http://localhost:5173"
 
-app = FastAPI(title="Route model API", lifespan=lifespan)
+app = FastAPI(title="LLM API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -17,4 +18,4 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(route_router)
+app.include_router(api_router)
