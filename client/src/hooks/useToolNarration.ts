@@ -63,7 +63,7 @@ export const toolNarrationInternals = {
       : phrases;
   },
   isBridgeQuestion(text: string) {
-    return text.includes('?') && /\b(?:how does|why is|when should|where is|when can|what if)\b/i.test(text);
+    return text.includes('?') && /\b(?:how does|why is|when should|when can|what if|where is)\b/i.test(text);
   },
 };
 

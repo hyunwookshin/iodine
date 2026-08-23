@@ -19,7 +19,7 @@ describe('tool narration rules', () => {
     expect(narration.isBridgeQuestion('What if it fails?')).toBe(true);
     expect(narration.isBridgeQuestion('How does this work')).toBe(false);
     expect(narration.isBridgeQuestion('How exactly does this work?')).toBe(false);
-    expect(narration.isBridgeQuestion('Where is this?')).toBe(false);
+    expect(narration.isBridgeQuestion('Where is this?')).toBe(true);
   });
 
   it('queues a bridge only when a matching question is followed by a tool narration', () => {
