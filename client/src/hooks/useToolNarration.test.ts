@@ -117,6 +117,33 @@ describe('tool narration rules', () => {
     expect(texts[2]).toContain('more closely');
   });
 
+  it('acknowledges approval only after its narration was spoken and the queue is idle', async () => {
+    const { result } = renderHook(() => useToolNarration('openai'));
+    const entry = {
+      approvalId: 'approval-1',
+      skippable: false,
+      fn: vi.fn(async () => 'blob:approval'),
+    };
+    result.current.queueRef.current.push(entry);
+
+    act(() => result.current.resolveApprovalNarration('approval-1', true));
+    expect(result.current.queueRef.current).toHaveLength(0);
+
+    result.current.queueRef.current.push(entry);
+    const originalAudio = globalThis.Audio;
+    class FinishedAudio {
+      play = vi.fn(() => Promise.resolve());
+      pause = vi.fn();
+      addEventListener(_event: string, listener: () => void) { listener(); }
+    }
+    vi.stubGlobal('Audio', FinishedAudio);
+    await act(async () => { await result.current.drain(); });
+    act(() => result.current.resolveApprovalNarration('approval-1', true));
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(vi.mocked(fetch).mock.calls[0][1]?.body as string).text).toBe('Thanks.');
+    vi.stubGlobal('Audio', originalAudio);
+  });
+
   it('evicts pending skippable narration but retains edits', () => {
     const { result } = renderHook(() => useToolNarration('openai'));
 

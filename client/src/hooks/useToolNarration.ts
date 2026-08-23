@@ -91,6 +91,7 @@ export function useToolNarration(speechProviderId: 'google' | 'openai') {
   const unskippableCountRef = useRef(0);
   const onEmptyRef         = useRef<(() => void) | null>(null);
   const pendingBridgeRef   = useRef(false);
+  const spokenApprovalIdsRef = useRef(new Set<string>());
 
   const stop = useCallback(() => {
     generationRef.current++;
@@ -108,15 +109,16 @@ export function useToolNarration(speechProviderId: 'google' | 'openai') {
     drainingRef.current = true;
     const generation = generationRef.current;
     while (queueRef.current.length && generation === generationRef.current) {
-      const { fn: fetchAudio } = queueRef.current.shift()!;
+      const { fn: fetchAudio, approvalId } = queueRef.current.shift()!;
       try {
         const url = await fetchAudio();
         if (generation !== generationRef.current) { URL.revokeObjectURL(url); break; }
+        if (approvalId) spokenApprovalIdsRef.current.add(approvalId);
         await new Promise<void>(resolve => {
           const audio = new Audio(url);
           audioRef.current = audio;
           let finished = false;
-          const finish = () => { if (finished) return; finished = true; URL.revokeObjectURL(url); resolve(); };
+          const finish = () => { if (finished) return; finished = true; URL.revokeObjectURL(url); audioRef.current = null; resolve(); };
           audio.play().catch(finish);
           audio.addEventListener('ended', finish, { once: true });
           audio.addEventListener('error', finish, { once: true });
@@ -136,10 +138,26 @@ export function useToolNarration(speechProviderId: 'google' | 'openai') {
     queueRef.current = queueRef.current.filter(e => !e.skippable);
   }, []);
 
-  /** Remove only narration associated with an approval that the user has already resolved. */
-  const evictApprovalNarration = useCallback((approvalId: string) => {
+  /** Remove pending approval narration and briefly acknowledge an approval that was already spoken. */
+  const resolveApprovalNarration = useCallback((approvalId: string, approved: boolean) => {
     queueRef.current = queueRef.current.filter(entry => entry.approvalId !== approvalId);
-  }, []);
+    const wasSpoken = spokenApprovalIdsRef.current.delete(approvalId);
+    if (!approved || !wasSpoken || drainingRef.current || audioRef.current) return;
+
+    queueRef.current.push({
+      skippable: true,
+      fn: async () => {
+        const response = await fetch(`${API_BASE}/api/tts/speak`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: 'Thanks.', provider: speechProviderId }),
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return URL.createObjectURL(await response.blob());
+      },
+    });
+    void drain();
+  }, [speechProviderId, drain]);
 
   const narrate = useCallback((name: string, input: Record<string, unknown>, approvalId?: string) => {
     if (toolNarrationCountRef.current >= MAX_TOOL_NARRATIONS_PER_TURN) return;
@@ -289,5 +307,5 @@ export function useToolNarration(speechProviderId: 'google' | 'openai') {
     pendingBridgeRef.current   = false;
   }, []);
 
-  return { narrate, stop, drain, evictSkippable, evictApprovalNarration, enqueueGreeting, setBridgeQuestion, queueRef, audioRef, hadNarrationsRef, hadUnskippableRef, unskippableCountRef, onEmptyRef, resetTurn };
+  return { narrate, stop, drain, evictSkippable, resolveApprovalNarration, enqueueGreeting, setBridgeQuestion, queueRef, audioRef, hadNarrationsRef, hadUnskippableRef, unskippableCountRef, onEmptyRef, resetTurn };
 }
