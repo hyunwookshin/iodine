@@ -43,6 +43,13 @@ export const toolNarrationInternals = {
       ? `${displayName ?? 'this'} ${fileType} file`
       : `${displayName ?? 'this'} file`;
   },
+  describeTarget(name: string, path: string | undefined, narrationIndex: number) {
+    if (name === 'list_directory') {
+      const directoryName = path?.split(/[/\\]/).filter(Boolean).pop() ?? 'this';
+      return `${directoryName} directory`;
+    }
+    return this.describeFile(path, narrationIndex);
+  },
   getFamily(name: string) {
     return name === 'open_file' || name === 'read_file' ? 'read' : name;
   },
@@ -217,9 +224,11 @@ export function useToolNarration(speechProviderId: 'google' | 'openai') {
     };
     const fileType = extension ? fileTypeNames[extension] ?? extension.toUpperCase() : null;
     const includeFileType = Boolean(fileType) && fileNarrationCountRef.current++ % 2 === 1;
-    const fileDescription = fileType && includeFileType
-      ? `${displayName ?? 'this'} ${fileType} file`
-      : `${displayName ?? 'this'} file`;
+    const fileDescription = name === 'list_directory'
+      ? `${filename ?? 'this'} directory`
+      : fileType && includeFileType
+        ? `${displayName ?? 'this'} ${fileType} file`
+        : `${displayName ?? 'this'} file`;
     const basePhrase = continuesRead ? `And ${fileDescription}.` : template.replace('{file}', fileDescription);
     const repeatVariations = ['again', 'once more', 'more closely'] as const;
     const repeatVariation = repeatVariations[repeatVariationRef.current % repeatVariations.length];

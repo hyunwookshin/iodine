@@ -38,6 +38,11 @@ describe('tool narration rules', () => {
     expect(narration.describeFile('src/App.tsx', 1)).toBe('App TypeScript file');
   });
 
+  it('describes list_directory targets as directories', () => {
+    expect(narration.describeTarget('list_directory', 'src/hooks', 0)).toBe('hooks directory');
+    expect(narration.describeTarget('read_file', 'src/App.tsx', 0)).toBe('App file');
+  });
+
   it('marks only exploration tools as skippable', () => {
     expect(narration.skippableTools.has('read_file')).toBe(true);
     expect(narration.skippableTools.has('open_file')).toBe(true);
