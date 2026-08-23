@@ -1,11 +1,8 @@
 import os
 import tiktoken
-from contextlib import asynccontextmanager
-from fastapi import FastAPI, APIRouter, HTTPException, Request
-from routellm.controller import Controller
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 from fastapi.concurrency import run_in_threadpool
-from typing import Union
 
 os.environ["OPENAI_API_KEY"] = os.environ.get("OPENAI_API_KEY",
                                   os.environ.get("OPENAI_TOKEN", ""))
@@ -18,16 +15,6 @@ class RoutingRequest(BaseModel):
     prompt: str | list[dict] = Field(..., description="User prompt")
     models: list[Model] = Field(..., min_length=2, description="User models from same provider")
     threshold: float = Field(default=0.11593, description="threshold for cost/quality")
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    app.state.controller = Controller(
-        routers=["mf"],
-        strong_model="strong-placeholder",
-        weak_model="weak-placeholder"
-    )
-    yield
-    app.state.controller = None
 
 router = APIRouter()
 
@@ -70,7 +57,9 @@ async def get_routing_decision(request: Request, body: RoutingRequest) -> dict:
         prompt_str = await run_in_threadpool(token_limit, prompt_str)
 
         mf_router = request.app.state.controller.routers["mf"]
-        win_rate = await run_in_threadpool(lambda: float(mf_router.calculate_strong_win_rate(prompt_str)))
+        win_rate = await run_in_threadpool(mf_router.calculate_strong_win_rate,prompt_str)
+
+        win_rate = float(win_rate)
         
         selected_model = select_model(body.models, win_rate, body.threshold)
 
