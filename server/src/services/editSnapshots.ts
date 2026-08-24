@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import { validatePath, writeFileContent } from './fileSystem';
 
 const MAX_SNAPSHOT_BYTES = 1024 * 1024;
 
@@ -59,4 +60,49 @@ export async function saveSnapshot(
   const dir = snapshotDir(workspacePath);
   await fs.promises.mkdir(dir, { recursive: true });
   await fs.promises.writeFile(snapshotFile(workspacePath, toolCallId), JSON.stringify(snapshot), 'utf-8');
+}
+
+export type RevertResult =
+  | { outcome: 'not-found' }
+  | { outcome: 'stale'; path: string }
+  | { outcome: 'reverted'; path: string }
+  | { outcome: 'deleted'; path: string };
+
+async function readSnapshot(workspacePath: string, toolCallId: string): Promise<EditSnapshot | null> {
+  try {
+    const raw = await fs.promises.readFile(snapshotFile(workspacePath, toolCallId), 'utf-8');
+    return JSON.parse(raw) as EditSnapshot;
+  } catch {
+    return null;
+  }
+}
+
+async function currentHash(absolutePath: string): Promise<string> {
+  try {
+    return hash(await fs.promises.readFile(absolutePath, 'utf-8'));
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * Puts a file back the way it was before an agent edit. Without force, refuses when the
+ * file no longer matches what the edit produced, since something else has changed it since.
+ */
+export async function revertEdit(workspacePath: string, toolCallId: string, force: boolean): Promise<RevertResult> {
+  const snapshot = await readSnapshot(workspacePath, toolCallId);
+  if (!snapshot) return { outcome: 'not-found' };
+
+  validatePath(snapshot.path, workspacePath);
+  if (!force && await currentHash(snapshot.path) !== snapshot.afterHash) {
+    return { outcome: 'stale', path: snapshot.path };
+  }
+
+  if (snapshot.existed) {
+    await writeFileContent(snapshot.path, snapshot.before, workspacePath);
+  } else {
+    await fs.promises.rm(snapshot.path, { force: true });
+  }
+  await fs.promises.rm(snapshotFile(workspacePath, toolCallId), { force: true });
+  return { outcome: snapshot.existed ? 'reverted' : 'deleted', path: snapshot.path };
 }
