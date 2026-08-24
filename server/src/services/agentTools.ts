@@ -67,7 +67,7 @@ export async function executeAgentTool(
     };
   }
 
-  if (name !== 'run_terminal_command') return executeTool(name, input);
+  if (name !== 'run_terminal_command') return executeTool(name, input, toolCallId);
 
   const command = typeof input.command === 'string' ? input.command.trim() : '';
   const reason = typeof input.reason === 'string' ? input.reason.trim() : '';
