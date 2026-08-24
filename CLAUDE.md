@@ -330,6 +330,20 @@ The system prompt lives in **one place** — `systemPrompt.ts`'s `buildSystemPro
 - `old_string not found` → model re-reads the file and retries with exact text
 - `old_string matches N locations` → model adds more surrounding lines to make the match unique
 
+#### Reverting Agent Edits
+
+Successful `write_file` and `edit_file` tool blocks show a **Revert** button in their expanded panel, which puts the file back to its contents from before that edit.
+
+| File | Role |
+|------|------|
+| `server/src/services/editSnapshots.ts` | `saveSnapshot` records the file before an edit to `~/.iodine/<workspace-md5>/edits/<toolCallId>.json`; `revertEdit` restores it and returns a discriminated `not-found` / `stale` / `reverted` / `deleted` result. |
+| `server/src/services/fileTools.ts` | `executeTool` takes an optional `toolCallId` and snapshots immediately before `writeFileContent` in both write paths. `agentTools.ts` passes the id through. |
+| `server/src/routes/agent.ts` | `POST /api/agent/revert` with `{ toolCallId, force? }` maps the service result to a status code and nothing else. |
+| `client/src/components/right/RevertButton.tsx` | Owns the idle → reverting → reverted states, and on a `stale` result confirms before retrying with `force`. |
+| `client/src/components/right/CodingAssistant.tsx` | `ToolBlock` renders the button; `handleEditReverted` refreshes the file tree and enqueues an `edit_reverted` event context so the model stops assuming the edit is applied. |
+
+**Key details:** snapshots are keyed by tool call id, which the client already holds as `block.id`, so `ToolResult` and the three provider agents are untouched. `existed: false` marks a file the agent created, so reverting deletes it rather than writing an empty file. `afterHash` is the file right after the edit — if it no longer matches, something else changed the file and the revert asks before overwriting. A snapshot is consumed on success, making revert one-shot. The button sits in the expanded panel because the collapsed row is itself a `<button>`. Files touched by `run_terminal_command` are not snapshotted.
+
 #### Tutor Mode
 
 The **Tutor** toggle in the Coding Assistant (left of the Send button) switches the AI into a read-only guidance mode: it walks through the codebase, points to relevant lines, and tells the user what to change without writing any code itself.
