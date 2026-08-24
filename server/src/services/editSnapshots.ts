@@ -29,10 +29,7 @@ function snapshotFile(workspacePath: string, toolCallId: string): string {
   return path.join(snapshotDir(workspacePath), `${toolCallId}.json`);
 }
 
-/**
- * Records a file's contents before an agent edit. Call with the text that is about
- * to be written so afterHash matches what lands on disk. Oversized files are skipped.
- */
+/** Pass the content about to be written — afterHash has to match what lands on disk. */
 export async function saveSnapshot(
   workspacePath: string,
   toolCallId: string,
@@ -45,8 +42,8 @@ export async function saveSnapshot(
   try {
     before = await fs.promises.readFile(absolutePath, 'utf-8');
   } catch (err) {
-    // Only a missing file means the agent is creating it. Anything else (a permission
-    // error, say) would make revert delete a file that was already there, so skip.
+    // Only ENOENT means the agent is creating the file. Any other read error would
+    // make revert delete a file that was already there.
     if ((err as NodeJS.ErrnoException).code !== 'ENOENT') return;
     existed = false;
   }
@@ -88,10 +85,6 @@ async function currentHash(absolutePath: string): Promise<string> {
   }
 }
 
-/**
- * Puts a file back the way it was before an agent edit. Without force, refuses when the
- * file no longer matches what the edit produced, since something else has changed it since.
- */
 export async function revertEdit(workspacePath: string, toolCallId: string, force: boolean): Promise<RevertResult> {
   const snapshot = await readSnapshot(workspacePath, toolCallId);
   if (!snapshot) return { outcome: 'not-found' };
