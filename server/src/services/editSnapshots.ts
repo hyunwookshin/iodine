@@ -44,7 +44,10 @@ export async function saveSnapshot(
   let existed = true;
   try {
     before = await fs.promises.readFile(absolutePath, 'utf-8');
-  } catch {
+  } catch (err) {
+    // Only a missing file means the agent is creating it. Anything else (a permission
+    // error, say) would make revert delete a file that was already there, so skip.
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') return;
     existed = false;
   }
   if (Buffer.byteLength(before, 'utf-8') > MAX_SNAPSHOT_BYTES) return;
