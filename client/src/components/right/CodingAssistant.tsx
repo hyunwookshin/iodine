@@ -210,14 +210,24 @@ export const CodingAssistant = forwardRef<CodingAssistantHandle, CodingAssistant
 
   const { uiMessages, isLoading, isWatching, conversationPersistenceError, canRetryConversationSave, conversationSaveRevision, sendMessage, enqueueEventContext, stopExecution, clearMessages, sendApproval, injectProactiveMessage, notifyEditorActivity, loadConversation, retryConversationSave, clearAllConversations } = useCodingAssistant(provider, model, workspacePath, onNavigateToLine, onWatchTrigger, onAssistantReply, handleToolNarration, onFileTreeRefresh, onSummaryRequest);
   // Keep a ref to sendMessage so callbacks (like transcribeAndSend) never capture a stale closure.
-  const handleEditReverted = useCallback((_path: string) => {
-    onFileTreeRefresh?.();
-  }, [onFileTreeRefresh]);
-
   const sendMessageRef = useRef(sendMessage);
   sendMessageRef.current = sendMessage;
   const isLoadingRef = useRef(isLoading);
   isLoadingRef.current = isLoading;
+  const handleEditReverted = useCallback((path: string) => {
+    onFileTreeRefresh?.();
+    enqueueEventContext({
+      id: crypto.randomUUID(),
+      type: 'edit_reverted',
+      source: 'revert_button',
+      timestamp: Date.now(),
+      summary: `The user reverted your edit to ${path}. The file is back to its contents from before that edit.`,
+      state: 'cancelled',
+      sideEffects: false,
+      guidance: 'Do not assume the edit is still applied. Read the file again before changing it.',
+    });
+  }, [onFileTreeRefresh, enqueueEventContext]);
+
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   useImperativeHandle(ref, () => ({ injectProactiveMessage, notifyEditorActivity, focus: () => textareaRef.current?.focus() }), [injectProactiveMessage, notifyEditorActivity]);
   const [input, setInput] = useState(''); const [isTutorMode, setIsTutorMode] = useState(true); const [providerStatus, setProviderStatus] = useState<Record<string, boolean>>({}); const [showHelp, setShowHelp] = useState(false); const apiConfigured = providerStatus[provider.id] ?? null; const [wsInput, setWsInput] = useState(''); const [wsOpening, setWsOpening] = useState(false); const [wsError, setWsError] = useState<string | null>(null); const scrollRef = useRef<HTMLDivElement>(null);
