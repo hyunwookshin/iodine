@@ -78,8 +78,11 @@ export async function runTerminalCommand(
 
   return new Promise<ToolResult>((resolve) => {
     const id = randomUUID();
-    const shell = process.env.SHELL || '/bin/bash';
-    const child = spawn(shell, ['-lc', request.command], {
+    // Windows has no POSIX shells by default; cmd.exe needs /c instead of -lc.
+    const isWindows = process.platform === 'win32';
+    const shell = process.env.SHELL || (isWindows ? process.env.ComSpec || 'cmd.exe' : '/bin/bash');
+    const shellArgs = isWindows ? ['/d', '/s', '/c', request.command] : ['-lc', request.command];
+    const child = spawn(shell, shellArgs, {
       cwd: rootPath!,
       env: process.env,
       detached: false,
