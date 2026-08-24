@@ -11,6 +11,7 @@ import type { FileNode } from '../../types';
 import { useToolNarration } from '../../hooks/useToolNarration';
 import { FilePathLink } from '../editor/FilePathLink';
 import { parseFilePath, resolveFromRoot } from '../../utils/filePath';
+import { RevertButton } from './RevertButton';
 
 const API_BASE = import.meta.env.DEV ? 'http://localhost:3001' : '';
 
@@ -46,13 +47,14 @@ function lineArgument(input: unknown): number | undefined {
   return typeof line === 'number' ? line : undefined;
 }
 
-function ToolBlock({ block, workspacePath, onNavigateToLine }: { block: UIBlock & { type: 'tool' }; workspacePath: string | null; onNavigateToLine?: (filePath: string, line: number, endLine?: number, startCol?: number, endCol?: number) => void }) {
+function ToolBlock({ block, workspacePath, onNavigateToLine, onReverted }: { block: UIBlock & { type: 'tool' }; workspacePath: string | null; onNavigateToLine?: (filePath: string, line: number, endLine?: number, startCol?: number, endCol?: number) => void; onReverted?: (path: string) => void }) {
   const [expanded, setExpanded] = useState(false);
   const inputStr = JSON.stringify(block.input, null, 2);
   const pathLabel = argumentSummary(block.input);
   const fullPath = pathArgument(block.input);
   const openTarget = fullPath && workspacePath && onNavigateToLine && parseFilePath(fullPath) ? fullPath : null;
   const labelStyle: React.CSSProperties = { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--color-text-primary)' };
+  const canRevert = !!onReverted && !block.pending && !block.error && (block.name === 'write_file' || block.name === 'edit_file');
   return (
     <div style={{ background: 'var(--color-bg-subtle)', border: '1px solid var(--color-border)', borderRadius: 6, marginBottom: 6, overflow: 'hidden' }}>
       <button onClick={() => setExpanded(e => !e)} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 12px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-secondary)', fontSize: 11, textAlign: 'left' }}>
@@ -66,7 +68,7 @@ function ToolBlock({ block, workspacePath, onNavigateToLine }: { block: UIBlock 
         </span>
         <span style={{ fontSize: 10, flexShrink: 0 }}>{expanded ? '▲' : '▼'}</span>
       </button>
-      {expanded && <div style={{ padding: '0 12px 10px', fontSize: 11, fontFamily: 'monospace' }}><div style={{ color: 'var(--color-text-secondary)', marginBottom: 4 }}>Arguments:</div><pre style={{ margin: 0, padding: '7px 8px', background: 'var(--color-bg-editor)', border: '1px solid var(--color-border)', borderRadius: 5, whiteSpace: 'pre-wrap', wordBreak: 'break-all', color: 'var(--color-text-primary)', fontSize: 10 }}>{inputStr}</pre>{block.result !== undefined && <><div style={{ color: 'var(--color-text-secondary)', marginTop: 8, marginBottom: 4 }}>{block.error ? 'Error:' : 'Output:'}</div><pre style={{ margin: 0, padding: '7px 8px', background: 'var(--color-bg-code)', border: '1px solid var(--color-border)', borderRadius: 5, whiteSpace: 'pre-wrap', wordBreak: 'break-all', color: block.error ? '#f48771' : 'var(--color-text-primary)', fontSize: 10, maxHeight: 220, overflowY: 'auto' }}>{block.result}</pre></>}</div>}
+      {expanded && <div style={{ padding: '0 12px 10px', fontSize: 11, fontFamily: 'monospace' }}><div style={{ color: 'var(--color-text-secondary)', marginBottom: 4 }}>Arguments:</div><pre style={{ margin: 0, padding: '7px 8px', background: 'var(--color-bg-editor)', border: '1px solid var(--color-border)', borderRadius: 5, whiteSpace: 'pre-wrap', wordBreak: 'break-all', color: 'var(--color-text-primary)', fontSize: 10 }}>{inputStr}</pre>{block.result !== undefined && <><div style={{ color: 'var(--color-text-secondary)', marginTop: 8, marginBottom: 4 }}>{block.error ? 'Error:' : 'Output:'}</div><pre style={{ margin: 0, padding: '7px 8px', background: 'var(--color-bg-code)', border: '1px solid var(--color-border)', borderRadius: 5, whiteSpace: 'pre-wrap', wordBreak: 'break-all', color: block.error ? '#f48771' : 'var(--color-text-primary)', fontSize: 10, maxHeight: 220, overflowY: 'auto' }}>{block.result}</pre></>}{canRevert && <div style={{ marginTop: 8 }}><RevertButton toolCallId={block.id} onReverted={onReverted!} /></div>}</div>}
     </div>
   );
 }
@@ -157,7 +159,7 @@ function SpeakingWave() {
   );
 }
 
-function MessageBubble({ msg, isLast, sendApproval, stopNarrationQueue, resolveApprovalNarration, onSuggestion, onVerbally, isSpeaking, isVerballyLoading, alwaysVerbally, workspacePath, onNavigateToLine }: { msg: UIMessage; isLast: boolean; sendApproval: (id: string, approved: boolean) => void; stopNarrationQueue: () => void; resolveApprovalNarration: (id: string, approved: boolean) => void; onSuggestion: (text: string) => void; onVerbally?: (text: string) => void; isSpeaking?: boolean; isVerballyLoading?: boolean; alwaysVerbally?: boolean; workspacePath: string | null; onNavigateToLine?: (filePath: string, line: number, endLine?: number, startCol?: number, endCol?: number) => void }) {
+function MessageBubble({ msg, isLast, sendApproval, stopNarrationQueue, resolveApprovalNarration, onSuggestion, onVerbally, isSpeaking, isVerballyLoading, alwaysVerbally, onReverted, workspacePath, onNavigateToLine }: { msg: UIMessage; isLast: boolean; sendApproval: (id: string, approved: boolean) => void; stopNarrationQueue: () => void; resolveApprovalNarration: (id: string, approved: boolean) => void; onSuggestion: (text: string) => void; onVerbally?: (text: string) => void; isSpeaking?: boolean; isVerballyLoading?: boolean; alwaysVerbally?: boolean; onReverted?: (path: string) => void; workspacePath: string | null; onNavigateToLine?: (filePath: string, line: number, endLine?: number, startCol?: number, endCol?: number) => void }) {
   if (msg.role === 'user') return <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'flex-end' }}><div style={{ display: 'inline-flex', flexDirection: 'column', maxWidth: '100%' }}><div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 4, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}><span>You</span><span style={{ fontWeight: 400, fontSize: 10 }}>{formatTime(msg.timestamp)}</span></div><div style={{ background: 'var(--color-bg-user-bubble)', borderRadius: 16, padding: '8px 10px', fontSize: 13, color: 'var(--color-text-primary)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', textAlign: 'left' }}>{msg.content}</div></div></div>;
   const isStreaming = msg.isStreaming;
   const hasFileTool = msg.blocks.some(block => block.type === 'tool' && (block.name === 'read_file' || block.name === 'write_file'));
@@ -173,7 +175,7 @@ function MessageBubble({ msg, isLast, sendApproval, stopNarrationQueue, resolveA
     }
     return <code className="md-code-inline" {...props}>{children}</code>;
   };
-  return <div style={{ marginBottom: 12 }}><div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 4, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}><span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><img src="/logo.png" alt="Iodine" style={{ width: 14, height: 14, objectFit: 'contain' }} />Assistant</span><span style={{ fontWeight: 400, fontSize: 10 }}>{formatTime(msg.timestamp)}</span></div><div>{msg.blocks.map((block, i) => { if (block.type === 'text') { const showCursor = isStreaming && isLast && i === msg.blocks.length - 1; return <div key={i} className="md-body"><ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code: codeComponent }}>{block.content}</ReactMarkdown>{showCursor && <span style={{ animation: 'blink 1s step-end infinite', opacity: 1 }}>▌</span>}</div>; } if (block.type === 'thought') return <ThoughtBlock key={i} block={block} />; if (block.type === 'command-approval') return <CommandApprovalBlock key={block.id} block={block} onApprove={() => { resolveApprovalNarration(block.id, true); void sendApproval(block.id, true); }} onReject={() => { resolveApprovalNarration(block.id, false); void sendApproval(block.id, false); }} />; return <ToolBlock key={block.id} block={block} workspacePath={workspacePath} onNavigateToLine={onNavigateToLine} />; })}{!isStreaming && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 2 }}>{hasFileTool && <button onClick={() => onSuggestion('Open file for me')} style={chipStyle(false)}>Open file for me</button>}{(verballyText.length > 120 || (alwaysVerbally && verballyText.length > 0)) && onVerbally && <button onClick={() => onVerbally(verballyText)} style={chipStyle(isSpeaking ?? false)} disabled={isVerballyLoading}>{isVerballyLoading ? 'Preparing…' : isSpeaking ? <SpeakingWave /> : 'Voice Memo'}</button>}</div>}{isStreaming && msg.blocks.length === 0 && <span style={{ fontSize: 13, color: 'var(--color-text-secondary)', animation: 'blink 1s step-end infinite' }}>▌</span>}</div></div>;
+  return <div style={{ marginBottom: 12 }}><div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 4, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}><span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><img src="/logo.png" alt="Iodine" style={{ width: 14, height: 14, objectFit: 'contain' }} />Assistant</span><span style={{ fontWeight: 400, fontSize: 10 }}>{formatTime(msg.timestamp)}</span></div><div>{msg.blocks.map((block, i) => { if (block.type === 'text') { const showCursor = isStreaming && isLast && i === msg.blocks.length - 1; return <div key={i} className="md-body"><ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code: codeComponent }}>{block.content}</ReactMarkdown>{showCursor && <span style={{ animation: 'blink 1s step-end infinite', opacity: 1 }}>▌</span>}</div>; } if (block.type === 'thought') return <ThoughtBlock key={i} block={block} />; if (block.type === 'command-approval') return <CommandApprovalBlock key={block.id} block={block} onApprove={() => { resolveApprovalNarration(block.id, true); void sendApproval(block.id, true); }} onReject={() => { resolveApprovalNarration(block.id, false); void sendApproval(block.id, false); }} />; return <ToolBlock key={block.id} block={block} workspacePath={workspacePath} onNavigateToLine={onNavigateToLine} onReverted={onReverted} />; })}{!isStreaming && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 2 }}>{hasFileTool && <button onClick={() => onSuggestion('Open file for me')} style={chipStyle(false)}>Open file for me</button>}{(verballyText.length > 120 || (alwaysVerbally && verballyText.length > 0)) && onVerbally && <button onClick={() => onVerbally(verballyText)} style={chipStyle(isSpeaking ?? false)} disabled={isVerballyLoading}>{isVerballyLoading ? 'Preparing…' : isSpeaking ? <SpeakingWave /> : 'Voice Memo'}</button>}</div>}{isStreaming && msg.blocks.length === 0 && <span style={{ fontSize: 13, color: 'var(--color-text-secondary)', animation: 'blink 1s step-end infinite' }}>▌</span>}</div></div>;
 }
 
 export interface CodingAssistantHandle {
@@ -208,6 +210,10 @@ export const CodingAssistant = forwardRef<CodingAssistantHandle, CodingAssistant
 
   const { uiMessages, isLoading, isWatching, conversationPersistenceError, canRetryConversationSave, conversationSaveRevision, sendMessage, enqueueEventContext, stopExecution, clearMessages, sendApproval, injectProactiveMessage, notifyEditorActivity, loadConversation, retryConversationSave, clearAllConversations } = useCodingAssistant(provider, model, workspacePath, onNavigateToLine, onWatchTrigger, onAssistantReply, handleToolNarration, onFileTreeRefresh, onSummaryRequest);
   // Keep a ref to sendMessage so callbacks (like transcribeAndSend) never capture a stale closure.
+  const handleEditReverted = useCallback((_path: string) => {
+    onFileTreeRefresh?.();
+  }, [onFileTreeRefresh]);
+
   const sendMessageRef = useRef(sendMessage);
   sendMessageRef.current = sendMessage;
   const isLoadingRef = useRef(isLoading);
@@ -554,7 +560,7 @@ export const CodingAssistant = forwardRef<CodingAssistantHandle, CodingAssistant
             <p style={{ fontSize: 12, margin: 0 }}>Ask about your code</p>
           </div>
         ) : null}
-        {!showConversations && uiMessages.map((msg, i) => <MessageBubble key={msg.id} msg={msg} isLast={i === uiMessages.length - 1} sendApproval={sendApproval} stopNarrationQueue={stopNarrationQueue} resolveApprovalNarration={resolveApprovalNarration} onSuggestion={handleSuggestion} onVerbally={msg.role === 'assistant' ? (text) => handleVerbally(msg.id, text) : undefined} isSpeaking={speakingMsgId === msg.id} isVerballyLoading={verballyLoadingId === msg.id} alwaysVerbally={isTutorMode} workspacePath={workspacePath} onNavigateToLine={onNavigateToLine} />)}
+        {!showConversations && uiMessages.map((msg, i) => <MessageBubble key={msg.id} msg={msg} isLast={i === uiMessages.length - 1} sendApproval={sendApproval} stopNarrationQueue={stopNarrationQueue} resolveApprovalNarration={resolveApprovalNarration} onSuggestion={handleSuggestion} onVerbally={msg.role === 'assistant' ? (text) => handleVerbally(msg.id, text) : undefined} isSpeaking={speakingMsgId === msg.id} isVerballyLoading={verballyLoadingId === msg.id} alwaysVerbally={isTutorMode} onReverted={handleEditReverted} workspacePath={workspacePath} onNavigateToLine={onNavigateToLine} />)}
       </div>
       <div style={{ borderTop: '1px solid var(--color-border)', padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0 }}>
         {activeSystemNode && onOpenNode && <button onClick={() => onOpenNode(activeSystemNode)} title="Navigate to this node in System View" style={{ alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: 5, background: 'transparent', border: '1px solid var(--color-accent, #0e639c)', borderRadius: 999, padding: '2px 8px', fontSize: 11, color: 'var(--color-accent, #0e639c)', cursor: 'pointer', flexShrink: 0 }}>◎ {activeSystemNode}</button>}
