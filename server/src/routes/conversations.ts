@@ -63,6 +63,28 @@ function isValidUiBlock(value: unknown): boolean {
       && typeof value.output === 'string'
       && value.output.length <= MAX_CONTENT_LENGTH;
   }
+  if (value.type === 'plan') {
+    const planSteps = Array.isArray(value.steps) ? value.steps : [];
+    return typeof value.id === 'string'
+      && typeof value.title === 'string'
+      && (value.status === 'proposed' || value.status === 'approved' || value.status === 'executing'
+        || value.status === 'paused' || value.status === 'completed')
+      && (value.executionMode === undefined || value.executionMode === 'auto' || value.executionMode === 'manual')
+      && planSteps.length <= MAX_MESSAGES
+      && planSteps.every(step => isObject(step)
+        && typeof step.text === 'string'
+        && step.text.length <= MAX_CONTENT_LENGTH
+        && typeof step.done === 'boolean'
+        && (step.summary === undefined || typeof step.summary === 'string'));
+  }
+  if (value.type === 'edit-approval') {
+    return typeof value.id === 'string'
+      && (value.op === 'edit' || value.op === 'write')
+      && typeof value.path === 'string'
+      && typeof value.preview === 'string'
+      && value.preview.length <= MAX_CONTENT_LENGTH
+      && (value.status === 'pending' || value.status === 'approved' || value.status === 'rejected');
+  }
   return false;
 }
 

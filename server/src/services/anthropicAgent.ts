@@ -3,8 +3,9 @@ import os from 'os';
 import fs from 'fs';
 import path from 'path';
 import { Response } from 'express';
-import { TOOL_SCHEMAS } from './fileTools';
+import { selectToolEntries } from './fileTools';
 import { executeAgentTool } from './agentTools';
+import type { AgentToolOptions } from './agentTools';
 import { buildSystemPrompt } from '../prompts/systemPrompt';
 
 export async function loadApiKey(): Promise<string> {
@@ -21,11 +22,13 @@ export async function loadApiKey(): Promise<string> {
   throw new Error('API key not found');
 }
 
-const TOOLS: Anthropic.Tool[] = Object.entries(TOOL_SCHEMAS).map(([name, schema]) => ({
-  name,
-  description: schema.description,
-  input_schema: schema.parameters as Anthropic.Tool['input_schema'],
-}));
+function toAnthropicTools(planning?: boolean, executingPlan?: boolean): Anthropic.Tool[] {
+  return selectToolEntries(planning, executingPlan).map(([name, schema]) => ({
+    name,
+    description: schema.description,
+    input_schema: schema.parameters as Anthropic.Tool['input_schema'],
+  }));
+}
 
 // Older models use extended thinking with a budget; newer models use adaptive.
 // Default to adaptive so any future model works without code changes.
@@ -50,11 +53,13 @@ export async function runAgentLoop(
   activeFile: string | null = null,
   customSystemPrompt?: string,
   tutorMode?: boolean,
+  planOptions?: AgentToolOptions,
 ) {
   const apiKey = await loadApiKey();
   const client = new Anthropic({ apiKey });
 
-  const system = customSystemPrompt ?? buildSystemPrompt(activeFile, tutorMode);
+  const system = customSystemPrompt ?? buildSystemPrompt(activeFile, tutorMode, planOptions);
+  const tools = toAnthropicTools(planOptions?.planningMode, planOptions?.executing);
 
   const history = [...messages];
 
@@ -66,7 +71,7 @@ export async function runAgentLoop(
       max_tokens: 32000,
       thinking: getThinkingParam(model),
       system,
-      tools: TOOLS,
+      tools,
       messages: history,
     });
 
@@ -103,7 +108,7 @@ export async function runAgentLoop(
       if (abortSignal.aborted) return;
       writeSSE(res, 'tool_call', { id: toolUse.id, name: toolUse.name, input: toolUse.input, approval_id: toolUse.name === 'run_terminal_command' ? toolUse.id : undefined });
 
-      const result = await executeAgentTool(toolUse.name, toolUse.input as Record<string, unknown>, res, abortSignal, toolUse.id);
+      const result = await executeAgentTool(toolUse.name, toolUse.input as Record<string, unknown>, res, abortSignal, toolUse.id, planOptions);
       writeSSE(res, 'tool_result', {
         tool_use_id: toolUse.id,
         name: toolUse.name,

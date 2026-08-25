@@ -1,9 +1,19 @@
 import { randomUUID } from 'crypto';
 import path from 'path';
 import { Response } from 'express';
-import { executeTool } from './fileTools';
+import { executeTool, EDIT_APPROVAL_TOOL_NAMES, MUTATING_TOOL_NAMES } from './fileTools';
 import { requestTerminalApproval, runTerminalCommand } from './terminalCommands';
+import { describeProposedChange, requestEditApproval } from './editApproval';
 import { rootPath } from '../state';
+
+export interface AgentToolOptions {
+  /** Plan mode is active — mutating tools are rejected outright. */
+  planningMode?: boolean;
+  /** An approved plan is being executed — update_plan_step joins the toolset. */
+  executing?: boolean;
+  /** 'manual' pauses edit_file/write_file until the user approves each change. */
+  editApproval?: 'auto' | 'manual';
+}
 
 export async function executeAgentTool(
   name: string,
@@ -11,7 +21,34 @@ export async function executeAgentTool(
   res: Response,
   abortSignal: { aborted: boolean },
   toolCallId?: string,
+  options?: AgentToolOptions,
 ) {
+  if (options?.planningMode && MUTATING_TOOL_NAMES.has(name)) {
+    return {
+      content: `${name} is blocked in PLAN MODE. Research only — present your plan with propose_plan and end your turn.`,
+      preview: `Blocked in plan mode: ${name}`,
+      error: true,
+    };
+  }
+
+  if (options?.editApproval === 'manual' && EDIT_APPROVAL_TOOL_NAMES.has(name)) {
+    const filePath = typeof input.path === 'string' ? input.path.trim() : '';
+    const op = name === 'write_file' ? 'write' : 'edit';
+    const id = toolCallId ?? randomUUID();
+    const approved = await requestEditApproval(
+      { id, op, path: filePath, preview: describeProposedChange(op, filePath, input) },
+      res,
+      abortSignal,
+    );
+    if (!approved) {
+      return {
+        content: 'The user skipped this change. Do not retry the same edit without asking. Adapt the approach, move to the next step, or explain how skipping affects the rest of the plan.',
+        preview: `Change skipped by user: ${filePath}`,
+        error: true,
+      };
+    }
+  }
+
   if (name === 'open_file') {
     let filePath = typeof input.path === 'string' ? input.path.trim() : '';
     if (!filePath) {
@@ -65,6 +102,37 @@ export async function executeAgentTool(
       preview: 'Commit message populated for review',
       error: false,
     };
+  }
+
+  if (name === 'propose_plan') {
+    const title = typeof input.title === 'string' ? input.title.trim() : '';
+    const steps = Array.isArray(input.steps)
+      ? input.steps.map(s => (typeof s === 'string' ? s.trim() : '')).filter(Boolean)
+      : [];
+    if (!title || steps.length === 0) {
+      return { content: 'title and at least one step are required', preview: 'title and at least one step are required', error: true };
+    }
+    if (!abortSignal.aborted) {
+      res.write(`event: plan\ndata: ${JSON.stringify({ title, steps })}\n\n`);
+    }
+    return {
+      content: 'Plan submitted for user review. End your turn now — the user will approve it, give feedback, or keep planning. Do not restate every step in chat.',
+      preview: `Plan ready: ${title}`,
+      error: false,
+    };
+  }
+
+  if (name === 'update_plan_step') {
+    const toInt = (v: unknown): number => (typeof v === 'number' ? Math.floor(v) : typeof v === 'string' ? parseInt(v, 10) : NaN);
+    const index = toInt(input.index);
+    const summary = typeof input.summary === 'string' ? input.summary.trim() : '';
+    if (!Number.isFinite(index) || index < 1 || !summary) {
+      return { content: 'index (1-based) and summary are required', preview: 'index and summary are required', error: true };
+    }
+    if (!abortSignal.aborted) {
+      res.write(`event: plan_update\ndata: ${JSON.stringify({ index, status: 'done', summary })}\n\n`);
+    }
+    return { content: `Step ${index} recorded as completed. Continue with the next pending step.`, preview: `Step ${index} done`, error: false };
   }
 
   if (name !== 'run_terminal_command') return executeTool(name, input);

@@ -1,7 +1,8 @@
 import OpenAI from 'openai';
 import { Response } from 'express';
-import { TOOL_SCHEMAS } from './fileTools';
+import { selectToolEntries } from './fileTools';
 import { executeAgentTool } from './agentTools';
+import type { AgentToolOptions } from './agentTools';
 import { buildSystemPrompt } from '../prompts/systemPrompt';
 
 export async function loadOpenAIKey(): Promise<string> {
@@ -15,14 +16,16 @@ function isReasoningModel(model: string): boolean {
   return REASONING_MODEL_PREFIXES.some(prefix => model.startsWith(prefix));
 }
 
-const TOOLS: OpenAI.ChatCompletionTool[] = Object.entries(TOOL_SCHEMAS).map(([name, schema]) => ({
-  type: 'function' as const,
-  function: {
-    name,
-    description: schema.description,
-    parameters: schema.parameters,
-  },
-}));
+function toOpenAITools(planning?: boolean, executingPlan?: boolean): OpenAI.ChatCompletionTool[] {
+  return selectToolEntries(planning, executingPlan).map(([name, schema]) => ({
+    type: 'function' as const,
+    function: {
+      name,
+      description: schema.description,
+      parameters: schema.parameters,
+    },
+  }));
+}
 
 function writeSSE(res: Response, event: string, data: unknown) {
   res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
@@ -36,21 +39,24 @@ export async function runOpenAIAgentLoop(
   activeFile: string | null = null,
   customSystemPrompt?: string,
   tutorMode?: boolean,
+  planOptions?: AgentToolOptions,
 ) {
   const apiKey = await loadOpenAIKey();
   const client = new OpenAI({ apiKey });
 
   const history: OpenAI.ChatCompletionMessageParam[] = [
-    { role: 'system', content: customSystemPrompt ?? buildSystemPrompt(activeFile, tutorMode) },
+    { role: 'system', content: customSystemPrompt ?? buildSystemPrompt(activeFile, tutorMode, planOptions) },
     ...messages.map(m => ({ role: m.role, content: m.content })),
   ];
+
+  const tools = toOpenAITools(planOptions?.planningMode, planOptions?.executing);
 
   while (true) {
     if (abortSignal.aborted) return;
 
     const stream = await client.chat.completions.create({
       model,
-      tools: TOOLS,
+      tools,
       messages: history,
       stream: true,
       ...(isReasoningModel(model) ? { reasoning_effort: 'none' as const } : {}),
@@ -97,7 +103,7 @@ export async function runOpenAIAgentLoop(
       let input: Record<string, unknown> = {};
       try { input = JSON.parse(tc.args); } catch { /* malformed args */ }
       writeSSE(res, 'tool_call', { id: tc.id, name: tc.name, input, approval_id: tc.name === 'run_terminal_command' ? tc.id : undefined });
-      const result = await executeAgentTool(tc.name, input, res, abortSignal, tc.id);
+      const result = await executeAgentTool(tc.name, input, res, abortSignal, tc.id, planOptions);
       writeSSE(res, 'tool_result', { tool_use_id: tc.id, name: tc.name, preview: result.preview, error: result.error });
       history.push({ role: 'tool', tool_call_id: tc.id, content: result.content });
     }

@@ -1,7 +1,22 @@
 import { rootPath } from '../state';
 import { TUTOR_SYSTEM_ADDENDUM } from '../prompts/tutorSystem';
+import { PLANNING_MODE_ADDENDUM, PLAN_EXECUTION_ADDENDUM, planEditApprovalAddendum } from '../prompts/planningSystem';
 
-export function buildSystemPrompt(activeFile: string | null, tutorMode?: boolean): string {
+export interface PlanPromptOptions {
+  /** Plan toggle is ON — read-only research phase ending in propose_plan. */
+  planning?: boolean;
+  /** An approved plan is being executed — step tracking rules apply. */
+  executing?: boolean;
+  /** 'manual' requires per-edit user approval before edit_file/write_file apply. */
+  editApproval?: 'auto' | 'manual';
+}
+
+export function buildSystemPrompt(activeFile: string | null, tutorMode?: boolean, planOptions?: PlanPromptOptions): string {
+  const planning = planOptions?.planning ?? false;
+  const executing = planOptions?.executing ?? false;
+  // Plan mode forbids edits; the Mentor addendum encourages them. When both are
+  // on, plan mode wins and the Mentor walkthrough guidance is dropped.
+  const includeTutor = tutorMode && !planning;
   const workspaceInfo = rootPath ? `Workspace: ${rootPath}` : 'No workspace is currently open.';
   const activeFileInfo = activeFile ? `The user currently has this file open in the editor: ${activeFile}` : '';
   const base = `You are a coding assistant with access to the user's project files.
@@ -28,7 +43,11 @@ Avoid just stating what is needed, instead ask the user if they want to do it th
 
 If you feel that the user is progressively struggling or not making progress, be more liberal in adding assistance and help, going beyond the set response limit.
 `;
-  return tutorMode ? base + TUTOR_SYSTEM_ADDENDUM : base;
+  let prompt = base;
+  if (includeTutor) prompt += TUTOR_SYSTEM_ADDENDUM;
+  if (planning) prompt += PLANNING_MODE_ADDENDUM;
+  if (executing) prompt += PLAN_EXECUTION_ADDENDUM + planEditApprovalAddendum(planOptions?.editApproval);
+  return prompt;
 }
 
 export { TUTOR_SYSTEM_ADDENDUM } from '../prompts/tutorSystem';

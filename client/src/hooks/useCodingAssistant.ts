@@ -4,6 +4,7 @@ import type { Provider } from '../providers';
 import { fetchOverallDiff } from '../api/files';
 import { saveConversation, clearConversations, type ConversationRecord } from '../api/conversations';
 import { createEventContextQueue, formatEventContext, type EventContext } from '../utils/eventContextQueue';
+import { formatPlanState, isPlanActive, latestPlanFromMessages, type ActivePlan } from '../utils/planContext';
 
 function uid() {
   return typeof crypto.randomUUID === 'function'
@@ -21,6 +22,9 @@ function normalizeForSave(msgs: UIMessage[]): UIMessage[] {
       blocks: msg.blocks.map(block => {
         if (block.type === 'tool') return { ...block, pending: false };
         if (block.type === 'command-approval' && block.status === 'pending') {
+          return { ...block, status: 'rejected' as const };
+        }
+        if (block.type === 'edit-approval' && block.status === 'pending') {
           return { ...block, status: 'rejected' as const };
         }
         return block;
@@ -109,6 +113,11 @@ export function useCodingAssistant(
   const eventContextQueueRef = useRef(createEventContextQueue());
   const armedReplyRef = useRef<string | null>(null);
 
+  // Durable memory of the plan currently being planned/executed. Lives outside
+  // React state so sendMessage can snapshot it synchronously, and survives
+  // reloads by being rebuilt from persisted plan blocks (see loadConversation).
+  const activePlanRef = useRef<ActivePlan | null>(null);
+
   // Keep workspacePath current without adding it to sendMessage's dependency array.
   const workspacePathRef = useRef(workspacePath);
   workspacePathRef.current = workspacePath;
@@ -127,6 +136,7 @@ export function useCodingAssistant(
     thoughtBufRef.current = '';
     pendingProactiveContextRef.current = null;
     armedReplyRef.current = null;
+    activePlanRef.current = null;
     pendingSaveRef.current = null;
     failedSaveRef.current = null;
     conversationIdRef.current = uid();
@@ -201,6 +211,31 @@ export function useCodingAssistant(
     }));
     try {
       await fetch(`${API_BASE}/api/agent/terminal/approval`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, approved }),
+      });
+    } catch {
+      // timeout on server will reject automatically
+    }
+  }, []);
+
+  /** Approve or skip a pending edit while executing in manual review mode. */
+  const sendEditApproval = useCallback(async (id: string, approved: boolean) => {
+    // Update block status immediately so buttons disappear
+    setUiMessages(prev => prev.map(msg => {
+      if (msg.role !== 'assistant') return msg;
+      return {
+        ...msg,
+        blocks: msg.blocks.map(b =>
+          b.type === 'edit-approval' && b.id === id
+            ? { ...b, status: (approved ? 'approved' : 'rejected') as 'approved' | 'rejected' }
+            : b
+        ),
+      };
+    }));
+    try {
+      await fetch(`${API_BASE}/api/agent/edit/approval`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, approved }),
@@ -403,7 +438,7 @@ export function useCodingAssistant(
 
   // ── sendMessage ───────────────────────────────────────────────────────────────
 
-  const sendMessage = useCallback(async (text: string, activeFilePath?: string | null, editorContext?: string | null, contextPaths?: string[], tutorMode?: boolean, fresh?: boolean, extraContext?: string | null) => {
+  const sendMessage = useCallback(async (text: string, activeFilePath?: string | null, editorContext?: string | null, contextPaths?: string[], tutorMode?: boolean, fresh?: boolean, extraContext?: string | null, planningMode?: boolean) => {
     if (!text.trim() || isLoading) return;
 
     const sendWorkspacePath = workspacePathRef.current;
@@ -438,6 +473,13 @@ export function useCodingAssistant(
     let apiContent = text;
     if (eventContext) {
       apiContent = `${eventContext}\n\n---\n${apiContent}`;
+    }
+    // Durable plan memory: while a plan is approved/executing, every request
+    // carries its full state so the model knows the phase and what remains.
+    const planSnapshot = activePlanRef.current;
+    const planContext = planSnapshot && isPlanActive(planSnapshot) ? formatPlanState(planSnapshot) : '';
+    if (planContext) {
+      apiContent = `${planContext}\n\n---\n${apiContent}`;
     }
     if (proactiveContext) {
       apiContent = `**Context at the time of the assistant's proactive message (for reference only — respond conversationally, do not call any tools):**\n${proactiveContext}\n\n---\n${apiContent}`;
@@ -484,7 +526,16 @@ export function useCodingAssistant(
       const response = await fetch(`${API_BASE}/api/agent/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: newHistory, model: modelToUse, provider: provider.id, activeFile: activeFilePath ?? null, tutorMode: tutorMode ?? false }),
+        body: JSON.stringify({
+          messages: newHistory,
+          model: modelToUse,
+          provider: provider.id,
+          activeFile: activeFilePath ?? null,
+          tutorMode: tutorMode ?? false,
+          planningMode: planningMode ?? false,
+          planActive: isPlanActive(activePlanRef.current),
+          editApproval: activePlanRef.current?.executionMode ?? 'auto',
+        }),
         signal: controller.signal,
       });
 
@@ -588,6 +639,52 @@ export function useCodingAssistant(
             if (message) {
               window.dispatchEvent(new CustomEvent('iodine:git-commit-compose', { detail: { message } }));
             }
+          } else if (eventName === 'plan') {
+            flushNow();
+            const title = typeof payload.title === 'string' ? payload.title : '';
+            const steps = Array.isArray(payload.steps)
+              ? payload.steps.map(s => ({ text: String(s), done: false }))
+              : [];
+            if (!title || steps.length === 0) continue;
+            const planId = uid();
+            const planBlock: UIBlock = { type: 'plan', id: planId, title, steps, status: 'proposed' };
+            updateAssistant(msg => ({ ...msg, blocks: [...msg.blocks, planBlock] }));
+            activePlanRef.current = { id: planId, title, steps: steps.map(s => ({ ...s })), status: 'proposed' };
+          } else if (eventName === 'plan_update') {
+            flushNow();
+            const index = typeof payload.index === 'number' ? Math.floor(payload.index) : NaN;
+            const summary = typeof payload.summary === 'string' ? payload.summary : '';
+            if (!Number.isFinite(index) || index < 1) continue;
+            const stepIdx = index - 1;
+            const plan = activePlanRef.current;
+            if (!plan) continue;
+            // Patch every matching plan block (the block lives in an earlier
+            // message than the one currently streaming).
+            setUiMessages(prev => prev.map(msg => {
+              if (msg.role !== 'assistant') return msg;
+              let changed = false;
+              const blocks = msg.blocks.map(b => {
+                if (b.type !== 'plan' || b.id !== plan.id || b.status === 'proposed') return b;
+                if (stepIdx >= b.steps.length) return b;
+                changed = true;
+                const steps = b.steps.map((s, si) => si === stepIdx && !s.done ? { ...s, done: true, summary } : s);
+                return { ...b, steps, status: steps.every(s => s.done) ? 'completed' as const : 'executing' as const };
+              });
+              return changed ? { ...msg, blocks } : msg;
+            }));
+            const steps = plan.steps.map((s, si) => si === stepIdx && !s.done ? { ...s, done: true, summary } : s);
+            activePlanRef.current = { ...plan, steps, status: steps.every(s => s.done) ? 'completed' : 'executing' };
+          } else if (eventName === 'edit_approval') {
+            flushNow();
+            const approvalBlock: UIBlock = {
+              type: 'edit-approval',
+              id: payload.id as string,
+              op: payload.op === 'write' ? 'write' : 'edit',
+              path: payload.path as string,
+              preview: payload.preview as string,
+              status: 'pending',
+            };
+            updateAssistant(msg => ({ ...msg, blocks: [...msg.blocks, approvalBlock] }));
           } else if (eventName === 'text_delta') {
             const text = payload.text as string;
             // Buffer for animation-frame batching
@@ -692,8 +789,24 @@ export function useCodingAssistant(
       thoughtBufRef.current = '';
       const stopped = controller.signal.aborted;
       const errText = err instanceof Error ? err.message : 'Unknown error';
+      // Stopping mid-execution parks the plan as paused so the next message
+      // carries <PlanState> and the card offers Resume.
+      const pausedPlan = stopped ? activePlanRef.current : null;
+      const pausable = !!pausedPlan && (pausedPlan.status === 'approved' || pausedPlan.status === 'executing');
+      if (pausable && pausedPlan) {
+        activePlanRef.current = { ...pausedPlan, status: 'paused' };
+      }
+      const pausedPlanId = pausable && pausedPlan ? pausedPlan.id : null;
+      const isPausableBlock = (s: string) => s === 'executing' || s === 'approved';
       setUiMessages(prev => prev.map(m => {
-        if (m.id !== assistantId || m.role !== 'assistant') return m;
+        if (m.id !== assistantId || m.role !== 'assistant') {
+          if (pausedPlanId) {
+            return m.role === 'assistant'
+              ? { ...m, blocks: m.blocks.map(b => b.type === 'plan' && b.id === pausedPlanId && isPausableBlock(b.status) ? { ...b, status: 'paused' as const } : b) }
+              : m;
+          }
+          return m;
+        }
         const blocks = [...m.blocks];
         for (const [content, type] of [[bufferedThought, 'thought'], [bufferedText, 'text']] as [string, 'thought' | 'text'][]) {
           if (!content) continue;
@@ -714,6 +827,47 @@ export function useCodingAssistant(
     }
   }, [history, isLoading, model, provider]);
 
+  /** Approve a proposed plan and immediately start executing it. */
+  const approvePlan = useCallback((planId: string, executionMode: 'auto' | 'manual') => {
+    const plan = activePlanRef.current;
+    if (!plan || plan.id !== planId || plan.status !== 'proposed') return;
+    activePlanRef.current = { ...plan, status: 'approved', executionMode };
+    setUiMessages(prev => prev.map(msg => {
+      if (msg.role !== 'assistant') return msg;
+      return {
+        ...msg,
+        blocks: msg.blocks.map(b =>
+          b.type === 'plan' && b.id === planId ? { ...b, status: 'approved' as const, executionMode } : b
+        ),
+      };
+    }));
+    void sendMessage(
+      executionMode === 'manual'
+        ? 'Approved — execute the plan. Ask me to review each file change before you apply it.'
+        : 'Approved — execute the plan.',
+      undefined, undefined, undefined, undefined, false, undefined, false,
+    );
+  }, [sendMessage]);
+
+  /** Resume a paused/interrupted plan from its next pending step. */
+  const resumePlan = useCallback(() => {
+    const plan = activePlanRef.current;
+    if (!plan || !isPlanActive(plan)) return;
+    activePlanRef.current = { ...plan, status: 'executing' };
+    setUiMessages(prev => prev.map(msg => {
+      if (msg.role !== 'assistant') return msg;
+      return {
+        ...msg,
+        blocks: msg.blocks.map(b =>
+          b.type === 'plan' && b.id === plan.id && b.status === 'paused'
+            ? { ...b, status: 'executing' as const }
+            : b
+        ),
+      };
+    }));
+    void sendMessage('Continue executing the plan from the next pending step.', undefined, undefined, undefined, undefined, false, undefined, false);
+  }, [sendMessage]);
+
   const clearMessages = useCallback(() => {
     sessionGenerationRef.current += 1;
     armedReplyRef.current = null;
@@ -728,6 +882,7 @@ export function useCodingAssistant(
     setIsLoading(false);
     setIsWatching(false);
     conversationIdRef.current = uid(); // fresh ID for the next conversation
+    activePlanRef.current = null;
     setUiMessages([]);
     setHistory([]);
   }, []);
@@ -747,6 +902,23 @@ export function useCodingAssistant(
     setIsLoading(false);
     setIsWatching(false);
     conversationIdRef.current = record.id;
+    // Rebuild plan memory from persisted blocks. A plan saved mid-execution has
+    // nothing in flight anymore, so it resumes life as paused until the user
+    // explicitly continues.
+    const restoredPlan = latestPlanFromMessages(record.uiMessages ?? []);
+    if (restoredPlan && restoredPlan.status === 'executing') {
+      activePlanRef.current = { ...restoredPlan, status: 'paused' };
+      for (const msg of record.uiMessages) {
+        if (msg.role !== 'assistant') continue;
+        msg.blocks = msg.blocks.map(b => {
+          if (b.type !== 'plan' || b.id !== restoredPlan.id || b.status !== 'executing') return b;
+          const paused: typeof b = { type: 'plan', id: b.id, title: b.title, steps: b.steps, status: 'paused', executionMode: b.executionMode };
+          return paused;
+        });
+      }
+    } else {
+      activePlanRef.current = restoredPlan;
+    }
     setUiMessages(record.uiMessages);
     setHistory(record.history);
   }, []);
@@ -788,6 +960,9 @@ export function useCodingAssistant(
     stopExecution,
     clearMessages,
     sendApproval,
+    approvePlan,
+    resumePlan,
+    sendEditApproval,
     injectProactiveMessage,
     notifyEditorActivity,
     loadConversation,

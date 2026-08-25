@@ -4,6 +4,7 @@ import { join } from 'path';
 import { loadApiKey, runAgentLoop } from '../services/anthropicAgent';
 import { loadOpenAIKey, runOpenAIAgentLoop } from '../services/openaiAgent';
 import { loadGeminiKey, runGeminiAgentLoop } from '../services/geminiAgent';
+import { resolveEditApproval } from '../services/editApproval';
 import { architectureGraphInitMessage, architectureGraphSystemPrompt } from '../prompts/architectureGraph';
 import { rootPath } from '../state';
 import Anthropic from '@anthropic-ai/sdk';
@@ -42,12 +43,15 @@ router.get('/agent/status', async (_req, res) => {
 });
 
 router.post('/agent/chat', async (req, res) => {
-  const { messages, model, provider, activeFile, tutorMode } = req.body as {
+  const { messages, model, provider, activeFile, tutorMode, planningMode, planActive, editApproval } = req.body as {
     messages?: { role: 'user' | 'assistant'; content: string }[];
     model?: string;
     provider?: string;
     activeFile?: string | null;
     tutorMode?: boolean;
+    planningMode?: boolean;
+    planActive?: boolean;
+    editApproval?: 'auto' | 'manual';
   };
 
   if (!messages || !Array.isArray(messages)) {
@@ -56,6 +60,7 @@ router.post('/agent/chat', async (req, res) => {
 
   const selectedModel = model || 'claude-sonnet-4-6';
   const selectedProvider = provider || 'anthropic';
+  const planOptions = { planning: planningMode ?? false, executing: planActive ?? false, editApproval: editApproval === 'manual' ? 'manual' as const : 'auto' as const };
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -73,12 +78,12 @@ router.post('/agent/chat', async (req, res) => {
 
   try {
     if (selectedProvider === 'openai') {
-      await runOpenAIAgentLoop(messages, selectedModel, res, abortSignal, activeFile ?? null, undefined, tutorMode);
+      await runOpenAIAgentLoop(messages, selectedModel, res, abortSignal, activeFile ?? null, undefined, tutorMode, planOptions);
     } else if (selectedProvider === 'google') {
-      await runGeminiAgentLoop(messages, selectedModel, res, abortSignal, activeFile ?? null, undefined, tutorMode);
+      await runGeminiAgentLoop(messages, selectedModel, res, abortSignal, activeFile ?? null, undefined, tutorMode, planOptions);
     } else {
       const history: Anthropic.MessageParam[] = messages.map(m => ({ role: m.role, content: m.content }));
-      await runAgentLoop(history, selectedModel, res, abortSignal, activeFile ?? null, undefined, tutorMode);
+      await runAgentLoop(history, selectedModel, res, abortSignal, activeFile ?? null, undefined, tutorMode, planOptions);
     }
   } catch (err: unknown) {
     if (!abortSignal.aborted) {
@@ -89,6 +94,19 @@ router.post('/agent/chat', async (req, res) => {
     clearInterval(heartbeat);
     if (!abortSignal.aborted) res.end();
   }
+});
+
+router.post('/agent/edit/approval', (req, res) => {
+  const { id, approved } = req.body as { id?: string; approved?: boolean };
+  if (!id || typeof approved !== 'boolean') {
+    return res.status(400).json({ error: 'id and approved are required' });
+  }
+
+  if (!resolveEditApproval(id, approved)) {
+    return res.status(404).json({ error: 'Edit approval request was not found or has expired' });
+  }
+
+  return res.json({ ok: true });
 });
 
 // ── System graph generation (agentic — reads the actual workspace) ────────────
