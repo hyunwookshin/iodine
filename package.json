@@ -10,7 +10,7 @@
     "build": "npm run build --workspace=server && npm run build --workspace=client",
     "test": "npm run test --workspace=client",
     "typecheck": "npm run typecheck --workspace=client && npm run typecheck --workspace=server",
-    "postinstall": "chmod +x node_modules/node-pty/prebuilds/darwin-x64/spawn-helper node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper 2>/dev/null || true"
+    "postinstall": "node -e \"const fs=require('fs');for(const p of ['node_modules/node-pty/prebuilds/darwin-x64/spawn-helper','node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper']){try{fs.chmodSync(p,0o755)}catch{}}\""
   },
   "devDependencies": {
     "concurrently": "^8.2.0"
