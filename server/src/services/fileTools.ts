@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { buildTree, readFileContent, writeFileContent } from './fileSystem';
+import { saveSnapshot } from './editSnapshots';
 import { rootPath } from '../state';
 
 export type ToolResult = { content: string; preview: string; error: boolean };
@@ -47,7 +48,7 @@ async function searchFiles(query: string, searchPath?: string, glob?: string): P
   return results.slice(0, 200).join('\n');
 }
 
-export async function executeTool(name: string, input: Record<string, unknown>): Promise<ToolResult> {
+export async function executeTool(name: string, input: Record<string, unknown>, toolCallId?: string): Promise<ToolResult> {
   try {
     if (name === 'read_file') {
       if (!rootPath) return { content: 'No workspace open', preview: 'No workspace open', error: true };
@@ -70,6 +71,7 @@ export async function executeTool(name: string, input: Record<string, unknown>):
       const content = input.content as string;
       const abs = path.isAbsolute(filePath) ? filePath : path.join(rootPath, filePath);
       await fs.promises.mkdir(path.dirname(abs), { recursive: true });
+      if (toolCallId) await saveSnapshot(rootPath, toolCallId, abs, content, name);
       await writeFileContent(abs, content, rootPath);
       return { content: `File written: ${filePath}`, preview: `File written: ${filePath}`, error: false };
     }
@@ -89,6 +91,7 @@ export async function executeTool(name: string, input: Record<string, unknown>):
         return { content: `edit_file failed: old_string matches ${count} locations in ${filePath}. Add more surrounding context to make it unique.`, preview: `${count} matches — ambiguous`, error: true };
       }
       const updated = original.replace(oldString, newString);
+      if (toolCallId) await saveSnapshot(rootPath, toolCallId, abs, updated, name);
       await writeFileContent(abs, updated, rootPath);
       const added = newString.split('\n').length - oldString.split('\n').length;
       const summary = added === 0 ? 'lines replaced' : added > 0 ? `+${added} lines` : `${added} lines`;
