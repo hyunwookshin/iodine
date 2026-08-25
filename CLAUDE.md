@@ -370,6 +370,36 @@ The **Tutor** toggle in the Coding Assistant (left of the Send button) switches 
 2. Turn 2+ — on each user reply, opens exactly ONE file, highlights the relevant lines, explains, then stops.
 Never more than one `open_file` call per response turn.
 
+#### Planning Mode
+
+The **Plan** toggle in the Coding Assistant (left of the Mentor toggle; also `Shift+Tab` inside the chat textarea) switches the assistant into a two-phase Claude-Code-style workflow: read-only research → structured plan → user approval → step-tracked execution.
+
+**Phases and enforcement:**
+
+| Phase | Trigger | Toolset given to the model | Enforcement |
+|-------|---------|---------------------------|-------------|
+| Planning | `planningMode: true` in POST body | Read-only (`read_file`, `list_directory`, `search_files`, `open_file`, `invoke_summary`) + `propose_plan` | Mutating tools removed from schemas AND rejected in `executeAgentTool`; plan-mode addendum appended to system prompt (overrides the Mentor addendum's editing permission) |
+| Execution | `planActive: true` + `editApproval: 'auto'\|'manual'` | Full toolset + `update_plan_step` | Execution addendum requires a `update_plan_step` call after every completed step |
+
+| File | Role |
+|------|------|
+| `client/src/components/right/CodingAssistant.tsx` | Owns `isPlanningMode` state; renders the **Plan** toggle; Shift+Tab cycles Normal↔Plan; passes `isPlanningMode` as the last arg of `sendMessage`. Renders `PlanBlock` / `EditApprovalBlock`. |
+| `client/src/components/right/PlanBlock.tsx` | Plan card: checklist with per-step done state + summaries, status pill (`proposed/approved/executing/paused/completed`). Buttons: **Approve & Execute**, **Review Each Edit**, **Give Feedback** (proposed); **Resume Execution** (paused). |
+| `client/src/components/right/EditApprovalBlock.tsx` | Per-edit approval card shown while executing with `executionMode: 'manual'`: op badge, path, change preview, Apply/Skip buttons. |
+| `client/src/utils/planContext.ts` | Pure helpers: `isPlanActive`, `formatPlanState` (builds the invisible `<PlanState>` block), `latestPlanFromMessages` (restores plan memory from persisted messages on reload). Unit-tested in `planContext.test.ts`. |
+| `client/src/hooks/useCodingAssistant.ts` | Maintains `activePlanRef` — durable memory of the active plan across requests/restarts. Handles SSE `plan`, `plan_update`, `edit_approval` events; injects `<PlanState>` into every request's apiContent while a plan is approved/executing/paused; marks the plan `paused` when stopped mid-execution; exposes `approvePlan(id, mode)`, `resumePlan()`, `sendEditApproval(id, approved)`. Sends `planningMode`/`planActive`/`editApproval` in the POST body. |
+| `server/src/prompts/planningSystem.ts` | `PLANNING_MODE_ADDENDUM` (research-only, propose via tool, iterate on feedback) and `PLAN_EXECUTION_ADDENDUM` (follow steps in order, record each, resume from first pending) + `planEditApprovalAddendum()` for manual mode. Composed in `buildSystemPrompt(activeFile, tutorMode, planOptions)`. |
+| `server/src/services/fileTools.ts` | `TOOL_SCHEMAS` gains `propose_plan(title, steps[])` and `update_plan_step(index, summary)`; exports `selectToolEntries(planning?, executing?)` used by all three providers instead of the raw schema map, plus `MUTATING_TOOL_NAMES` and `EDIT_APPROVAL_TOOL_NAMES`. |
+| `server/src/services/editApproval.ts` | Manual-edit approval flow cloned from terminal commands: emits SSE `edit_approval`, parks a resolver keyed by id (5-min timeout), resolved via `POST /api/agent/edit/approval`. |
+| `server/src/services/agentTools.ts` | Handles `propose_plan` (emits `plan`) and `update_plan_step` (emits `plan_update`). Hard gate: mutating tools return an error result when `planningMode` is set; `edit_file`/`write_file` route through `requestEditApproval` when `editApproval: 'manual'`. All three agent loops accept a trailing `AgentToolOptions { planningMode, executing, editApproval }` param. |
+| `server/src/routes/agent.ts` | Extracts `planningMode`, `planActive`, `editApproval` from the chat body into `planOptions`; new `POST /agent/edit/approval` route. |
+| `server/src/routes/conversations.ts` | `isValidUiBlock` whitelists `plan` and `edit-approval` blocks so conversations containing them persist. |
+
+**New SSE events:** `plan { title, steps[] }` → client creates a proposed plan block; `plan_update { index, status:'done', summary }` → patches the matching plan block across messages (the block usually lives in an earlier message than the streaming one); `edit_approval { id, op, path, preview }` → renders an approval card that resolves server-side execution.
+
+**Plan memory:** plan state lives in persisted `uiMessages` (like command-approval blocks). On conversation load, the most recent plan block rebuilds `activePlanRef`; a plan saved mid-execution reopens as `paused`. While active, `<PlanState title=… status=… editApproval=…>` listing completed steps (with change summaries) and pending steps is injected invisibly ahead of the user text, so stopping, asking questions, or restarting never loses track.
+
+
 ### Navigation and System View
 
 #### File Explorer Auto-Expand

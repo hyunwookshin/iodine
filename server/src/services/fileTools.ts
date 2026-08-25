@@ -221,4 +221,50 @@ export const TOOL_SCHEMAS = {
       required: ['path', 'line'],
     },
   },
+  propose_plan: {
+    description: 'Submit your implementation plan for user review. Available only in PLAN MODE. Call it once your research is complete, with a short title and ordered concrete steps (files to create/modify, what changes, how each step is verified). After calling it, end your turn — do not attempt any modifications.',
+    parameters: {
+      type: 'object' as const,
+      properties: {
+        title: { type: 'string', description: 'Short label describing the overall task' },
+        steps: { type: 'array', description: 'Ordered implementation steps, each concrete and independently verifiable', items: { type: 'string', description: 'A single implementation step' } },
+      },
+      required: ['title', 'steps'],
+    },
+  },
+  update_plan_step: {
+    description: 'Mark one step of the approved plan as completed immediately after finishing it. Only available while executing an approved plan. Supply the 1-based step index and a one-sentence summary of the actual changes made (files touched, key edits).',
+    parameters: {
+      type: 'object' as const,
+      properties: {
+        index: { type: 'integer', description: '1-based number of the plan step that was just completed' },
+        summary: { type: 'string', description: 'One sentence describing what actually changed' },
+      },
+      required: ['index', 'summary'],
+    },
+  },
 } as const;
+
+/** Tools that modify the workspace or take user-visible actions — blocked during planning. */
+export const MUTATING_TOOL_NAMES = new Set(['edit_file', 'write_file', 'run_terminal_command', 'git_commit_compose']);
+
+/** Tools whose application requires per-edit approval when execution runs in manual mode. */
+export const EDIT_APPROVAL_TOOL_NAMES = new Set(['edit_file', 'write_file']);
+
+const PLANNING_TOOL_NAMES = new Set(['read_file', 'list_directory', 'search_files', 'open_file', 'invoke_summary', 'propose_plan']);
+
+type ToolSchema = (typeof TOOL_SCHEMAS)[keyof typeof TOOL_SCHEMAS];
+export type ToolSchemaEntry = [string, ToolSchema];
+
+/**
+ * Selects the toolset handed to the model for one request.
+ * - Planning phase: read-only research tools + propose_plan.
+ * - Plan execution: full toolset + update_plan_step.
+ * - Normal chat: full toolset only.
+ */
+export function selectToolEntries(planning?: boolean, executingPlan?: boolean): ToolSchemaEntry[] {
+  const all = Object.entries(TOOL_SCHEMAS) as ToolSchemaEntry[];
+  if (planning) return all.filter(([name]) => PLANNING_TOOL_NAMES.has(name));
+  if (executingPlan) return all.filter(([name]) => name !== 'propose_plan');
+  return all.filter(([name]) => name !== 'propose_plan' && name !== 'update_plan_step');
+}

@@ -30,13 +30,26 @@ export interface WorkspaceInfo {
   name: string | null;
 }
 
+export interface PlanStep {
+  text: string;
+  done: boolean;
+  /** One-sentence summary of the actual changes made for this step. */
+  summary?: string;
+}
+
+export type PlanBlockStatus = 'proposed' | 'approved' | 'executing' | 'paused' | 'completed';
+
 export type UIBlock =
   | { type: 'text'; content: string }
   | { type: 'thought'; content: string }
   | { type: 'tool'; id: string; name: string; input: Record<string, unknown>;
       result?: string; error?: boolean; pending: boolean }
   | { type: 'command-approval'; id: string; command: string; reason: string; cwd: string | null;
-      longRunning: boolean; status: 'pending' | 'approved' | 'rejected'; output: string };
+      longRunning: boolean; status: 'pending' | 'approved' | 'rejected'; output: string }
+  | { type: 'plan'; id: string; title: string; steps: PlanStep[]; status: PlanBlockStatus;
+      executionMode?: 'auto' | 'manual' }
+  | { type: 'edit-approval'; id: string; op: 'edit' | 'write'; path: string; preview: string;
+      status: 'pending' | 'approved' | 'rejected' };
 
 export type UIMessage =
   | { id: string; role: 'user'; content: string; timestamp: number }

@@ -1,7 +1,8 @@
 import { GoogleGenAI, Type } from '@google/genai';
 import { Response } from 'express';
-import { TOOL_SCHEMAS } from './fileTools';
+import { selectToolEntries } from './fileTools';
 import { executeAgentTool } from './agentTools';
+import type { AgentToolOptions } from './agentTools';
 import { buildSystemPrompt } from '../prompts/systemPrompt';
 
 export async function loadGeminiKey(): Promise<string> {
@@ -32,17 +33,19 @@ function convertProperties(
   return out;
 }
 
-const FUNCTION_DECLARATIONS = Object.entries(TOOL_SCHEMAS).map(([name, schema]) => ({
-  name,
-  description: schema.description,
-  parameters: {
-    type: Type.OBJECT,
-    properties: convertProperties(
-      (schema.parameters as { properties?: Record<string, { type: string; description?: string }> }).properties ?? {},
-    ),
-    required: (schema.parameters as { required?: string[] }).required ?? [],
-  },
-}));
+function toFunctionDeclarations(planning?: boolean, executingPlan?: boolean) {
+  return selectToolEntries(planning, executingPlan).map(([name, schema]) => ({
+    name,
+    description: schema.description,
+    parameters: {
+      type: Type.OBJECT,
+      properties: convertProperties(
+        (schema.parameters as { properties?: Record<string, { type: string; description?: string }> }).properties ?? {},
+      ),
+      required: (schema.parameters as { required?: string[] }).required ?? [],
+    },
+  }));
+}
 
 function writeSSE(res: Response, event: string, data: unknown) {
   res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
@@ -63,9 +66,12 @@ export async function runGeminiAgentLoop(
   activeFile: string | null = null,
   customSystemPrompt?: string,
   tutorMode?: boolean,
+  planOptions?: AgentToolOptions,
 ) {
   const apiKey = await loadGeminiKey();
   const ai = new GoogleGenAI({ apiKey });
+
+  const functionDeclarations = toFunctionDeclarations(planOptions?.planningMode, planOptions?.executing);
 
   // Build Gemini contents array — 'assistant' → 'model'
   const history: GeminiContent[] = messages.map(m => ({
@@ -83,8 +89,8 @@ export async function runGeminiAgentLoop(
       model,
       contents: history,
       config: {
-        systemInstruction: customSystemPrompt ?? buildSystemPrompt(activeFile, tutorMode),
-        tools: [{ functionDeclarations: FUNCTION_DECLARATIONS }],
+        systemInstruction: customSystemPrompt ?? buildSystemPrompt(activeFile, tutorMode, planOptions),
+        tools: [{ functionDeclarations }],
         ...(supportsThinking ? { thinkingConfig: { thinkingBudget: 8000 } } : {}),
       },
     });
@@ -139,7 +145,7 @@ export async function runGeminiAgentLoop(
 
       writeSSE(res, 'tool_call', { id: fc.id, name: fc.name, input: fc.args, approval_id: fc.name === 'run_terminal_command' ? fc.id : undefined });
 
-      const result = await executeAgentTool(fc.name, fc.args, res, abortSignal, fc.id);
+      const result = await executeAgentTool(fc.name, fc.args, res, abortSignal, fc.id, planOptions);
       writeSSE(res, 'tool_result', {
         tool_use_id: fc.id,
         name: fc.name,
