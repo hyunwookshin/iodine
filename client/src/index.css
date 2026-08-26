@@ -30,6 +30,7 @@
   --color-error: #f48771;
   --color-icon: #858585;
   --color-icon-active: #ffffff;
+  --color-folder: #4dd0e1;
   --color-scrollbar: #424242;
   --color-scrollbar-hover: #555555;
   --color-preview-heading: #e0e0e0;
@@ -77,6 +78,7 @@
   --color-error: #b91c1c;
   --color-icon: #616161;
   --color-icon-active: #1f1f1f;
+  --color-folder: #00838f;
   --color-scrollbar: #c1c1c1;
   --color-scrollbar-hover: #a8a8a8;
   --color-preview-heading: #24292f;
