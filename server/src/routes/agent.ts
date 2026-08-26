@@ -5,6 +5,7 @@ import { loadApiKey, runAgentLoop } from '../services/anthropicAgent';
 import { loadOpenAIKey, runOpenAIAgentLoop } from '../services/openaiAgent';
 import { loadGeminiKey, runGeminiAgentLoop } from '../services/geminiAgent';
 import { architectureGraphInitMessage, architectureGraphSystemPrompt } from '../prompts/architectureGraph';
+import { revertEdit } from '../services/editSnapshots';
 import { rootPath } from '../state';
 import Anthropic from '@anthropic-ai/sdk';
 
@@ -39,6 +40,20 @@ router.get('/agent/status', async (_req, res) => {
     loadGeminiKey().then(() => true).catch(() => false),
   ]);
   res.json({ configured: anthropicOk, providers: { anthropic: anthropicOk, openai: openaiOk, google: geminiOk }, workspace: rootPath });
+});
+
+router.post('/agent/revert', async (req, res) => {
+  const { toolCallId, force } = req.body as { toolCallId?: string; force?: boolean };
+  if (!rootPath) return res.status(400).json({ error: 'No workspace open' });
+  if (!toolCallId) return res.status(400).json({ error: 'toolCallId is required' });
+
+  try {
+    const result = await revertEdit(rootPath, toolCallId, force === true);
+    if (result.outcome === 'not-found') return res.status(404).json({ error: 'No snapshot for this edit' });
+    return res.json(result);
+  } catch (err: unknown) {
+    return res.status(500).json({ error: err instanceof Error ? err.message : 'Revert failed' });
+  }
 });
 
 router.post('/agent/chat', async (req, res) => {

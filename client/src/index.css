@@ -27,6 +27,7 @@
   --color-bg-callout: #211d00;
   --color-border-callout: #3a3200;
   --color-text-callout: #b89830;
+  --color-error: #f48771;
   --color-icon: #858585;
   --color-icon-active: #ffffff;
   --color-scrollbar: #424242;
@@ -73,6 +74,7 @@
   --color-bg-callout: #fffbeb;
   --color-border-callout: #fde68a;
   --color-text-callout: #78350f;
+  --color-error: #b91c1c;
   --color-icon: #616161;
   --color-icon-active: #1f1f1f;
   --color-scrollbar: #c1c1c1;

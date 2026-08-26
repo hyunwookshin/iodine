@@ -73,14 +73,20 @@ export function setupTerminalWebSocket(server: Server): void {
     const cwdCandidates = [cwdParam, rootPath, os.homedir()].filter(Boolean) as string[];
     const cwd = cwdCandidates.find(c => existsSync(c)) ?? os.homedir();
 
-    // Determine shell with fallback chain.
+    // Determine shell with fallback chain, Windows-aware.
     let shell = process.env.SHELL || '/bin/bash';
-    if (!existsSync(shell)) {
-      const shellOptions = ['/bin/zsh', '/bin/bash', '/bin/sh'];
-      shell = shellOptions.find(sh => existsSync(sh)) || '/bin/bash';
+    let args: string[];
+    if (process.platform === 'win32') {
+      // None of the POSIX shells below exist on Windows; use the system shell.
+      shell = process.env.ComSpec || 'powershell.exe';
+      args = cmdParam ? ['/d', '/s', '/c', cmdParam] : [];
+    } else {
+      if (!existsSync(shell)) {
+        const shellOptions = ['/bin/zsh', '/bin/bash', '/bin/sh'];
+        shell = shellOptions.find(sh => existsSync(sh)) || '/bin/bash';
+      }
+      args = cmdParam ? ['-c', cmdParam] : [];
     }
-
-    const args = cmdParam ? ['-c', cmdParam] : [];
 
     // Spawn asynchronously so we can retry on transient failures.
     spawnWithRetry(shell, args, {
