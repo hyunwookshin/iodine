@@ -88,18 +88,17 @@ function isPreviewable(path: string) {
 /* Markdown path and heading helpers live in editor/MarkdownUtils.ts. */
 
 const btnStyle: React.CSSProperties = {
-  width: 180,
-  padding: '6px 14px',
-  fontSize: 12,
-  fontWeight: 600,
-  letterSpacing: '0.03em',
+  padding: '0 8px',
+  height: 18,
+  fontSize: 11,
+  fontWeight: 500,
+  letterSpacing: '0.02em',
   color: '#fff',
   border: 'none',
-  borderRadius: 6,
+  borderRadius: 3,
   cursor: 'pointer',
   userSelect: 'none',
   whiteSpace: 'nowrap',
-  boxShadow: '0 2px 8px rgba(0,0,0,0.5)',
 };
 
 export const EditorArea = forwardRef<EditorAreaHandle, EditorAreaProps>(
@@ -565,100 +564,8 @@ export const EditorArea = forwardRef<EditorAreaHandle, EditorAreaProps>(
           );
         })()}
 
-        <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
-
-          {/* ── Fold / unfold toggle (top-left) ── */}
-          {showFoldButton && (
-            <button
-              onClick={() => {
-                const editor = monacoEditorRef.current;
-                if (!editor) return;
-                if (isFolded) {
-                  editor.getAction('editor.unfoldAll')?.run();
-                  setIsFolded(false);
-                } else {
-                  editor.getAction('editor.foldAll')?.run();
-                  setIsFolded(true);
-                }
-              }}
-              title={isFolded ? 'Unfold all' : 'Fold all'}
-              style={{
-                position: 'absolute', top: 8, left: 8, zIndex: 10,
-                padding: '3px 8px',
-                fontSize: 13,
-                fontWeight: 700,
-                lineHeight: 1,
-                background: isFolded ? 'var(--editor-btn-active-bg, #007acc)' : 'var(--editor-btn-neutral-bg, #3a3d41)',
-                color: isFolded ? 'var(--editor-btn-active-color, #fff)' : 'var(--editor-btn-neutral-color, #fff)',
-                border: 'none',
-                borderRadius: 4,
-                cursor: 'pointer',
-                userSelect: 'none',
-                boxShadow: '0 1px 4px rgba(0,0,0,0.4)',
-              }}
-            >
-              {isFolded ? 'v' : '>'}
-            </button>
-          )}
-
-          {/* ── Floating button group (bottom-right) ── */}
-          {!activeCommitHash && (showPreviewButton || showSummaryButton || showConflictsButton) && (
-            <div style={{
-              position: 'absolute', bottom: 20, right: 20, zIndex: 10,
-              display: 'flex', gap: 6,
-            }}>
-              {/* Merge conflict resolver toggle */}
-              {showConflictsButton && (
-                <button
-                  onClick={() => setEditorView(v => v === 'conflicts' ? 'source' : 'conflicts')}
-                  title={editorView === 'conflicts' ? 'Back to source' : 'Resolve merge conflicts'}
-                  style={{ ...btnStyle, background: editorView === 'conflicts' ? 'var(--editor-btn-active-bg, #007acc)' : '#6f4e37', color: editorView === 'conflicts' ? 'var(--editor-btn-active-color, #fff)' : '#fff' }}
-                >
-                  {editorView === 'conflicts' ? 'Source' : 'Conflicts'}
-                </button>
-              )}
-
-              {/* Preview toggle — only for .md / .html */}
-              {showPreviewButton && editorView !== 'summary' && editorView !== 'conflicts' && (
-                <button
-                  onClick={() => { captureScrollPercentage(); setEditorView(v => v === 'preview' ? 'source' : 'preview'); }}
-                  title={editorView === 'preview' ? 'Switch to source' : 'Switch to preview'}
-                  style={{
-                    ...btnStyle,
-                    background: editorView === 'preview' ? 'var(--editor-btn-active-bg, #007acc)' : 'var(--editor-btn-neutral-bg, #3a3d41)',
-                    color: editorView === 'preview' ? 'var(--editor-btn-active-color, #fff)' : 'var(--editor-btn-neutral-color, #fff)',
-                  }}
-                >
-                  {editorView === 'preview' ? 'Source' : 'Preview'}
-                </button>
-              )}
-
-              {/* AI Summary toggle */}
-              {showSummaryButton && editorView !== 'conflicts' && (
-                <button
-                  onClick={() => editorView === 'summary'
-                    ? setEditorView('source')
-                    : handleSwitchToSummary()}
-                  title={editorView === 'summary' ? 'Back to source' : hasCachedSummary ? (cachedSummaryObsolete ? 'Cached summary is outdated — file has changed' : 'View cached summary') : 'Generate AI summary'}
-                  style={{
-                    ...btnStyle,
-                    background: editorView === 'summary'
-                      ? 'var(--editor-btn-active-bg, #007acc)'
-                      : cachedSummaryObsolete
-                        ? 'var(--summary-button-obsolete-bg, #7a5500)'
-                        : 'var(--summary-button-bg, #3a3d41)',
-                    color: editorView === 'summary'
-                      ? 'var(--editor-btn-active-color, #fff)'
-                      : cachedSummaryObsolete
-                        ? 'var(--summary-button-obsolete-color, #fff)'
-                        : 'var(--summary-button-color, #fff)',
-                  }}
-                >
-                  {editorView === 'summary' ? 'Source' : hasCachedSummary ? 'View Summary' : 'Generate Summary'}
-                </button>
-              )}
-            </div>
-          )}
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ flex: 1, minHeight: 0, position: 'relative', overflow: 'hidden' }}>
 
           {/* ── Content area ── */}
           {activeFile ? (
@@ -708,7 +615,7 @@ export const EditorArea = forwardRef<EditorAreaHandle, EditorAreaProps>(
                     display: 'flex', alignItems: 'center', gap: 4,
                   }}>
                     {activeFile.isDirectory && (
-                      <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style={{ flexShrink: 0, color: 'cyan' }} aria-hidden="true">
+                      <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style={{ flexShrink: 0, color: 'var(--color-folder)' }} aria-hidden="true">
                         <path d="M.54 3.87L.5 3a2 2 0 0 1 2-2h3.19a2 2 0 0 1 1.45.63l.41.44H14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V5.07a2.5 2.5 0 0 0 .54-1.2z" />
                       </svg>
                     )}
@@ -845,7 +752,48 @@ export const EditorArea = forwardRef<EditorAreaHandle, EditorAreaProps>(
           ) : (
             <WelcomeScreen />
           )}
+          </div>
 
+          {activeFile && (showConflictsButton || showPreviewButton || showSummaryButton) && (
+            <div style={{
+              display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 4,
+              height: 24, flexShrink: 0, padding: '0 8px', boxSizing: 'border-box',
+              background: 'var(--color-bg-editor)', borderTop: '1px solid var(--color-border)',
+            }}>
+              {showConflictsButton && (
+                <button
+                  onClick={() => setEditorView(v => v === 'conflicts' ? 'source' : 'conflicts')}
+                  title={editorView === 'conflicts' ? 'Back to source' : 'Resolve merge conflicts'}
+                  style={{ ...btnStyle, background: editorView === 'conflicts' ? 'var(--editor-btn-active-bg, #007acc)' : '#6f4e37' }}
+                >
+                  {editorView === 'conflicts' ? 'Source' : 'Conflicts'}
+                </button>
+              )}
+              {showPreviewButton && editorView !== 'summary' && editorView !== 'conflicts' && (
+                <button
+                  onClick={() => { captureScrollPercentage(); setEditorView(v => v === 'preview' ? 'source' : 'preview'); }}
+                  title={editorView === 'preview' ? 'Switch to source' : 'Switch to preview'}
+                  style={{ ...btnStyle, background: editorView === 'preview' ? 'var(--editor-btn-active-bg, #007acc)' : 'var(--editor-btn-neutral-bg, #3a3d41)' }}
+                >
+                  {editorView === 'preview' ? 'Source' : 'Preview'}
+                </button>
+              )}
+              {showSummaryButton && editorView !== 'conflicts' && (
+                <button
+                  onClick={() => editorView === 'summary' ? setEditorView('source') : handleSwitchToSummary()}
+                  title={editorView === 'summary' ? 'Back to source' : hasCachedSummary ? (cachedSummaryObsolete ? 'Cached summary is outdated — file has changed' : 'View cached summary') : 'Generate AI summary'}
+                  style={{
+                    ...btnStyle,
+                    background: editorView === 'summary'
+                      ? 'var(--editor-btn-active-bg, #007acc)'
+                      : cachedSummaryObsolete ? 'var(--summary-button-obsolete-bg, #7a5500)' : 'var(--summary-button-bg, #3a3d41)',
+                  }}
+                >
+                  {editorView === 'summary' ? 'Source' : hasCachedSummary ? 'View Summary' : 'Generate Summary'}
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* ── Commit diff overlay — covers tabs + breadcrumb + content ── */}
