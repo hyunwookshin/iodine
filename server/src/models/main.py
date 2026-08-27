@@ -9,7 +9,7 @@ from services.route_llm import lifespan
 from OpenAI import AsyncOpenAI
 from api import api_router
 from config import setting
-from services.ai_planning import SessionManager
+from services.planner import SessionManager
 
 CLIENT_BASE = "http://localhost:5173"
 

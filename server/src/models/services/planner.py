@@ -4,14 +4,31 @@ from openai import AsyncOpenAI
 from config import setting
 import asyncio
 import websocket
+import openai
 import json
 
+
 class PlanningRequest(BaseModel):
+    """
+    Represents the payload structure for AI planning requests
+
+    Attributes:
+        session_id (str): A unique id based on chat session
+        history (list[str]): A history of past dialouge in current session
+        description (list[str]): User prompt
+    """
     session_id: str = Field(..., description="Unique id for a session")
     history: list[str] = Field(default_factory=list)
     description: list[str] = Field(min_length=2)
 
 class PlanResponse(BaseModel):
+    """
+    Represents the Response with the plan and explaination for each point of the plan
+
+    Attributes:
+        plan (list[str]): An array of sentences that form a plan to success the user needs
+        explaination (list[str]): An array of sentences that explain each point of the plan based on index
+    """
     plan: list[str]
     explaination: list[str]
 
@@ -22,7 +39,7 @@ class LLMService:
     async def generate_plan(self, user_history: str, user_needs: str) -> dict:
         try:
             response = await self.service.beta.chat.completions.parse(
-                model = "gpt-5.6",
+                model = "gpt-5.6-sol",
                 messages = [
                     {
                         "role": "system", 
@@ -44,9 +61,14 @@ class LLMService:
                 "explaination": planner.explaination
             }
         
+        except openai.APIError as e:
+            print(f"OpenAI API Error: {e}")
+            return {"status": e.status_code or 500, "error": str(e)}
+
         except Exception as e:
-            print(f"Error {e}")
-            raise e
+            print(f"Unexcepted error {e}")
+            return {"status": 500, "error": "An unexpected error occurred."}
+
 
 class SessionAgent:
     def __init__(self, session_id: str, uri: str, service: LLMService):
