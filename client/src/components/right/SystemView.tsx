@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo, useImperativeHandle, forwardRef, MouseEvent as RMouseEvent, WheelEvent as RWheelEvent } from 'react';
 import Editor from '@monaco-editor/react';
-import { useSystemGraph } from '../../hooks/useSystemGraph';
 import type { SystemGraph, GraphNode, GraphEdge, GraphFileRef } from '../../api/files';
 import type { Provider } from '../../providers';
 import { SystemGraphCanvas } from './SystemGraphCanvas';
@@ -267,6 +266,12 @@ interface SystemViewProps {
   workspacePath: string | null;
   provider: Provider;
   model: string;
+  graph: SystemGraph;
+  graphLoaded: boolean;
+  saving: boolean;
+  saveError: string | null;
+  onGraphChange: (graph: SystemGraph) => void;
+  onSave: (graph: SystemGraph) => Promise<void>;
   onNavigateToLine?: (filePath: string, line: number, endLine?: number, startCol?: number, endCol?: number) => void;
 }
 
@@ -275,8 +280,7 @@ type Selected = { type: 'node'; id: string } | { type: 'edge'; idx: number } | n
 const fileBasename = (p: string) => p.split('/').pop() ?? p;
 
 export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
-function SystemView({ workspacePath, provider, model, onNavigateToLine }, ref) {
-  const { graph: savedGraph, loaded, saving, saveError, save } = useSystemGraph(workspacePath);
+function SystemView({ workspacePath, provider, model, graph: savedGraph, graphLoaded: loaded, saving, saveError, onGraphChange, onSave, onNavigateToLine }, ref) {
 
   const [localGraph, setLocalGraph] = useState<SystemGraph>({ nodes: [], edges: [] });
   const [view, setView]             = useState<'graph' | 'json'>('graph');
@@ -310,7 +314,10 @@ function SystemView({ workspacePath, provider, model, onNavigateToLine }, ref) {
     setLocalGraph(g);
     setJsonText(JSON.stringify(g, null, 2));
     setDirty(false);
-  }, [savedGraph, loaded]);
+  // The shared graph is loaded once per workspace. Subsequent local edits are
+  // immediately published to the owner and must not reset this editor's dirty state.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded]);
 
   // ── View switching ─────────────────────────────────────────────────────────
   const switchToJson = useCallback(() => {
@@ -324,6 +331,7 @@ function SystemView({ workspacePath, provider, model, onNavigateToLine }, ref) {
       const parsed = JSON.parse(jsonText) as SystemGraph;
       const g = ensurePositions(parsed);
       setLocalGraph(g);
+      onGraphChange(g);
       setJsonError(null);
       setView('graph');
     } catch (e) {
@@ -334,9 +342,11 @@ function SystemView({ workspacePath, provider, model, onNavigateToLine }, ref) {
   // ── Auto-layout ────────────────────────────────────────────────────────────
   const doAutoLayout = useCallback(() => {
     const lp = autoLayout(localGraph.nodes, localGraph.edges);
-    setLocalGraph(g => withPositions(g, lp));
+    const graph = withPositions(localGraph, lp);
+    setLocalGraph(graph);
+    onGraphChange(graph);
     setDirty(true);
-  }, [localGraph]);
+  }, [localGraph, onGraphChange]);
 
   // ── Save ───────────────────────────────────────────────────────────────────
   const doSave = useCallback(async () => {
@@ -351,9 +361,10 @@ function SystemView({ workspacePath, provider, model, onNavigateToLine }, ref) {
         return;
       }
     }
-    await save(g);
+    onGraphChange(g);
+    await onSave(g);
     setDirty(false);
-  }, [localGraph, view, jsonText, save]);
+  }, [localGraph, view, jsonText, onGraphChange, onSave]);
 
   // ── SVG mouse events ───────────────────────────────────────────────────────
   const handleSvgMouseDown = (e: RMouseEvent<SVGSVGElement>) => {
@@ -478,6 +489,7 @@ function SystemView({ workspacePath, provider, model, onNavigateToLine }, ref) {
               const parsed = JSON.parse(clean) as SystemGraph;
               const g = ensurePositions(parsed);
               setLocalGraph(g);
+              onGraphChange(g);
               setJsonText(JSON.stringify(g, null, 2));
               setView('graph');
               setDirty(true);
@@ -498,7 +510,7 @@ function SystemView({ workspacePath, provider, model, onNavigateToLine }, ref) {
       setGenActivity('');
     }
     return result;
-  }, [generating, workspacePath, model, provider]);
+  }, [generating, workspacePath, model, provider, onGraphChange]);
 
   // ── File reference navigation ──────────────────────────────────────────────
   const handleFileRefClick = useCallback((f: GraphFileRef) => {
@@ -826,7 +838,7 @@ function SystemView({ workspacePath, provider, model, onNavigateToLine }, ref) {
             editable
             selected={selected}
             onSelectionChange={setSelected}
-            onGraphChange={graph => { setLocalGraph(graph); setDirty(true); }}
+            onGraphChange={graph => { setLocalGraph(graph); onGraphChange(graph); setDirty(true); }}
             style={{ flex: 1 }}
           />
           {localGraph.nodes.length === 0 && (
