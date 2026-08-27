@@ -1,33 +1,35 @@
 import os
 import tiktoken
-from contextlib import asynccontextmanager
-from fastapi import FastAPI, APIRouter, HTTPException, Request
-from routellm.controller import Controller
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 from fastapi.concurrency import run_in_threadpool
-from typing import Union
+from config import setting
 
-os.environ["OPENAI_API_KEY"] = os.environ.get("OPENAI_API_KEY",
-                                  os.environ.get("OPENAI_TOKEN", ""))
+os.environ["OPENAI_API_KEY"] = setting.OPEN_AI_TOKEN
 
 class Model(BaseModel):
+    """
+    AI model
+
+    Attributes:
+        id (str):
+        label (str):
+    """
     id: str
     label: str
 
 class RoutingRequest(BaseModel):
+    """
+    Payload for selected Model
+
+    Attributes:
+        prompt (str): user prompt
+        models (list[Model]): a list of model based on same provider
+        threshold (float): threshold between cost and quality
+    """
     prompt: str | list[dict] = Field(..., description="User prompt")
     models: list[Model] = Field(..., min_length=2, description="User models from same provider")
     threshold: float = Field(default=0.11593, description="threshold for cost/quality")
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    app.state.controller = Controller(
-        routers=["mf"],
-        strong_model="strong-placeholder",
-        weak_model="weak-placeholder"
-    )
-    yield
-    app.state.controller = None
 
 router = APIRouter()
 
@@ -70,7 +72,9 @@ async def get_routing_decision(request: Request, body: RoutingRequest) -> dict:
         prompt_str = await run_in_threadpool(token_limit, prompt_str)
 
         mf_router = request.app.state.controller.routers["mf"]
-        win_rate = await run_in_threadpool(lambda: float(mf_router.calculate_strong_win_rate(prompt_str)))
+        win_rate = await run_in_threadpool(mf_router.calculate_strong_win_rate, prompt_str)
+
+        win_rate = float(win_rate)
         
         selected_model = select_model(body.models, win_rate, body.threshold)
 
@@ -78,7 +82,6 @@ async def get_routing_decision(request: Request, body: RoutingRequest) -> dict:
             "status": "success",
             "selected_model": selected_model,
             "win_rate": win_rate,
-            "version": "v1",
             "threshold": body.threshold
         }
     except Exception as e:
