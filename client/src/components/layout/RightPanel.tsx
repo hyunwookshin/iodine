@@ -257,6 +257,7 @@ function RightPanel({ width, animated, workspacePath, activeFilePath, onWorkspac
           provider={provider} model={model} setProvider={setProvider} setModel={setModel} getEditorContext={getEditorContext}
           contextNodes={contextNodes} onRemoveContextNode={onRemoveContextNode} onClearContextNodes={onClearContextNodes}
           onNavigateToLine={onNavigateToLine} onOpenNode={handleOpenNode} activeSystemNode={activeSystemNode}
+          graph={graph} onOpenIogram={() => setActiveTab('system')}
           onUserTyping={() => { if (pulseAutoStopRef.current) clearTimeout(pulseAutoStopRef.current); panelRef.current?.classList.remove('proactive-pulse'); onUserTyping?.(); }}
           onMessageSent={onMessageSent}
           onAssistantBusyChange={onAssistantBusyChange}
