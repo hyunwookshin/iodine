@@ -13,6 +13,7 @@
     "postinstall": "chmod +x node_modules/node-pty/prebuilds/darwin-x64/spawn-helper node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper 2>/dev/null || true"
   },
   "devDependencies": {
+    "@rollup/rollup-win32-x64-msvc": "^4.63.0",
     "concurrently": "^8.2.0"
   }
 }

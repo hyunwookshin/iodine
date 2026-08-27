@@ -467,7 +467,20 @@ activeFilePath changes (editor tab switch)
 
 **Key design decisions:**
 - **Two-step select+focus:** `selectByPath` (no DOM reads, safe while SVG is `display:none`) + `focusSelected` (reads live `clientWidth`/`clientHeight` after `flushSync` makes the tab visible). Avoids the zero-dimension bug from panning a hidden SVG.
+
 - `activeSystemNode` flows through component props so the chip appears without touching the message history.
+
+#### System View — Inline Coding Assistant Graph
+
+`RightPanel` owns the current workspace graph through `useSystemGraph` and supplies it to both `SystemView` and `CodingAssistant`. Iogram edits and generated graphs therefore appear in the compact chat graph immediately, without a second fetch or persisted copy.
+
+| File | Role |
+|------|------|
+| `client/src/components/right/SystemGraphCanvas.tsx` | Shared SVG renderer. Iogram uses editable mode; chat uses read-only pan, zoom, and selection. |
+| `client/src/components/right/InlineSystemGraph.tsx` | Persistent card above the Coding Assistant composer. It exposes selected-item file references and **Open Iogram**. |
+| `client/src/components/layout/RightPanel.tsx` | Owns shared graph state and passes it to both consumers. |
+
+The inline card is not stored as a conversation message. It is for architecture inspection and source navigation only; generation, save, JSON editing, auto-layout, and node dragging stay in Iogram.
 
 #### System View — Auto-open on AI Summary
 
