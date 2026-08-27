@@ -3,6 +3,7 @@ import Editor from '@monaco-editor/react';
 import { useSystemGraph } from '../../hooks/useSystemGraph';
 import type { SystemGraph, GraphNode, GraphEdge, GraphFileRef } from '../../api/files';
 import type { Provider } from '../../providers';
+import { SystemGraphCanvas } from './SystemGraphCanvas';
 
 const API_BASE = import.meta.env.DEV ? 'http://localhost:3001' : '';
 
@@ -820,81 +821,19 @@ function SystemView({ workspacePath, provider, model, onNavigateToLine }, ref) {
       ) : (
         /* ── SVG graph canvas + file-references drawer ────────────────────── */
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <svg
-            ref={svgRef}
-            style={{ flex: 1, background: 'var(--color-bg-canvas)', cursor: panState ? 'grabbing' : 'default' }}
-            onMouseDown={handleSvgMouseDown}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseUp}
-            onWheel={handleWheel}
-          >
-            <defs>
-              {/* Forward arrowhead for directed edges */}
-              <marker id="arrow-dir" viewBox="0 0 10 10" refX="10" refY="5"
-                markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-                <path d="M 0 0 L 10 5 L 0 10 Z" fill={COL_DIRECTED} />
-              </marker>
-              {/* Forward arrowhead for bidirectional edges */}
-              <marker id="arrow-bidi" viewBox="0 0 10 10" refX="10" refY="5"
-                markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-                <path d="M 0 0 L 10 5 L 0 10 Z" fill={COL_BIDI} />
-              </marker>
-              {/* Reverse arrowhead (marker-start) for bidirectional edges.
-                  orient="auto" keeps the body aligned along the line toward the target,
-                  so the tip sits at the source node boundary pointing inward. */}
-              <marker id="arrow-bidi-rev" viewBox="0 0 10 10" refX="0" refY="5"
-                markerWidth="6" markerHeight="6" orient="auto">
-                <path d="M 10 0 L 0 5 L 10 10 Z" fill={COL_BIDI} />
-              </marker>
-            </defs>
-
-            <g transform={`translate(${pan.x},${pan.y}) scale(${scale})`}>
-              {/* Edges first so nodes render on top */}
-              {localGraph.edges.map((e, i) => (
-                <EdgeSvg key={i} edge={e} posMap={posMap}
-                  isSelected={selected?.type === 'edge' && selected.idx === i}
-                  onClick={() => setSelected(sel =>
-                    sel?.type === 'edge' && sel.idx === i ? null : { type: 'edge', idx: i }
-                  )}
-                />
-              ))}
-              {localGraph.nodes.map(n => (
-                <NodeSvg
-                  key={n.id}
-                  node={n}
-                  pos={posMap[n.id] ?? { x: 0, y: 0 }}
-                  isDragging={dragState?.id === n.id}
-                  isSelected={selected?.type === 'node' && selected.id === n.id}
-                  onMouseDown={ev => handleNodeMouseDown(ev, n.id)}
-                />
-              ))}
-            </g>
-
-            {/* Empty state overlay */}
-            {localGraph.nodes.length === 0 && (
-              <g transform="translate(0,0)">
-                <foreignObject x="0" y="0" width="100%" height="100%">
-                  <div style={{
-                    display: 'flex', flexDirection: 'column', alignItems: 'center',
-                    justifyContent: 'center', height: '100%', gap: 10,
-                    color: 'var(--color-text-secondary)', textAlign: 'center', padding: '0 20px',
-                  } as React.CSSProperties}>
-                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                      strokeWidth="1.2" style={{ opacity: 0.35 }}>
-                      <circle cx="5"  cy="12" r="3" /><circle cx="19" cy="5"  r="3" />
-                      <circle cx="19" cy="19" r="3" />
-                      <line x1="8" y1="11" x2="16" y2="7" /><line x1="8" y1="13" x2="16" y2="17" />
-                    </svg>
-                    <div style={{ fontSize: 12 }}>No nodes yet</div>
-                    <div style={{ fontSize: 11, opacity: 0.7 }}>
-                      Switch to JSON view to add nodes and edges.
-                    </div>
-                  </div>
-                </foreignObject>
-              </g>
-            )}
-          </svg>
+          <SystemGraphCanvas
+            graph={localGraph}
+            editable
+            selected={selected}
+            onSelectionChange={setSelected}
+            onGraphChange={graph => { setLocalGraph(graph); setDirty(true); }}
+            style={{ flex: 1 }}
+          />
+          {localGraph.nodes.length === 0 && (
+            <div style={{ position: 'absolute', alignSelf: 'center', marginTop: 30, color: 'var(--color-text-secondary)', textAlign: 'center', fontSize: 12 }}>
+              No nodes yet. Switch to JSON view to add nodes and edges.
+            </div>
+          )}
 
           {/* ── File-references drawer ───────────────────────────────────── */}
           {selected && selectedItem && (
