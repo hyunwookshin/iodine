@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo, useImperativeHandle,
 import Editor from '@monaco-editor/react';
 import type { SystemGraph, GraphNode, GraphEdge, GraphFileRef } from '../../api/files';
 import type { Provider } from '../../providers';
-import { SystemGraphCanvas } from './SystemGraphCanvas';
+import { SystemGraphCanvas, type SystemGraphCanvasHandle } from './SystemGraphCanvas';
 
 const API_BASE = import.meta.env.DEV ? 'http://localhost:3001' : '';
 
@@ -293,8 +293,12 @@ function SystemView({ workspacePath, provider, model, graph: savedGraph, graphLo
   const [generating, setGenerating] = useState(false);
   const [genActivity, setGenActivity] = useState<string>('');
 
-  // SVG pan / zoom / drag
-  const svgRef  = useRef<SVGSVGElement>(null);
+  // The shared canvas owns its viewport; this ref preserves imperative focus
+  // for reverse lookup and the active-file chip.
+  const canvasRef = useRef<SystemGraphCanvasHandle>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+  // Legacy local interaction state is retained while the graph editor owns the
+  // selection and JSON workflow; viewport interaction lives in SystemGraphCanvas.
   const [pan,   setPan]   = useState({ x: 60, y: 60 });
   const [scale, setScale] = useState(1);
 
@@ -573,29 +577,7 @@ function SystemView({ workspacePath, provider, model, graph: savedGraph, graphLo
       const best = hits[0];
       setSelected(best.type === 'node' ? { type: 'node', id: best.id } : { type: 'edge', idx: best.idx });
 
-      // Pan + zoom to the matched item
-      const TARGET_SCALE = 1.2;
-      const svgEl = svgRef.current;
-      const cx = svgEl && svgEl.clientWidth  > 0 ? svgEl.clientWidth  / 2 : 450;
-      const cy = svgEl && svgEl.clientHeight > 0 ? svgEl.clientHeight / 2 : 320;
-
-      if (best.type === 'node') {
-        const pos = posMap[best.id];
-        if (pos) {
-          setScale(TARGET_SCALE);
-          setPan({ x: cx - pos.x * TARGET_SCALE, y: cy - pos.y * TARGET_SCALE });
-        }
-      } else {
-        const edge = localGraph.edges[best.idx];
-        if (edge) {
-          const src = posMap[edge.source], tgt = posMap[edge.target];
-          if (src && tgt) {
-            const mx = (src.x + tgt.x) / 2, my = (src.y + tgt.y) / 2;
-            setScale(TARGET_SCALE);
-            setPan({ x: cx - mx * TARGET_SCALE, y: cy - my * TARGET_SCALE });
-          }
-        }
-      }
+      canvasRef.current?.focusItem(best.type === 'node' ? { type: 'node', id: best.id } : { type: 'edge', idx: best.idx });
 
       return true;
     },
@@ -633,24 +615,12 @@ function SystemView({ workspacePath, provider, model, graph: savedGraph, graphLo
       const best = hits[0];
       setSelected(best.type === 'node' ? { type: 'node', id: best.id } : { type: 'edge', idx: best.idx });
 
-      const TARGET_SCALE = 1.2;
-      const svgEl = svgRef.current;
-      const cx = svgEl && svgEl.clientWidth  > 0 ? svgEl.clientWidth  / 2 : 450;
-      const cy = svgEl && svgEl.clientHeight > 0 ? svgEl.clientHeight / 2 : 320;
-
       if (best.type === 'node') {
-        const pos = posMap[best.id];
-        if (pos) { setScale(TARGET_SCALE); setPan({ x: cx - pos.x * TARGET_SCALE, y: cy - pos.y * TARGET_SCALE }); }
+        canvasRef.current?.focusItem({ type: 'node', id: best.id });
         return localGraph.nodes.find(n => n.id === best.id)?.name ?? null;
       } else {
         const edge = localGraph.edges[best.idx];
-        if (edge) {
-          const src = posMap[edge.source], tgt = posMap[edge.target];
-          if (src && tgt) {
-            setScale(TARGET_SCALE);
-            setPan({ x: cx - (src.x + tgt.x) / 2 * TARGET_SCALE, y: cy - (src.y + tgt.y) / 2 * TARGET_SCALE });
-          }
-        }
+        canvasRef.current?.focusItem({ type: 'edge', idx: best.idx });
         return edge?.label ?? null;
       }
     },
@@ -690,24 +660,7 @@ function SystemView({ workspacePath, provider, model, graph: savedGraph, graphLo
     },
 
     focusSelected: (): void => {
-      if (!selected) return;
-      const svgEl = svgRef.current;
-      const cx = svgEl && svgEl.clientWidth  > 0 ? svgEl.clientWidth  / 2 : 450;
-      const cy = svgEl && svgEl.clientHeight > 0 ? svgEl.clientHeight / 2 : 320;
-      const TARGET_SCALE = 1.2;
-      if (selected.type === 'node') {
-        const pos = posMap[selected.id];
-        if (pos) { setScale(TARGET_SCALE); setPan({ x: cx - pos.x * TARGET_SCALE, y: cy - pos.y * TARGET_SCALE }); }
-      } else {
-        const edge = localGraph.edges[selected.idx];
-        if (edge) {
-          const src = posMap[edge.source], tgt = posMap[edge.target];
-          if (src && tgt) {
-            const mx = (src.x + tgt.x) / 2, my = (src.y + tgt.y) / 2;
-            setScale(TARGET_SCALE); setPan({ x: cx - mx * TARGET_SCALE, y: cy - my * TARGET_SCALE });
-          }
-        }
-      }
+      canvasRef.current?.focusItem(selected);
     },
 
   }), [localGraph, posMap, workspacePath, handleGenerate, selected]);
@@ -834,6 +787,7 @@ function SystemView({ workspacePath, provider, model, graph: savedGraph, graphLo
         /* ── SVG graph canvas + file-references drawer ────────────────────── */
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <SystemGraphCanvas
+            ref={canvasRef}
             graph={localGraph}
             editable
             selected={selected}
