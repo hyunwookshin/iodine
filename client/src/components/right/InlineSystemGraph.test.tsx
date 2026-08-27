@@ -1,10 +1,13 @@
 // @vitest-environment happy-dom
 
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { createRef } from 'react';
 import type { SystemGraph } from '../../api/files';
+import { PROVIDERS } from '../../providers';
 import { InlineSystemGraph } from './InlineSystemGraph';
 import { SystemGraphCanvas } from './SystemGraphCanvas';
+import { SystemView, type SystemViewHandle } from './SystemView';
 
 const graph: SystemGraph = {
   nodes: [{ id: 'api', name: 'API', x: 100, y: 100, files: [{ path: 'server/src/app.ts', line: 12, endLine: 18, label: 'app' }] }],
@@ -48,5 +51,14 @@ describe('InlineSystemGraph', () => {
     expect(screen.getByText('API')).toBeTruthy();
     rerender(<InlineSystemGraph graph={{ nodes: [{ id: 'worker', name: 'Worker', x: 150, y: 80 }], edges: [] }} workspacePath="/project" onOpenIogram={vi.fn()} />);
     expect(screen.getByText('Worker')).toBeTruthy();
+  });
+
+  it('focuses the shared canvas when Iogram reverse lookup finds a file', async () => {
+    const ref = createRef<SystemViewHandle>();
+    const { container } = render(<SystemView ref={ref} workspacePath="/project" provider={PROVIDERS[0]} model="test"
+      graph={graph} graphLoaded saving={false} saveError={null} onGraphChange={vi.fn()} onSave={async () => undefined} />);
+    await waitFor(() => expect(container.querySelector('svg')).toBeTruthy());
+    act(() => { ref.current?.lookupByPath('/project/server/src/app.ts'); });
+    expect(container.querySelector('svg g')?.getAttribute('transform')).toContain('scale(1.2)');
   });
 });

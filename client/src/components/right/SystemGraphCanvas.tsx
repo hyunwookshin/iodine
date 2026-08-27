@@ -1,4 +1,4 @@
-import { forwardRef, useImperativeHandle, useMemo, useRef, useState } from 'react';
+import { forwardRef, useId, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import type { MouseEvent as RMouseEvent, WheelEvent as RWheelEvent } from 'react';
 import type { GraphEdge, GraphNode, SystemGraph } from '../../api/files';
 
@@ -25,14 +25,14 @@ interface Props {
   style?: React.CSSProperties;
 }
 
-function Edge({ edge, posMap, selected, onSelect }: { edge: GraphEdge; posMap: PosMap; selected: boolean; onSelect: () => void }) {
+function Edge({ edge, posMap, selected, onSelect, markerPrefix }: { edge: GraphEdge; posMap: PosMap; selected: boolean; onSelect: () => void; markerPrefix: string }) {
   const source = posMap[edge.source], target = posMap[edge.target];
   if (!source || !target || edge.source === edge.target) return null;
   const undirected = edge.type === 'undirected';
   const bidirectional = edge.type === 'bidirectional';
   const directed = !undirected && !bidirectional;
   const color = bidirectional ? BIDIRECTIONAL : undirected ? UNDIRECTED : DIRECTED;
-  const marker = bidirectional ? 'graph-arrow-bidi' : 'graph-arrow-dir';
+  const marker = bidirectional ? `${markerPrefix}-bidi` : `${markerPrefix}-dir`;
   const horizontal = Math.abs(target.x - source.x) >= Math.abs(target.y - source.y);
   let from: { x: number; y: number }, to: { x: number; y: number }, path: string;
   if (horizontal) {
@@ -53,7 +53,7 @@ function Edge({ edge, posMap, selected, onSelect }: { edge: GraphEdge; posMap: P
     {selected && <path d={path} fill="none" stroke="var(--color-accent)" strokeWidth={5} opacity={0.35} style={{ pointerEvents: 'none' }} />}
     <path d={path} fill="none" stroke={color} strokeWidth={1.5} strokeDasharray={undirected ? '6,4' : directed ? '12,8' : undefined}
       style={directed ? { animation: 'edge-flow 0.7s linear infinite' } : undefined}
-      markerEnd={!undirected ? `url(#${marker})` : undefined} markerStart={bidirectional ? 'url(#graph-arrow-bidi-rev)' : undefined} />
+      markerEnd={!undirected ? `url(#${marker})` : undefined} markerStart={bidirectional ? `url(#${markerPrefix}-bidi-rev)` : undefined} />
     {edge.label && <><rect x={labelX - (edge.label.length * 6.2 + 8) / 2} y={labelY - 8} width={edge.label.length * 6.2 + 8} height={15} fill="var(--color-bg-editor)" rx={3} opacity={0.85} />
       <text x={labelX} y={labelY + 3.5} textAnchor="middle" fill={color} fontSize={9} fontFamily="monospace">{edge.label}</text></>}
     <path d={path} fill="none" stroke="transparent" strokeWidth={12} style={{ cursor: 'pointer' }} onMouseDown={e => e.stopPropagation()} onClick={onSelect} />
@@ -72,6 +72,7 @@ function Node({ node, pos, dragging, selected, onMouseDown }: { node: GraphNode;
 
 export const SystemGraphCanvas = forwardRef<SystemGraphCanvasHandle, Props>(function SystemGraphCanvas({ graph, editable = false, selected, onSelectionChange, onGraphChange, className, style }, ref) {
   const svgRef = useRef<SVGSVGElement>(null);
+  const markerPrefix = `graph-arrow-${useId().replace(/:/g, '')}`;
   const [pan, setPan] = useState({ x: 60, y: 60 });
   const [scale, setScale] = useState(1);
   const [drag, setDrag] = useState<{ id: string; mouseX: number; mouseY: number; x: number; y: number } | null>(null);
@@ -115,9 +116,9 @@ export const SystemGraphCanvas = forwardRef<SystemGraphCanvasHandle, Props>(func
   };
 
   return <svg ref={svgRef} className={className} style={{ background: 'var(--color-bg-canvas)', cursor: panStart ? 'grabbing' : 'default', ...style }} onMouseDown={event => { panPress.current = { x: event.clientX, y: event.clientY }; setPanStart({ mouseX: event.clientX, mouseY: event.clientY, x: pan.x, y: pan.y }); }} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp} onWheel={handleWheel}>
-    <defs><marker id="graph-arrow-dir" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 Z" fill={DIRECTED} /></marker><marker id="graph-arrow-bidi" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 Z" fill={BIDIRECTIONAL} /></marker><marker id="graph-arrow-bidi-rev" viewBox="0 0 10 10" refX="0" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 10 0 L 0 5 L 10 10 Z" fill={BIDIRECTIONAL} /></marker></defs>
+    <defs><marker id={`${markerPrefix}-dir`} viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 Z" fill={DIRECTED} /></marker><marker id={`${markerPrefix}-bidi`} viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 Z" fill={BIDIRECTIONAL} /></marker><marker id={`${markerPrefix}-bidi-rev`} viewBox="0 0 10 10" refX="0" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 10 0 L 0 5 L 10 10 Z" fill={BIDIRECTIONAL} /></marker></defs>
     <g transform={`translate(${pan.x},${pan.y}) scale(${scale})`}>
-      {graph.edges.map((edge, idx) => <Edge key={idx} edge={edge} posMap={posMap} selected={selected?.type === 'edge' && selected.idx === idx} onSelect={() => onSelectionChange(selected?.type === 'edge' && selected.idx === idx ? null : { type: 'edge', idx })} />)}
+      {graph.edges.map((edge, idx) => <Edge key={idx} edge={edge} posMap={posMap} markerPrefix={markerPrefix} selected={selected?.type === 'edge' && selected.idx === idx} onSelect={() => onSelectionChange(selected?.type === 'edge' && selected.idx === idx ? null : { type: 'edge', idx })} />)}
       {graph.nodes.map(node => <Node key={node.id} node={node} pos={posMap[node.id] ?? { x: 0, y: 0 }} dragging={drag?.id === node.id} selected={selected?.type === 'node' && selected.id === node.id} onMouseDown={event => { event.stopPropagation(); nodePress.current = { id: node.id, x: event.clientX, y: event.clientY }; if (editable) setDrag({ id: node.id, mouseX: event.clientX, mouseY: event.clientY, x: node.x ?? 0, y: node.y ?? 0 }); }} />)}
     </g>
   </svg>;

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo, useImperativeHandle, forwardRef, MouseEvent as RMouseEvent, WheelEvent as RWheelEvent } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, useImperativeHandle, forwardRef, type MouseEvent as RMouseEvent } from 'react';
 import Editor from '@monaco-editor/react';
 import type { SystemGraph, GraphNode, GraphEdge, GraphFileRef } from '../../api/files';
 import type { Provider } from '../../providers';
@@ -296,20 +296,6 @@ function SystemView({ workspacePath, provider, model, graph: savedGraph, graphLo
   // The shared canvas owns its viewport; this ref preserves imperative focus
   // for reverse lookup and the active-file chip.
   const canvasRef = useRef<SystemGraphCanvasHandle>(null);
-  const svgRef = useRef<SVGSVGElement>(null);
-  // Legacy local interaction state is retained while the graph editor owns the
-  // selection and JSON workflow; viewport interaction lives in SystemGraphCanvas.
-  const [pan,   setPan]   = useState({ x: 60, y: 60 });
-  const [scale, setScale] = useState(1);
-
-  type DragState = { id: string; mx: number; my: number; nx: number; ny: number };
-  type PanState  = { px: number; py: number; mx: number; my: number };
-  const [dragState, setDragState] = useState<DragState | null>(null);
-  const [panState,  setPanState]  = useState<PanState | null>(null);
-
-  // Click-vs-drag detection refs
-  const nodePressRef = useRef<{ id: string; sx: number; sy: number } | null>(null);
-  const panPressRef  = useRef<{ sx: number; sy: number } | null>(null);
 
   // ── Initialise from server ─────────────────────────────────────────────────
   useEffect(() => {
@@ -369,69 +355,6 @@ function SystemView({ workspacePath, provider, model, graph: savedGraph, graphLo
     await onSave(g);
     setDirty(false);
   }, [localGraph, view, jsonText, onGraphChange, onSave]);
-
-  // ── SVG mouse events ───────────────────────────────────────────────────────
-  const handleSvgMouseDown = (e: RMouseEvent<SVGSVGElement>) => {
-    panPressRef.current = { sx: e.clientX, sy: e.clientY };
-    setPanState({ px: pan.x, py: pan.y, mx: e.clientX, my: e.clientY });
-  };
-
-  const handleNodeMouseDown = (e: RMouseEvent<SVGGElement>, id: string) => {
-    e.stopPropagation();
-    const node = localGraph.nodes.find(n => n.id === id);
-    if (!node) return;
-    nodePressRef.current = { id, sx: e.clientX, sy: e.clientY };
-    setDragState({ id, mx: e.clientX, my: e.clientY, nx: node.x ?? 0, ny: node.y ?? 0 });
-  };
-
-  const handleMouseMove = (e: RMouseEvent<SVGSVGElement>) => {
-    if (dragState) {
-      const dx = (e.clientX - dragState.mx) / scale;
-      const dy = (e.clientY - dragState.my) / scale;
-      setLocalGraph(g => ({
-        ...g,
-        nodes: g.nodes.map(n =>
-          n.id === dragState.id ? { ...n, x: dragState.nx + dx, y: dragState.ny + dy } : n,
-        ),
-      }));
-      setDirty(true);
-    } else if (panState) {
-      setPan({ x: panState.px + e.clientX - panState.mx, y: panState.py + e.clientY - panState.my });
-    }
-  };
-
-  const handleMouseUp = (e: RMouseEvent<SVGSVGElement>) => {
-    // Node click detection: if movement < 5 px it's a click, not a drag
-    if (nodePressRef.current) {
-      const { id, sx, sy } = nodePressRef.current;
-      if (Math.hypot(e.clientX - sx, e.clientY - sy) < 5) {
-        setSelected(sel => sel?.type === 'node' && sel.id === id ? null : { type: 'node', id });
-      }
-      nodePressRef.current = null;
-    }
-    // Background click: deselect
-    if (panPressRef.current) {
-      const { sx, sy } = panPressRef.current;
-      if (Math.hypot(e.clientX - sx, e.clientY - sy) < 5) setSelected(null);
-      panPressRef.current = null;
-    }
-    setDragState(null);
-    setPanState(null);
-  };
-
-  const handleWheel = (e: RWheelEvent<SVGSVGElement>) => {
-    e.preventDefault();
-    const factor = e.deltaY > 0 ? 0.9 : 1.111;
-    // Zoom toward cursor
-    if (!svgRef.current) return;
-    const r = svgRef.current.getBoundingClientRect();
-    const mx = e.clientX - r.left, my = e.clientY - r.top;
-    setScale(s => {
-      const ns = Math.max(0.15, Math.min(5, s * factor));
-      setPan(p => ({ x: mx - (mx - p.x) * (ns / s), y: my - (my - p.y) * (ns / s) }));
-      return ns;
-    });
-  };
 
   // ── Generate graph by exploring the workspace ─────────────────────────────
   const handleGenerate = useCallback(async (): Promise<SystemGraph | null> => {
