@@ -73,7 +73,7 @@ export function WorkbenchLayout() {
   const [trayHeight, setTrayHeight] = useState(TRAY_DEFAULT);
   const [showSidebar, setShowSidebar] = useState(true);
   const [showRightPanel, setShowRightPanel] = useState(true);
-  const [showBottomTray, setShowBottomTray] = useState(true);
+  const [showBottomTray, setShowBottomTray] = useState(false);
   const [workspacePath, setWorkspacePath] = useState<string | null>(null);
   const { theme, toggleTheme } = useTheme();
   const { updateInfo, snooze: snoozeUpdate, lastPingAt } = useUpdateCheck(typeof __APP_REPO__ !== 'undefined' ? __APP_REPO__ : '');
