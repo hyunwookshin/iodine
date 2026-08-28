@@ -27,6 +27,7 @@ interface InlineSystemGraphProps {
 
 export function InlineSystemGraph({ graph, workspacePath, onOpenIogram, onNavigateToLine, activeSystemNode }: InlineSystemGraphProps) {
   const [selected, setSelected] = useState<GraphSelection>(null);
+  const [collapsed, setCollapsed] = useState(false);
   const canvasRef = useRef<SystemGraphCanvasHandle>(null);
 
   // Sync selection + pan whenever the active system node changes externally.
@@ -55,15 +56,20 @@ export function InlineSystemGraph({ graph, workspacePath, onOpenIogram, onNaviga
     onNavigateToLine(path, file.line ?? 1, file.endLine);
   };
   return <section aria-label="Iogram architecture graph" style={{ borderTop: '1px solid var(--color-border)', padding: '7px 10px 0', flexShrink: 0 }}>
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
-      <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-primary)' }}>◈ Iogram</span>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: collapsed ? 7 : 5 }}>
+      <button type="button" onClick={() => setCollapsed(c => !c)} style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+        <span style={{ fontSize: 9, color: 'var(--color-text-secondary)', transition: 'transform 150ms', transform: collapsed ? 'rotate(-90deg)' : 'rotate(0deg)', display: 'inline-block' }}>▼</span>
+        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-primary)' }}>◈ Iogram</span>
+      </button>
       <button type="button" onClick={onOpenIogram} style={{ background: 'transparent', color: 'var(--color-accent)', border: '1px solid var(--color-accent)', borderRadius: 999, cursor: 'pointer', fontSize: 10, padding: '3px 8px' }}>Open Iogram</button>
     </div>
-    <SystemGraphCanvas ref={canvasRef} graph={graph} selected={selected} onSelectionChange={setSelected} initialPan={initialPan} initialScale={initialScale} style={{ width: '100%', height: 180, display: 'block', border: '1px solid var(--color-border)', borderRadius: 5 }} />
-    {item && <div style={{ minHeight: 24, padding: '5px 1px 6px', display: 'flex', alignItems: 'center', gap: 6, overflowX: 'auto' }}>
-      <span style={{ fontSize: 10, color: 'var(--color-text-secondary)', whiteSpace: 'nowrap' }}>{title}</span>
-      {files.map((file, index) => <button key={`${file.path}-${index}`} type="button" onClick={() => openFile(file)} style={{ background: 'var(--color-bg-subtle)', border: '1px solid var(--color-border)', borderRadius: 4, color: 'var(--color-accent)', cursor: 'pointer', fontSize: 10, padding: '2px 5px', whiteSpace: 'nowrap' }}>{file.label ?? file.path.split('/').pop()}</button>)}
-      {!files.length && <span style={{ fontSize: 10, color: 'var(--color-text-secondary)' }}>No file references</span>}
-    </div>}
+    <div style={{ overflow: 'hidden', maxHeight: collapsed ? 0 : 300, transition: 'max-height 200ms ease', paddingBottom: collapsed ? 0 : 7 }}>
+      <SystemGraphCanvas ref={canvasRef} graph={graph} selected={selected} onSelectionChange={setSelected} initialPan={initialPan} initialScale={initialScale} style={{ width: '100%', height: 180, display: 'block', border: '1px solid var(--color-border)', borderRadius: 5 }} />
+      {item && <div style={{ minHeight: 24, padding: '5px 1px 0', display: 'flex', alignItems: 'center', gap: 6, overflowX: 'auto' }}>
+        <span style={{ fontSize: 10, color: 'var(--color-text-secondary)', whiteSpace: 'nowrap' }}>{title}</span>
+        {files.map((file, index) => <button key={`${file.path}-${index}`} type="button" onClick={() => openFile(file)} style={{ background: 'var(--color-bg-subtle)', border: '1px solid var(--color-border)', borderRadius: 4, color: 'var(--color-accent)', cursor: 'pointer', fontSize: 10, padding: '2px 5px', whiteSpace: 'nowrap' }}>{file.label ?? file.path.split('/').pop()}</button>)}
+        {!files.length && <span style={{ fontSize: 10, color: 'var(--color-text-secondary)' }}>No file references</span>}
+      </div>}
+    </div>
   </section>;
 }
