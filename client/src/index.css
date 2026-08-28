@@ -13,6 +13,8 @@
   --color-bg-selected: #094771;
   --color-bg-subtle: #ffffff08;
   --color-bg-subtler: #ffffff05;
+  --color-shimmer-base: rgba(255, 255, 255, 0.07);
+  --color-shimmer-highlight: rgba(255, 255, 255, 0.13);
   --color-bg-user-bubble: #1a3a5c;
   --color-border-user-bubble: #2d6aa0;
   --color-bg-code: #0d1117;
@@ -61,6 +63,8 @@
   --color-bg-selected: #cce8ff;
   --color-bg-subtle: #00000008;
   --color-bg-subtler: #00000005;
+  --color-shimmer-base: rgba(0, 0, 0, 0.12);
+  --color-shimmer-highlight: rgba(0, 0, 0, 0.22);
   --color-bg-user-bubble: #bfdbfe;
   --color-border-user-bubble: #93c5fd;
   --color-bg-code: #f6f8fa;
