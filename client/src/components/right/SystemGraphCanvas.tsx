@@ -13,6 +13,8 @@ type PosMap = Record<string, { x: number; y: number }>;
 
 export interface SystemGraphCanvasHandle {
   focusItem: (selection: GraphSelection) => void;
+  /** Pan to center the item without changing the current zoom level. */
+  panToItem: (selection: GraphSelection) => void;
 }
 
 interface Props {
@@ -21,6 +23,8 @@ interface Props {
   selected: GraphSelection;
   onSelectionChange: (selection: GraphSelection) => void;
   onGraphChange?: (graph: SystemGraph) => void;
+  initialPan?: { x: number; y: number };
+  initialScale?: number;
   className?: string;
   style?: React.CSSProperties;
 }
@@ -70,27 +74,44 @@ function Node({ node, pos, dragging, selected, onMouseDown }: { node: GraphNode;
   </g>;
 }
 
-export const SystemGraphCanvas = forwardRef<SystemGraphCanvasHandle, Props>(function SystemGraphCanvas({ graph, editable = false, selected, onSelectionChange, onGraphChange, className, style }, ref) {
+export const SystemGraphCanvas = forwardRef<SystemGraphCanvasHandle, Props>(function SystemGraphCanvas({ graph, editable = false, selected, onSelectionChange, onGraphChange, initialPan, initialScale, className, style }, ref) {
   const svgRef = useRef<SVGSVGElement>(null);
   const markerPrefix = `graph-arrow-${useId().replace(/:/g, '')}`;
-  const [pan, setPan] = useState({ x: 60, y: 60 });
-  const [scale, setScale] = useState(1);
+  const [pan, setPan] = useState(initialPan ?? { x: 60, y: 60 });
+  const [scale, setScale] = useState(initialScale ?? 1);
+  const scaleRef = useRef(scale);
+  scaleRef.current = scale;
   const [drag, setDrag] = useState<{ id: string; mouseX: number; mouseY: number; x: number; y: number } | null>(null);
   const [panStart, setPanStart] = useState<{ mouseX: number; mouseY: number; x: number; y: number } | null>(null);
   const nodePress = useRef<{ id: string; x: number; y: number } | null>(null);
   const panPress = useRef<{ x: number; y: number } | null>(null);
   const posMap = useMemo<PosMap>(() => Object.fromEntries(graph.nodes.map(node => [node.id, { x: node.x ?? 0, y: node.y ?? 0 }])), [graph.nodes]);
 
-  const focusItem = (item: GraphSelection) => {
-    if (!item) return;
+  const getItemPoint = (item: GraphSelection) => {
+    if (!item) return undefined;
+    return item.type === 'node'
+      ? posMap[item.id]
+      : (() => { const edge = graph.edges[item.idx]; const a = edge && posMap[edge.source], b = edge && posMap[edge.target]; return a && b ? { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } : undefined; })();
+  };
+  const getCenter = () => {
     const rect = svgRef.current?.getBoundingClientRect();
-    const center = { x: rect?.width ? rect.width / 2 : 450, y: rect?.height ? rect.height / 2 : 320 };
-    const point = item.type === 'node' ? posMap[item.id] : (() => { const edge = graph.edges[item.idx]; const a = edge && posMap[edge.source], b = edge && posMap[edge.target]; return a && b ? { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } : undefined; })();
+    return { x: rect?.width ? rect.width / 2 : 450, y: rect?.height ? rect.height / 2 : 320 };
+  };
+  const focusItem = (item: GraphSelection) => {
+    const point = getItemPoint(item);
     if (!point) return;
+    const center = getCenter();
     setScale(1.2);
     setPan({ x: center.x - point.x * 1.2, y: center.y - point.y * 1.2 });
   };
-  useImperativeHandle(ref, () => ({ focusItem }));
+  const panToItem = (item: GraphSelection) => {
+    const point = getItemPoint(item);
+    if (!point) return;
+    const center = getCenter();
+    const s = scaleRef.current;
+    setPan({ x: center.x - point.x * s, y: center.y - point.y * s });
+  };
+  useImperativeHandle(ref, () => ({ focusItem, panToItem }));
 
   const handleMouseMove = (event: RMouseEvent<SVGSVGElement>) => {
     if (drag && editable && onGraphChange) {

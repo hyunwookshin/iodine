@@ -304,6 +304,8 @@ function SystemView({ workspacePath, provider, model, graph: savedGraph, graphLo
     setLocalGraph(g);
     setJsonText(JSON.stringify(g, null, 2));
     setDirty(false);
+    // Propagate the positioned graph so InlineSystemGraph starts in sync.
+    onGraphChange(g);
   // The shared graph is loaded once per workspace. Subsequent local edits are
   // immediately published to the owner and must not reset this editor's dirty state.
   // eslint-disable-next-line react-hooks/exhaustive-deps
