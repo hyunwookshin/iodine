@@ -1,8 +1,8 @@
-import { useState, useEffect, useRef, useCallback, useMemo, useImperativeHandle, forwardRef, MouseEvent as RMouseEvent, WheelEvent as RWheelEvent } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, useImperativeHandle, forwardRef, type MouseEvent as RMouseEvent } from 'react';
 import Editor from '@monaco-editor/react';
-import { useSystemGraph } from '../../hooks/useSystemGraph';
 import type { SystemGraph, GraphNode, GraphEdge, GraphFileRef } from '../../api/files';
 import type { Provider } from '../../providers';
+import { SystemGraphCanvas, type SystemGraphCanvasHandle } from './SystemGraphCanvas';
 
 const API_BASE = import.meta.env.DEV ? 'http://localhost:3001' : '';
 
@@ -266,6 +266,12 @@ interface SystemViewProps {
   workspacePath: string | null;
   provider: Provider;
   model: string;
+  graph: SystemGraph;
+  graphLoaded: boolean;
+  saving: boolean;
+  saveError: string | null;
+  onGraphChange: (graph: SystemGraph) => void;
+  onSave: (graph: SystemGraph) => Promise<void>;
   onNavigateToLine?: (filePath: string, line: number, endLine?: number, startCol?: number, endCol?: number) => void;
 }
 
@@ -274,8 +280,7 @@ type Selected = { type: 'node'; id: string } | { type: 'edge'; idx: number } | n
 const fileBasename = (p: string) => p.split('/').pop() ?? p;
 
 export const SystemView = forwardRef<SystemViewHandle, SystemViewProps>(
-function SystemView({ workspacePath, provider, model, onNavigateToLine }, ref) {
-  const { graph: savedGraph, loaded, saving, saveError, save } = useSystemGraph(workspacePath);
+function SystemView({ workspacePath, provider, model, graph: savedGraph, graphLoaded: loaded, saving, saveError, onGraphChange, onSave, onNavigateToLine }, ref) {
 
   const [localGraph, setLocalGraph] = useState<SystemGraph>({ nodes: [], edges: [] });
   const [view, setView]             = useState<'graph' | 'json'>('graph');
@@ -288,19 +293,9 @@ function SystemView({ workspacePath, provider, model, onNavigateToLine }, ref) {
   const [generating, setGenerating] = useState(false);
   const [genActivity, setGenActivity] = useState<string>('');
 
-  // SVG pan / zoom / drag
-  const svgRef  = useRef<SVGSVGElement>(null);
-  const [pan,   setPan]   = useState({ x: 60, y: 60 });
-  const [scale, setScale] = useState(1);
-
-  type DragState = { id: string; mx: number; my: number; nx: number; ny: number };
-  type PanState  = { px: number; py: number; mx: number; my: number };
-  const [dragState, setDragState] = useState<DragState | null>(null);
-  const [panState,  setPanState]  = useState<PanState | null>(null);
-
-  // Click-vs-drag detection refs
-  const nodePressRef = useRef<{ id: string; sx: number; sy: number } | null>(null);
-  const panPressRef  = useRef<{ sx: number; sy: number } | null>(null);
+  // The shared canvas owns its viewport; this ref preserves imperative focus
+  // for reverse lookup and the active-file chip.
+  const canvasRef = useRef<SystemGraphCanvasHandle>(null);
 
   // ── Initialise from server ─────────────────────────────────────────────────
   useEffect(() => {
@@ -309,7 +304,10 @@ function SystemView({ workspacePath, provider, model, onNavigateToLine }, ref) {
     setLocalGraph(g);
     setJsonText(JSON.stringify(g, null, 2));
     setDirty(false);
-  }, [savedGraph, loaded]);
+  // The shared graph is loaded once per workspace. Subsequent local edits are
+  // immediately published to the owner and must not reset this editor's dirty state.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded]);
 
   // ── View switching ─────────────────────────────────────────────────────────
   const switchToJson = useCallback(() => {
@@ -323,6 +321,7 @@ function SystemView({ workspacePath, provider, model, onNavigateToLine }, ref) {
       const parsed = JSON.parse(jsonText) as SystemGraph;
       const g = ensurePositions(parsed);
       setLocalGraph(g);
+      onGraphChange(g);
       setJsonError(null);
       setView('graph');
     } catch (e) {
@@ -333,9 +332,11 @@ function SystemView({ workspacePath, provider, model, onNavigateToLine }, ref) {
   // ── Auto-layout ────────────────────────────────────────────────────────────
   const doAutoLayout = useCallback(() => {
     const lp = autoLayout(localGraph.nodes, localGraph.edges);
-    setLocalGraph(g => withPositions(g, lp));
+    const graph = withPositions(localGraph, lp);
+    setLocalGraph(graph);
+    onGraphChange(graph);
     setDirty(true);
-  }, [localGraph]);
+  }, [localGraph, onGraphChange]);
 
   // ── Save ───────────────────────────────────────────────────────────────────
   const doSave = useCallback(async () => {
@@ -350,72 +351,10 @@ function SystemView({ workspacePath, provider, model, onNavigateToLine }, ref) {
         return;
       }
     }
-    await save(g);
+    onGraphChange(g);
+    await onSave(g);
     setDirty(false);
-  }, [localGraph, view, jsonText, save]);
-
-  // ── SVG mouse events ───────────────────────────────────────────────────────
-  const handleSvgMouseDown = (e: RMouseEvent<SVGSVGElement>) => {
-    panPressRef.current = { sx: e.clientX, sy: e.clientY };
-    setPanState({ px: pan.x, py: pan.y, mx: e.clientX, my: e.clientY });
-  };
-
-  const handleNodeMouseDown = (e: RMouseEvent<SVGGElement>, id: string) => {
-    e.stopPropagation();
-    const node = localGraph.nodes.find(n => n.id === id);
-    if (!node) return;
-    nodePressRef.current = { id, sx: e.clientX, sy: e.clientY };
-    setDragState({ id, mx: e.clientX, my: e.clientY, nx: node.x ?? 0, ny: node.y ?? 0 });
-  };
-
-  const handleMouseMove = (e: RMouseEvent<SVGSVGElement>) => {
-    if (dragState) {
-      const dx = (e.clientX - dragState.mx) / scale;
-      const dy = (e.clientY - dragState.my) / scale;
-      setLocalGraph(g => ({
-        ...g,
-        nodes: g.nodes.map(n =>
-          n.id === dragState.id ? { ...n, x: dragState.nx + dx, y: dragState.ny + dy } : n,
-        ),
-      }));
-      setDirty(true);
-    } else if (panState) {
-      setPan({ x: panState.px + e.clientX - panState.mx, y: panState.py + e.clientY - panState.my });
-    }
-  };
-
-  const handleMouseUp = (e: RMouseEvent<SVGSVGElement>) => {
-    // Node click detection: if movement < 5 px it's a click, not a drag
-    if (nodePressRef.current) {
-      const { id, sx, sy } = nodePressRef.current;
-      if (Math.hypot(e.clientX - sx, e.clientY - sy) < 5) {
-        setSelected(sel => sel?.type === 'node' && sel.id === id ? null : { type: 'node', id });
-      }
-      nodePressRef.current = null;
-    }
-    // Background click: deselect
-    if (panPressRef.current) {
-      const { sx, sy } = panPressRef.current;
-      if (Math.hypot(e.clientX - sx, e.clientY - sy) < 5) setSelected(null);
-      panPressRef.current = null;
-    }
-    setDragState(null);
-    setPanState(null);
-  };
-
-  const handleWheel = (e: RWheelEvent<SVGSVGElement>) => {
-    e.preventDefault();
-    const factor = e.deltaY > 0 ? 0.9 : 1.111;
-    // Zoom toward cursor
-    if (!svgRef.current) return;
-    const r = svgRef.current.getBoundingClientRect();
-    const mx = e.clientX - r.left, my = e.clientY - r.top;
-    setScale(s => {
-      const ns = Math.max(0.15, Math.min(5, s * factor));
-      setPan(p => ({ x: mx - (mx - p.x) * (ns / s), y: my - (my - p.y) * (ns / s) }));
-      return ns;
-    });
-  };
+  }, [localGraph, view, jsonText, onGraphChange, onSave]);
 
   // ── Generate graph by exploring the workspace ─────────────────────────────
   const handleGenerate = useCallback(async (): Promise<SystemGraph | null> => {
@@ -477,6 +416,7 @@ function SystemView({ workspacePath, provider, model, onNavigateToLine }, ref) {
               const parsed = JSON.parse(clean) as SystemGraph;
               const g = ensurePositions(parsed);
               setLocalGraph(g);
+              onGraphChange(g);
               setJsonText(JSON.stringify(g, null, 2));
               setView('graph');
               setDirty(true);
@@ -497,7 +437,7 @@ function SystemView({ workspacePath, provider, model, onNavigateToLine }, ref) {
       setGenActivity('');
     }
     return result;
-  }, [generating, workspacePath, model, provider]);
+  }, [generating, workspacePath, model, provider, onGraphChange]);
 
   // ── File reference navigation ──────────────────────────────────────────────
   const handleFileRefClick = useCallback((f: GraphFileRef) => {
@@ -560,29 +500,7 @@ function SystemView({ workspacePath, provider, model, onNavigateToLine }, ref) {
       const best = hits[0];
       setSelected(best.type === 'node' ? { type: 'node', id: best.id } : { type: 'edge', idx: best.idx });
 
-      // Pan + zoom to the matched item
-      const TARGET_SCALE = 1.2;
-      const svgEl = svgRef.current;
-      const cx = svgEl && svgEl.clientWidth  > 0 ? svgEl.clientWidth  / 2 : 450;
-      const cy = svgEl && svgEl.clientHeight > 0 ? svgEl.clientHeight / 2 : 320;
-
-      if (best.type === 'node') {
-        const pos = posMap[best.id];
-        if (pos) {
-          setScale(TARGET_SCALE);
-          setPan({ x: cx - pos.x * TARGET_SCALE, y: cy - pos.y * TARGET_SCALE });
-        }
-      } else {
-        const edge = localGraph.edges[best.idx];
-        if (edge) {
-          const src = posMap[edge.source], tgt = posMap[edge.target];
-          if (src && tgt) {
-            const mx = (src.x + tgt.x) / 2, my = (src.y + tgt.y) / 2;
-            setScale(TARGET_SCALE);
-            setPan({ x: cx - mx * TARGET_SCALE, y: cy - my * TARGET_SCALE });
-          }
-        }
-      }
+      canvasRef.current?.focusItem(best.type === 'node' ? { type: 'node', id: best.id } : { type: 'edge', idx: best.idx });
 
       return true;
     },
@@ -620,24 +538,12 @@ function SystemView({ workspacePath, provider, model, onNavigateToLine }, ref) {
       const best = hits[0];
       setSelected(best.type === 'node' ? { type: 'node', id: best.id } : { type: 'edge', idx: best.idx });
 
-      const TARGET_SCALE = 1.2;
-      const svgEl = svgRef.current;
-      const cx = svgEl && svgEl.clientWidth  > 0 ? svgEl.clientWidth  / 2 : 450;
-      const cy = svgEl && svgEl.clientHeight > 0 ? svgEl.clientHeight / 2 : 320;
-
       if (best.type === 'node') {
-        const pos = posMap[best.id];
-        if (pos) { setScale(TARGET_SCALE); setPan({ x: cx - pos.x * TARGET_SCALE, y: cy - pos.y * TARGET_SCALE }); }
+        canvasRef.current?.focusItem({ type: 'node', id: best.id });
         return localGraph.nodes.find(n => n.id === best.id)?.name ?? null;
       } else {
         const edge = localGraph.edges[best.idx];
-        if (edge) {
-          const src = posMap[edge.source], tgt = posMap[edge.target];
-          if (src && tgt) {
-            setScale(TARGET_SCALE);
-            setPan({ x: cx - (src.x + tgt.x) / 2 * TARGET_SCALE, y: cy - (src.y + tgt.y) / 2 * TARGET_SCALE });
-          }
-        }
+        canvasRef.current?.focusItem({ type: 'edge', idx: best.idx });
         return edge?.label ?? null;
       }
     },
@@ -677,24 +583,7 @@ function SystemView({ workspacePath, provider, model, onNavigateToLine }, ref) {
     },
 
     focusSelected: (): void => {
-      if (!selected) return;
-      const svgEl = svgRef.current;
-      const cx = svgEl && svgEl.clientWidth  > 0 ? svgEl.clientWidth  / 2 : 450;
-      const cy = svgEl && svgEl.clientHeight > 0 ? svgEl.clientHeight / 2 : 320;
-      const TARGET_SCALE = 1.2;
-      if (selected.type === 'node') {
-        const pos = posMap[selected.id];
-        if (pos) { setScale(TARGET_SCALE); setPan({ x: cx - pos.x * TARGET_SCALE, y: cy - pos.y * TARGET_SCALE }); }
-      } else {
-        const edge = localGraph.edges[selected.idx];
-        if (edge) {
-          const src = posMap[edge.source], tgt = posMap[edge.target];
-          if (src && tgt) {
-            const mx = (src.x + tgt.x) / 2, my = (src.y + tgt.y) / 2;
-            setScale(TARGET_SCALE); setPan({ x: cx - mx * TARGET_SCALE, y: cy - my * TARGET_SCALE });
-          }
-        }
-      }
+      canvasRef.current?.focusItem(selected);
     },
 
   }), [localGraph, posMap, workspacePath, handleGenerate, selected]);
@@ -820,81 +709,20 @@ function SystemView({ workspacePath, provider, model, onNavigateToLine }, ref) {
       ) : (
         /* ── SVG graph canvas + file-references drawer ────────────────────── */
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <svg
-            ref={svgRef}
-            style={{ flex: 1, background: 'var(--color-bg-canvas)', cursor: panState ? 'grabbing' : 'default' }}
-            onMouseDown={handleSvgMouseDown}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseUp}
-            onWheel={handleWheel}
-          >
-            <defs>
-              {/* Forward arrowhead for directed edges */}
-              <marker id="arrow-dir" viewBox="0 0 10 10" refX="10" refY="5"
-                markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-                <path d="M 0 0 L 10 5 L 0 10 Z" fill={COL_DIRECTED} />
-              </marker>
-              {/* Forward arrowhead for bidirectional edges */}
-              <marker id="arrow-bidi" viewBox="0 0 10 10" refX="10" refY="5"
-                markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-                <path d="M 0 0 L 10 5 L 0 10 Z" fill={COL_BIDI} />
-              </marker>
-              {/* Reverse arrowhead (marker-start) for bidirectional edges.
-                  orient="auto" keeps the body aligned along the line toward the target,
-                  so the tip sits at the source node boundary pointing inward. */}
-              <marker id="arrow-bidi-rev" viewBox="0 0 10 10" refX="0" refY="5"
-                markerWidth="6" markerHeight="6" orient="auto">
-                <path d="M 10 0 L 0 5 L 10 10 Z" fill={COL_BIDI} />
-              </marker>
-            </defs>
-
-            <g transform={`translate(${pan.x},${pan.y}) scale(${scale})`}>
-              {/* Edges first so nodes render on top */}
-              {localGraph.edges.map((e, i) => (
-                <EdgeSvg key={i} edge={e} posMap={posMap}
-                  isSelected={selected?.type === 'edge' && selected.idx === i}
-                  onClick={() => setSelected(sel =>
-                    sel?.type === 'edge' && sel.idx === i ? null : { type: 'edge', idx: i }
-                  )}
-                />
-              ))}
-              {localGraph.nodes.map(n => (
-                <NodeSvg
-                  key={n.id}
-                  node={n}
-                  pos={posMap[n.id] ?? { x: 0, y: 0 }}
-                  isDragging={dragState?.id === n.id}
-                  isSelected={selected?.type === 'node' && selected.id === n.id}
-                  onMouseDown={ev => handleNodeMouseDown(ev, n.id)}
-                />
-              ))}
-            </g>
-
-            {/* Empty state overlay */}
-            {localGraph.nodes.length === 0 && (
-              <g transform="translate(0,0)">
-                <foreignObject x="0" y="0" width="100%" height="100%">
-                  <div style={{
-                    display: 'flex', flexDirection: 'column', alignItems: 'center',
-                    justifyContent: 'center', height: '100%', gap: 10,
-                    color: 'var(--color-text-secondary)', textAlign: 'center', padding: '0 20px',
-                  } as React.CSSProperties}>
-                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                      strokeWidth="1.2" style={{ opacity: 0.35 }}>
-                      <circle cx="5"  cy="12" r="3" /><circle cx="19" cy="5"  r="3" />
-                      <circle cx="19" cy="19" r="3" />
-                      <line x1="8" y1="11" x2="16" y2="7" /><line x1="8" y1="13" x2="16" y2="17" />
-                    </svg>
-                    <div style={{ fontSize: 12 }}>No nodes yet</div>
-                    <div style={{ fontSize: 11, opacity: 0.7 }}>
-                      Switch to JSON view to add nodes and edges.
-                    </div>
-                  </div>
-                </foreignObject>
-              </g>
-            )}
-          </svg>
+          <SystemGraphCanvas
+            ref={canvasRef}
+            graph={localGraph}
+            editable
+            selected={selected}
+            onSelectionChange={setSelected}
+            onGraphChange={graph => { setLocalGraph(graph); onGraphChange(graph); setDirty(true); }}
+            style={{ flex: 1 }}
+          />
+          {localGraph.nodes.length === 0 && (
+            <div style={{ position: 'absolute', alignSelf: 'center', marginTop: 30, color: 'var(--color-text-secondary)', textAlign: 'center', fontSize: 12 }}>
+              No nodes yet. Switch to JSON view to add nodes and edges.
+            </div>
+          )}
 
           {/* ── File-references drawer ───────────────────────────────────── */}
           {selected && selectedItem && (

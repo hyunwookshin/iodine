@@ -7,6 +7,8 @@ import type { SystemViewHandle } from '../right/SystemView';
 import { BuildAssistant } from '../right/BuildAssistant';
 import type { Provider } from '../../providers';
 import type { FileNode } from '../../types';
+import { useSystemGraph } from '../../hooks/useSystemGraph';
+import type { SystemGraph } from '../../api/files';
 
 type RightTab = 'assistant' | 'build' | 'system';
 
@@ -66,6 +68,8 @@ function RightPanel({ width, animated, workspacePath, activeFilePath, onWorkspac
   const pulseAutoStopRef     = useRef<ReturnType<typeof setTimeout> | null>(null);
   const systemViewRef        = useRef<SystemViewHandle>(null);
   const codingAssistantRef   = useRef<CodingAssistantHandle>(null);
+  const { graph, setGraph, loaded: graphLoaded, saving: graphSaving, saveError: graphSaveError, save: saveGraph } = useSystemGraph(workspacePath);
+  const handleGraphChange = useCallback((nextGraph: SystemGraph) => setGraph(nextGraph), [setGraph]);
 
   useEffect(() => {
     if (activeTab === 'assistant') {
@@ -239,7 +243,9 @@ function RightPanel({ width, animated, workspacePath, activeFilePath, onWorkspac
 
       {/* Tab content - keep all components mounted to preserve state */}
       <div style={{ flex: 1, display: activeTab === 'system' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden' }}>
-        <SystemView ref={systemViewRef} workspacePath={workspacePath} provider={provider} model={model} onNavigateToLine={onNavigateToLine} />
+        <SystemView ref={systemViewRef} workspacePath={workspacePath} provider={provider} model={model}
+          graph={graph} graphLoaded={graphLoaded} saving={graphSaving} saveError={graphSaveError}
+          onGraphChange={handleGraphChange} onSave={saveGraph} onNavigateToLine={onNavigateToLine} />
       </div>
 
       <div style={{ flex: 1, display: activeTab === 'build' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden' }}>
@@ -251,6 +257,7 @@ function RightPanel({ width, animated, workspacePath, activeFilePath, onWorkspac
           provider={provider} model={model} setProvider={setProvider} setModel={setModel} getEditorContext={getEditorContext}
           contextNodes={contextNodes} onRemoveContextNode={onRemoveContextNode} onClearContextNodes={onClearContextNodes}
           onNavigateToLine={onNavigateToLine} onOpenNode={handleOpenNode} activeSystemNode={activeSystemNode}
+          graph={graph} onOpenIogram={() => setActiveTab('system')}
           onUserTyping={() => { if (pulseAutoStopRef.current) clearTimeout(pulseAutoStopRef.current); panelRef.current?.classList.remove('proactive-pulse'); onUserTyping?.(); }}
           onMessageSent={onMessageSent}
           onAssistantBusyChange={onAssistantBusyChange}

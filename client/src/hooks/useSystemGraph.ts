@@ -38,5 +38,5 @@ export function useSystemGraph(workspacePath: string | null) {
     }
   }, [workspacePath]);
 
-  return { graph, loaded, saving, saveError, save };
+  return { graph, setGraph, loaded, saving, saveError, save };
 }
