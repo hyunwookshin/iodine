@@ -6,14 +6,16 @@ const NODE_W = 132, NODE_H = 54;
 // Estimated canvas width — close enough for centering; actual SVG may differ slightly.
 const EMBED_W = 330, EMBED_H = 180;
 
+const EMBED_SCALE = 0.85;
+
 function computeInitialView(nodes: SystemGraph['nodes']) {
-  if (!nodes.length) return { initialPan: { x: 60, y: 60 }, initialScale: 1 };
-  const xs = nodes.map(n => n.x ?? 0), ys = nodes.map(n => n.y ?? 0);
-  const minX = Math.min(...xs), maxX = Math.max(...xs);
-  const minY = Math.min(...ys), maxY = Math.max(...ys);
-  const s = Math.min(EMBED_W / (maxX - minX + NODE_W + 40), EMBED_H / (maxY - minY + NODE_H + 40), 0.65);
-  const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
-  return { initialScale: s, initialPan: { x: EMBED_W / 2 - cx * s, y: EMBED_H / 2 - cy * s } };
+  if (!nodes.length) return { initialPan: { x: 60, y: 60 }, initialScale: EMBED_SCALE };
+  const cx = nodes.reduce((sum, n) => sum + (n.x ?? 0), 0) / nodes.length;
+  const cy = nodes.reduce((sum, n) => sum + (n.y ?? 0), 0) / nodes.length;
+  return {
+    initialScale: EMBED_SCALE,
+    initialPan: { x: EMBED_W / 2 - cx * EMBED_SCALE, y: EMBED_H / 2 - cy * EMBED_SCALE },
+  };
 }
 
 interface InlineSystemGraphProps {
@@ -27,16 +29,18 @@ interface InlineSystemGraphProps {
 
 export function InlineSystemGraph({ graph, workspacePath, onOpenIogram, onNavigateToLine, activeSystemNode }: InlineSystemGraphProps) {
   const [selected, setSelected] = useState<GraphSelection>(null);
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
   const canvasRef = useRef<SystemGraphCanvasHandle>(null);
 
   // Sync selection + pan whenever the active system node changes externally.
+  // Also auto-expand when a match is found.
   useEffect(() => {
     if (!activeSystemNode) return;
     const node = graph.nodes.find(n => n.name === activeSystemNode);
     if (!node) return;
     const sel: GraphSelection = { type: 'node', id: node.id };
     setSelected(sel);
+    setCollapsed(false);
     requestAnimationFrame(() => canvasRef.current?.panToItem(sel));
   }, [activeSystemNode, graph.nodes]);
 
