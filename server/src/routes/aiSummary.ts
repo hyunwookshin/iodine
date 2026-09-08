@@ -198,9 +198,16 @@ router.post('/ai-summary/generate', async (req, res) => {
         );
       } catch { /* dir may be empty or unreadable */ }
       await fs.promises.writeFile(sfp, accumulated, 'utf-8');
+      // Update the "latest" pointer. Creating symlinks requires elevated rights or
+      // Developer Mode on Windows (EPERM otherwise), so fall back to a plain copy
+      // — the hash-named cache file above is already persisted either way.
       const latestLink = path.join(dir, 'latest_ai_summary.md');
-      try { await fs.promises.unlink(latestLink); } catch { /* didn't exist */ }
-      await fs.promises.symlink(`${contentHash}_ai_summary.md`, latestLink);
+      try {
+        try { await fs.promises.unlink(latestLink); } catch { /* didn't exist */ }
+        await fs.promises.symlink(`${contentHash}_ai_summary.md`, latestLink);
+      } catch {
+        try { await fs.promises.writeFile(latestLink, accumulated, 'utf-8'); } catch { /* non-fatal */ }
+      }
     }
 
     if (!abortSignal.aborted) res.write(`event: done\ndata: {}\n\n`);
@@ -401,9 +408,16 @@ router.post('/ai-directory-summary/generate', async (req, res) => {
         );
       } catch { /* dir may be empty or unreadable */ }
       await fs.promises.writeFile(sfp, accumulated, 'utf-8');
+      // Update the "latest" pointer. Creating symlinks requires elevated rights or
+      // Developer Mode on Windows (EPERM otherwise), so fall back to a plain copy
+      // — the hash-named cache file above is already persisted either way.
       const latestLink = path.join(dir, 'latest_ai_dir_summary.md');
-      try { await fs.promises.unlink(latestLink); } catch { /* didn't exist */ }
-      await fs.promises.symlink(`${contentsHash}_ai_dir_summary.md`, latestLink);
+      try {
+        try { await fs.promises.unlink(latestLink); } catch { /* didn't exist */ }
+        await fs.promises.symlink(`${contentsHash}_ai_dir_summary.md`, latestLink);
+      } catch {
+        try { await fs.promises.writeFile(latestLink, accumulated, 'utf-8'); } catch { /* non-fatal */ }
+      }
     }
 
     if (!abortSignal.aborted) res.write(`event: done\ndata: {}\n\n`);
