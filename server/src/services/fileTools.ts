@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { buildTree, readFileContent, writeFileContent } from './fileSystem';
+import { buildTree, readFileContent, writeFileContent, validatePath } from './fileSystem';
 import { saveSnapshot } from './editSnapshots';
 import { rootPath } from '../state';
 
@@ -14,8 +14,16 @@ function matchGlob(name: string, glob: string): boolean {
   return new RegExp(`^${escaped}$`, 'i').test(name);
 }
 
+/** Resolve a tool-provided path against the workspace and enforce the workspace boundary. */
+function resolveToolPath(inputPath: string): string {
+  if (!rootPath) throw new Error('No workspace open');
+  const abs = path.isAbsolute(inputPath) ? path.resolve(inputPath) : path.resolve(rootPath, inputPath);
+  validatePath(abs, rootPath);
+  return abs;
+}
+
 async function searchFiles(query: string, searchPath?: string, glob?: string): Promise<string> {
-  const base = searchPath ? path.resolve(searchPath) : rootPath!;
+  const base = searchPath ? resolveToolPath(searchPath) : rootPath!;
   const results: string[] = [];
 
   async function walk(dir: string) {
@@ -69,7 +77,7 @@ export async function executeTool(name: string, input: Record<string, unknown>, 
       if (!rootPath) return { content: 'No workspace open', preview: 'No workspace open', error: true };
       const filePath = input.path as string;
       const content = input.content as string;
-      const abs = path.isAbsolute(filePath) ? filePath : path.join(rootPath, filePath);
+      const abs = resolveToolPath(filePath);
       await fs.promises.mkdir(path.dirname(abs), { recursive: true });
       if (toolCallId) await saveSnapshot(rootPath, toolCallId, abs, content, name);
       await writeFileContent(abs, content, rootPath);
@@ -81,7 +89,7 @@ export async function executeTool(name: string, input: Record<string, unknown>, 
       const filePath = input.path as string;
       const oldString = input.old_string as string;
       const newString = input.new_string as string;
-      const abs = path.isAbsolute(filePath) ? filePath : path.join(rootPath, filePath);
+      const abs = resolveToolPath(filePath);
       const original = await fs.promises.readFile(abs, 'utf-8');
       const count = original.split(oldString).length - 1;
       if (count === 0) {
@@ -101,7 +109,7 @@ export async function executeTool(name: string, input: Record<string, unknown>, 
     if (name === 'list_directory') {
       const dirPath = (input.path as string | undefined) || rootPath;
       if (!dirPath) return { content: 'No workspace open', preview: 'No workspace open', error: true };
-      const tree = await buildTree(dirPath, 0, 3);
+      const tree = await buildTree(resolveToolPath(dirPath), 0, 3);
       const content = JSON.stringify(tree, null, 2);
       return { content, preview: content.slice(0, 200), error: false };
     }
