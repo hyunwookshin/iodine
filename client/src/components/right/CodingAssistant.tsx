@@ -23,8 +23,8 @@ export const RESPONSE_TRANSITIONS = {
 } as const;
 
 const SPEECH_OPTIONS = [
-  { id: 'openai', label: 'OpenAI', model: 'tts-1-hd' },
   { id: 'google', label: 'Gemini', model: 'gemini-2.5-flash-preview-tts' },
+  { id: 'openai', label: 'OpenAI', model: 'tts-1-hd' },
 ] as const;
 type SpeechProviderId = typeof SPEECH_OPTIONS[number]['id'];
 
