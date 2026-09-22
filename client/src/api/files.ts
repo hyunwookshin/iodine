@@ -433,3 +433,21 @@ export async function generateAiSummary(
 
   return { content };
 }
+
+export interface ApprovalRuleSummary {
+  id: string;
+  label: string;
+  createdAt: number;
+  lastUsedAt: number | null;
+}
+
+export async function fetchApprovalRules(): Promise<ApprovalRuleSummary[]> {
+  const res = await fetch(`${API_BASE}/api/agent/approval-rules`);
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? 'Failed to load approval rules');
+  return (await res.json()).rules;
+}
+
+export async function deleteApprovalRule(id: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/agent/approval-rules/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? 'Failed to remove approval rule');
+}

@@ -36,7 +36,9 @@ export type UIBlock =
   | { type: 'tool'; id: string; name: string; input: Record<string, unknown>;
       result?: string; error?: boolean; pending: boolean }
   | { type: 'command-approval'; id: string; command: string; reason: string; cwd: string | null;
-      longRunning: boolean; status: 'pending' | 'approved' | 'rejected'; output: string };
+      longRunning: boolean; status: 'pending' | 'approved' | 'rejected'; output: string;
+      /** What a saved rule would cover, or null when this command can never be remembered. */
+      rememberLabel?: string | null; autoApproved?: boolean };
 
 export type UIMessage =
   | { id: string; role: 'user'; content: string; timestamp: number }

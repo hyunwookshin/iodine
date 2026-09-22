@@ -6,6 +6,7 @@ import { loadOpenAIKey, runOpenAIAgentLoop } from '../services/openaiAgent';
 import { loadGeminiKey, runGeminiAgentLoop } from '../services/geminiAgent';
 import { architectureGraphInitMessage, architectureGraphSystemPrompt } from '../prompts/architectureGraph';
 import { revertEdit } from '../services/editSnapshots';
+import { deleteRule, loadRules, ruleSummary } from '../services/commandApproval/rules';
 import { rootPath } from '../state';
 import Anthropic from '@anthropic-ai/sdk';
 
@@ -40,6 +41,27 @@ router.get('/agent/status', async (_req, res) => {
     loadGeminiKey().then(() => true).catch(() => false),
   ]);
   res.json({ configured: anthropicOk, providers: { anthropic: anthropicOk, openai: openaiOk, google: geminiOk }, workspace: rootPath });
+});
+
+router.get('/agent/approval-rules', async (_req, res) => {
+  if (!rootPath) return res.status(400).json({ error: 'No workspace open' });
+  const workspace = rootPath;
+  const rules = await loadRules(workspace);
+  return res.json({
+    rules: rules.map(rule => ({
+      id: rule.id,
+      label: ruleSummary(rule, workspace),
+      createdAt: rule.createdAt,
+      lastUsedAt: rule.lastUsedAt,
+    })),
+  });
+});
+
+router.delete('/agent/approval-rules/:id', async (req, res) => {
+  if (!rootPath) return res.status(400).json({ error: 'No workspace open' });
+  const removed = await deleteRule(rootPath, req.params.id);
+  if (!removed) return res.status(404).json({ error: 'No such rule' });
+  return res.json({ ok: true });
 });
 
 router.post('/agent/revert', async (req, res) => {

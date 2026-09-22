@@ -3,6 +3,8 @@ import { randomUUID } from 'crypto';
 import { Response } from 'express';
 import { rootPath } from '../state';
 import type { ToolResult } from './fileTools';
+import { autoApproveEnabled, findMatch, logMatch, ruleLabel, saveRule } from './commandApproval/rules';
+import { describeCommand, type CommandPart } from './commandApproval/signature';
 
 export interface TerminalCommandRequest {
   id: string;
@@ -14,6 +16,8 @@ export interface TerminalCommandRequest {
 interface PendingCommand extends TerminalCommandRequest {
   createdAt: number;
   resolve: (approved: boolean) => void;
+  /** Null when the command could not be resolved well enough to remember. */
+  parts: CommandPart[] | null;
 }
 
 const pendingCommands = new Map<string, PendingCommand>();
@@ -23,14 +27,41 @@ const COMMAND_TIMEOUT_MS = 2 * 60 * 1000;
 const LONG_RUNNING_CAPTURE_MS = 15 * 1000;
 const MAX_CAPTURE_CHARS = 100_000;
 
-export function requestTerminalApproval(
+/** Describes the command, and reports any saved rule that already covers all of it. */
+async function inspect(command: string): Promise<{ parts: CommandPart[] | null; matched: boolean }> {
+  if (!rootPath) return { parts: null, matched: false };
+
+  const described = describeCommand(command, rootPath, rootPath);
+  if (!described.ok) return { parts: null, matched: false };
+
+  const matched = await findMatch(rootPath, described.parts);
+  if (matched) await logMatch(rootPath, command, matched, autoApproveEnabled());
+  return { parts: described.parts, matched: matched !== null };
+}
+
+export async function requestTerminalApproval(
   request: TerminalCommandRequest,
   res: Response,
   abortSignal: { aborted: boolean },
 ): Promise<boolean> {
   const { id } = request;
+  const workspace = rootPath;
+  const { parts, matched } = await inspect(request.command);
+  const remembered = parts !== null && parts.every(p => p.approvable);
 
-  res.write(`event: command_approval\ndata: ${JSON.stringify({ id, command: request.command, reason: request.reason, longRunning: request.longRunning, cwd: rootPath })}\n\n`);
+  if (matched && autoApproveEnabled()) {
+    res.write(`event: command_approval\ndata: ${JSON.stringify({ id, command: request.command, reason: request.reason, longRunning: request.longRunning, cwd: rootPath, autoApproved: true })}\n\n`);
+    return true;
+  }
+
+  res.write(`event: command_approval\ndata: ${JSON.stringify({
+    id,
+    command: request.command,
+    reason: request.reason,
+    longRunning: request.longRunning,
+    cwd: rootPath,
+    rememberLabel: remembered && workspace ? parts.map(p => ruleLabel(p, workspace)).join(', ') : null,
+  })}\n\n`);
 
   return new Promise<boolean>((resolve) => {
     let settled = false;
@@ -43,7 +74,7 @@ export function requestTerminalApproval(
     };
 
     const timer = setTimeout(() => finish(false), APPROVAL_TIMEOUT_MS);
-    pendingCommands.set(id, { ...request, createdAt: Date.now(), resolve: finish });
+    pendingCommands.set(id, { ...request, createdAt: Date.now(), resolve: finish, parts: remembered ? parts : null });
 
     const poll = setInterval(() => {
       if (settled) {
@@ -56,9 +87,18 @@ export function requestTerminalApproval(
   });
 }
 
-export function resolveTerminalApproval(id: string, approved: boolean): boolean {
+export async function resolveTerminalApproval(id: string, approved: boolean, remember = false): Promise<boolean> {
   const pending = pendingCommands.get(id);
   if (!pending) return false;
+
+  if (approved && remember && pending.parts && rootPath) {
+    try {
+      for (const part of pending.parts) await saveRule(rootPath, part);
+    } catch {
+      // Failing to remember must never cost the user the approval they just gave.
+    }
+  }
+
   pending.resolve(approved);
   return true;
 }

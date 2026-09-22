@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { findWorkspace, openWorkspace, downloadProjectMetadata, importProjectMetadata, clearProjectMetadata, searchFiles } from '../../api/files';
+import { findWorkspace, openWorkspace, downloadProjectMetadata, importProjectMetadata, clearProjectMetadata, searchFiles, fetchApprovalRules, deleteApprovalRule, type ApprovalRuleSummary } from '../../api/files';
 import type { Theme } from '../../hooks/useTheme';
 import type { UpdateInfo } from '../../hooks/useUpdateCheck';
 
@@ -73,6 +73,10 @@ function MoonIcon() {
   );
 }
 
+function formatApprovalDate(ms: number): string {
+  return new Date(ms).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
 export function MenuBar({ onOpenProject, onCloseProject, onCloseAllTabs, onCloseUneditedTabs, onSortTabsByFileStructure, onOpenExternalFile, onOpenWorkspaceFile, workspacePath, theme, onToggleTheme, openTabsCount, showSidebar, showRightPanel, showBottomTray, onToggleSidebar, onToggleRightPanel, onToggleBottomTray, updateInfo, onSnoozeUpdate }: MenuBarProps) {
   const [fileMenuOpen, setFileMenuOpen] = useState(false);
   const [editorMenuOpen, setEditorMenuOpen] = useState(false);
@@ -86,6 +90,9 @@ export function MenuBar({ onOpenProject, onCloseProject, onCloseAllTabs, onClose
   const [error, setError] = useState<string | null>(null);
   const [projectStatus, setProjectStatus] = useState<{ type: 'downloading' | 'importing' | 'clearing' | 'success' | 'error'; message: string } | null>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [showApprovals, setShowApprovals] = useState(false);
+  const [approvalRules, setApprovalRules] = useState<ApprovalRuleSummary[]>([]);
+  const [approvalError, setApprovalError] = useState<string | null>(null);
   const [showUpdateDialog, setShowUpdateDialog] = useState(false);
   const [commandsCopied, setCommandsCopied] = useState(false);
   const [showOpenFileDialog, setShowOpenFileDialog] = useState(false);
@@ -243,6 +250,26 @@ export function MenuBar({ onOpenProject, onCloseProject, onCloseAllTabs, onClose
   const handleImportMetadataClick = () => {
     setEditorMenuOpen(false);
     importInputRef.current?.click();
+  };
+
+  const openApprovals = async () => {
+    setShowApprovals(true);
+    setApprovalError(null);
+    try {
+      setApprovalRules(await fetchApprovalRules());
+    } catch (err) {
+      setApprovalRules([]);
+      setApprovalError((err as Error).message);
+    }
+  };
+
+  const handleRemoveApproval = async (id: string) => {
+    try {
+      await deleteApprovalRule(id);
+      setApprovalRules(rules => rules.filter(r => r.id !== id));
+    } catch (err) {
+      setApprovalError((err as Error).message);
+    }
   };
 
   const handleClearMetadata = async () => {
@@ -554,6 +581,7 @@ export function MenuBar({ onOpenProject, onCloseProject, onCloseAllTabs, onClose
                 { label: 'Download Metadata', action: handleDownloadMetadata },
                 { label: 'Import Metadata…',  action: handleImportMetadataClick },
                 { label: 'Clear Metadata',    action: () => { setEditorMenuOpen(false); setShowClearConfirm(true); } },
+                { label: 'Command Approvals…', action: () => { setEditorMenuOpen(false); openApprovals(); } },
               ]).map(item => (
                 <button
                   key={item.label}
@@ -1000,6 +1028,50 @@ export function MenuBar({ onOpenProject, onCloseProject, onCloseAllTabs, onClose
                 onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
               >
                 View release
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showApprovals && (
+        <div
+          style={{ position: 'fixed', inset: 0, zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.5)' }}
+          onClick={e => { if (e.target === e.currentTarget) setShowApprovals(false); }}
+        >
+          <div style={{ background: 'var(--color-bg-sidebar)', border: '1px solid var(--color-border)', borderRadius: 6, padding: '20px 24px', width: 460, maxHeight: '70vh', display: 'flex', flexDirection: 'column', boxShadow: '0 8px 32px rgba(0,0,0,0.6)' }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 6 }}>Command Approvals</div>
+            <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 14, lineHeight: 1.6 }}>
+              Commands you chose to stop being asked about in this project. Removing one means you will be asked again.
+            </div>
+            {approvalError && <div style={{ fontSize: 12, color: 'var(--color-error)', marginBottom: 10 }}>{approvalError}</div>}
+            {approvalRules.length === 0 && !approvalError && (
+              <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', fontStyle: 'italic', marginBottom: 10 }}>Nothing approved yet.</div>
+            )}
+            <div style={{ overflowY: 'auto', flex: 1 }}>
+              {approvalRules.map(rule => (
+                <div key={rule.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '8px 0', borderBottom: '1px solid var(--color-border)' }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 12, fontFamily: 'monospace', color: 'var(--color-text-primary)', wordBreak: 'break-all' }}>{rule.label}</div>
+                    <div style={{ fontSize: 10, color: 'var(--color-text-secondary)', marginTop: 2 }}>
+                      approved {formatApprovalDate(rule.createdAt)} · {rule.lastUsedAt ? `last matched ${formatApprovalDate(rule.lastUsedAt)}` : 'never matched'}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleRemoveApproval(rule.id)}
+                    style={{ flexShrink: 0, padding: '4px 12px', borderRadius: 999, fontSize: 11, cursor: 'pointer', color: 'var(--color-error)', background: 'none', border: '1px solid var(--color-error)' }}
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
+              <button
+                onClick={() => setShowApprovals(false)}
+                style={{ padding: '6px 16px', borderRadius: 3, fontSize: 13, cursor: 'pointer', color: 'var(--color-text-secondary)', background: 'var(--color-bg-hover)' }}
+              >
+                Close
               </button>
             </div>
           </div>

@@ -295,7 +295,7 @@ Completed conversations are automatically saved to disk and surfaced in the empt
 
 #### Project Metadata (Download / Import / Clear)
 
-The **Project** menu (visible only when a workspace is open) manages the workspace's `~/.iodine/<workspace-md5>/` cache directory, which holds AI summaries and build config.
+The **Editor** menu (visible only when a workspace is open) manages the workspace's `~/.iodine/<workspace-md5>/` cache directory, which holds AI summaries and build config.
 
 | Action | Client | Server |
 |--------|--------|--------|
@@ -303,7 +303,9 @@ The **Project** menu (visible only when a workspace is open) manages the workspa
 | Import | `importProjectMetadata(file)` POSTs the raw `File` object as `application/octet-stream` | `POST /api/project/metadata/import` — uses `express.raw()` to receive the zip body, writes it to a temp file, runs `unzip -o`, then cleans up |
 | Clear | `clearProjectMetadata()` sends `DELETE` | `DELETE /api/project/metadata` — calls `fs.rm(cacheDir, { recursive: true, force: true })` |
 
-The server route is in `server/src/routes/project.ts`, registered at `/api/project` in `server/src/app.ts`. The Project menu is in `client/src/components/layout/MenuBar.tsx`; "Clear Metadata" shows a custom confirm dialog before deleting.
+The server route is in `server/src/routes/project.ts`, registered at `/api/project` in `server/src/app.ts`. The Editor menu is in `client/src/components/layout/MenuBar.tsx`; "Clear Metadata" shows a custom confirm dialog before deleting.
+
+`approval-rules.json` and `approval-log.jsonl` are deliberately excluded from both directions — dropped from the staging dir before zipping, and passed to `unzip -x` on import. Approvals are granted by the person at the keyboard and must not arrive in a shared bundle.
 
 ### Agent Runtime
 
@@ -343,6 +345,32 @@ Successful `write_file` and `edit_file` tool blocks show a **Revert** button in 
 | `client/src/components/right/CodingAssistant.tsx` | `ToolBlock` renders the button; `handleEditReverted` refreshes the file tree and enqueues an `edit_reverted` event context so the model stops assuming the edit is applied. |
 
 **Key details:** snapshots are keyed by tool call id, which the client already holds as `block.id`, so `ToolResult` and the three provider agents are untouched. `existed: false` marks a file the agent created, so reverting deletes it rather than writing an empty file. `afterHash` is the file right after the edit — if it no longer matches, something else changed the file and the revert asks before overwriting. A snapshot is consumed on success, making revert one-shot. The button sits in the expanded panel because the collapsed row is itself a `<button>`. Files touched by `run_terminal_command` are not snapshotted.
+
+#### Terminal Command Approval Rules
+
+Approving a terminal command can also save a rule so similar commands stop asking. "Similar" means the same *shape*, never similarity of wording: `rm -rf .build` and `rm -rf ~/` read almost identically, and only resolving the paths separates them.
+
+| File | Role |
+|------|------|
+| `server/src/services/commandApproval/normalize.ts` | Raw command → resolved commands. Splits on `&&`/`;`/`\|`, tracks `cd` across the chain, expands `~`, resolves relative paths, follows symlinks with `realpath`, canonicalises flags. Returns `unresolvable` (still runs, never a rule) or `never-allowed`. |
+| `server/src/services/commandApproval/capabilities.ts` | Hand-written table of what a program does, keyed on program **plus subcommand** so `git status`, `git push` and `git clean` differ. Unknown program or subcommand yields nothing. |
+| `server/src/services/commandApproval/flags.ts` | Per-program flag weights; `--no-preserve-root` and `find -exec` are blocked outright. |
+| `server/src/services/commandApproval/operands.ts` | Labels each resolved path `inside-project` / `home` / `root` / `system` / `outside` / `glob` / `url`, and decides what an approved folder covers. |
+| `server/src/services/commandApproval/signature.ts` | Ties the above into a `Signature` and decides whether a command can become a rule at all. |
+| `server/src/services/commandApproval/rules.ts` | Stores, matches, and describes rules at `~/.iodine/<workspace-md5>/approval-rules.json`. |
+| `server/src/services/terminalCommands.ts` | `requestTerminalApproval` describes the command and checks for a match before prompting; `resolveTerminalApproval(id, approved, remember)` saves the rule. |
+| `client/src/components/right/CodingAssistant.tsx` | `CommandApprovalBlock` renders the third button when the server sends a `rememberLabel`. |
+| `client/src/components/layout/MenuBar.tsx` | **Editor → Command Approvals…** lists rules with Remove. |
+
+**Only `inside-project` targets are ever approvable.** Home, root, system, outside, globs and URLs always ask, so `rm -rf ~/` can never become a rule even if the client asks for one. Wrappers whose real work lives elsewhere (`npm run`, `make`, `node`, `find`, `xargs`) are also refused, since the script can change after approval.
+
+A rule is scoped to the deepest folder containing everything the command touched, and never reaches hidden or gitignored files beneath it — though a rule aimed straight at such a folder does work, the same way `.cache` does. Every part of a chained command must be covered or the whole line asks.
+
+The server re-checks approvability on resolve rather than trusting the client's `remember` flag.
+
+**Auto-approval is off unless `IODINE_AUTO_APPROVE=1`.** `autoApproveEnabled()` in `rules.ts` reads that variable on each check rather than at import time, because imports run before `index.ts` loads `.env`. While off, matches are still found and appended to `approval-log.jsonl` with `applied: false`, and the user is asked as usual — read that log on real usage before turning it on. macOS and Linux only; the path logic is POSIX, so Windows never auto-approves.
+
+`redteam.test.ts` holds the pairs that must never match, plus control cases so a matcher that always says no cannot pass it. A failure there means a command ran without the user being asked, so the file only grows.
 
 #### Tutor Mode
 
