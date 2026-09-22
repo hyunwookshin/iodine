@@ -2,10 +2,10 @@
   <img src="images/iodine_logo_2-preview.png" alt="Iodine" width="180" />
 </p>
 
-<h1 align="center">Iodine — Your AI Codebase Mentor</h1>
+<h1 align="center">Iodine — AI Codebase Harness & Mentor</h1>
 
 <p align="center">
-  Like having a patient senior engineer beside you—helping you understand unfamiliar code, guiding your next step, and explaining changes as you make them.
+  A developer harness designed like a patient senior engineer beside you—helping you understand unfamiliar code, guiding your next step, and explaining changes as you make them.
 </p>
 
 > “Half of [developers] believe a 90% AI-written code scenario.”
@@ -15,9 +15,9 @@
 
 ## A mentor for unfamiliar code
 
-Opening a new open source repository can feel like arriving in a city without a map. Iodine helps you find your way through the codebase without taking control away from you.
+Opening a new open source repository can feel like arriving in a city without a map. Iodine provides an execution and mentoring harness that helps you find your way through the codebase without taking control away from you.
 
-It reads the project in context, explains how the pieces fit together, and guides you from your first question to your first confident contribution. Instead of only generating code, Iodine helps you become more capable of working in the codebase.
+It reads the project in context, explains how the pieces fit together, and guides you from your first question to your first confident contribution. Instead of only generating code, Iodine serves as an interactive harness that equips both you and the AI to explore, inspect, and safely modify the codebase.
 
 ## Mentor Mode
 
@@ -25,7 +25,7 @@ It reads the project in context, explains how the pieces fit together, and guide
 
 Mentor Mode is Iodine's central experience. It creates a guided walkthrough, opens the relevant file, highlights the lines worth studying, and explains what you are seeing before waiting for you to continue. Every explanation is grounded in the actual project—from architecture diagrams to source code.
 
-<img src="https://github.com/user-attachments/assets/55a721c6-8990-407f-a343-bdecbdf42b1e" alt="Iodine IDE demo" width="100%" />
+<img src="https://github.com/user-attachments/assets/55a721c6-8990-407f-a343-bdecbdf42b1e" alt="Iodine harness demo" width="100%" />
 
 <p align="center">
   More demos on YouTube: <a href="https://youtu.be/QgfjxkFNNDA">Demo 1</a> · <a href="https://youtu.be/DFy1F0CQmN8">Demo 2</a> · <a href="https://youtu.be/gl_IeYgDNJw">Demo 3</a> · <a href="https://www.youtube.com/watch?v=66pxz-CJ_sg">Demo 4</a> · <a href="https://youtu.be/M6C0rk1DwNs">Demo 5</a>
@@ -41,9 +41,9 @@ Iodine supports the way a good human mentor would:
 
 The assistant uses the code and context already in your workspace, so guidance stays connected to the project rather than generic examples. It can explain what is happening, suggest a next step, and help you verify the result.
 
-## More than a chat window
+## A developer harness, not just a chat window
 
-Iodine brings the tools you need into one guided workspace: a code editor, architecture view, integrated terminal, Git workflows, previews, and AI assistance. The tools are there to support the mentoring experience—not distract from it.
+Rather than treating the workspace as a traditional IDE or a bare chat prompt, Iodine acts as an agentic harness around your project. It equips the model and developer with the real tools needed for end-to-end work: targeted file inspection and editing, dynamic architecture graphs, integrated terminals, Git diffs, previews, and AI assistance. The harness supports the mentoring and development loop—giving models real execution grounding while keeping you firmly in control.
 
 ## System View 📈
 
@@ -59,8 +59,8 @@ System View is interactive documentation generated from the code that is actuall
 ## Use Cases
 
 - **Understand an unfamiliar codebase** — Learn architecture and implementation one guided step at a time.
-- **Build AI-assisted developer tools** — Use the built-in agent infrastructure for specialized assistants.
-- **Learn or teach** — Explore a readable example integrating Monaco, xterm.js, Git, and multiple AI providers.
+- **Agent harness for development** — Provide LLMs and human developers with unified tools: workspace inspection, targeted file edits, live terminals, and Git controls.
+- **Learn or teach** — Explore a readable harness architecture integrating Monaco, xterm.js, Git, and multiple AI providers.
 
 ## How It Works
 
