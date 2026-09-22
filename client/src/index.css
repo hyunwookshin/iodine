@@ -269,3 +269,15 @@ input {
 .md-preview tr:nth-child(even) td { background: var(--color-preview-row-alt); }
 .md-preview hr { border: none; border-top: 1px solid var(--color-border); margin: 1.2em 0; }
 .md-preview img { max-width: 100%; }
+
+@keyframes meeting-wave {
+  0%, 100% { transform: scaleY(0.10); }
+  25%       { transform: scaleY(0.85); }
+  55%       { transform: scaleY(0.18); }
+  80%       { transform: scaleY(0.72); }
+}
+
+@keyframes meeting-dot-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}

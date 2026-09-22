@@ -591,6 +591,7 @@ export function WorkbenchLayout() {
             onCommitDiffClose={() => setActiveCommitHash(null)}
             onCommitCheckout={handleCommitCheckout}
             onCommitDiffAddToContext={(shortHash, content) => setCommitDiffContext({ shortHash, content })}
+            activeMeeting={new URLSearchParams(window.location.search).has('meeting')}
           />
 
           <div style={{ display: showRightPanel ? 'contents' : 'none' }}>

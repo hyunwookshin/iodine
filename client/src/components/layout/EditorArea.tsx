@@ -10,6 +10,7 @@ import { ImageViewer } from '../editor/ImageViewer';
 import { PdfViewer } from '../editor/PdfViewer';
 import MergeConflictView from '../editor/MergeConflictView';
 import { CommitDiffView } from '../editor/CommitDiffView';
+import { LiveMeetingCard } from '../editor/LiveMeetingCard';
 import { FilePathLink } from '../editor/FilePathLink';
 import { useFileDiff } from '../../hooks/useFileDiff';
 import { hasConflictMarkers } from '../../utils/mergeConflict';
@@ -72,6 +73,10 @@ interface EditorAreaProps {
   onCommitCheckout?: (hash: string) => void;
   /** Called when the user clicks "+ Ask Assistant" in the commit diff overlay. */
   onCommitDiffAddToContext?: (shortHash: string, content: string) => void;
+  /** When true, renders the floating live meeting card over the editor. */
+  activeMeeting?: boolean;
+  /** Called when the user closes the live meeting card. */
+  onMeetingClose?: () => void;
 }
 
 export interface EditorAreaHandle {
@@ -102,12 +107,13 @@ const btnStyle: React.CSSProperties = {
 };
 
 export const EditorArea = forwardRef<EditorAreaHandle, EditorAreaProps>(
-  function EditorArea({ openFiles, activeFilePath, onTabClick, onTabClose, onTabReorder, onContentChange, workspacePath, provider, model, summaryRequestPath, onSummaryHandled, onActivity, onEditorViewChange, onSummaryContentChange, onActiveHeadingChange, onOpenFile, onPreviewRequest, previewRequestPath, onPreviewHandled, onSummaryRequest, onSummaryOpen, canGoBack, canGoForward, onGoBack, onGoForward, activeCommitHash, onCommitDiffClose, onCommitCheckout, onCommitDiffAddToContext }, ref) {
+  function EditorArea({ openFiles, activeFilePath, onTabClick, onTabClose, onTabReorder, onContentChange, workspacePath, provider, model, summaryRequestPath, onSummaryHandled, onActivity, onEditorViewChange, onSummaryContentChange, onActiveHeadingChange, onOpenFile, onPreviewRequest, previewRequestPath, onPreviewHandled, onSummaryRequest, onSummaryOpen, canGoBack, canGoForward, onGoBack, onGoForward, activeCommitHash, onCommitDiffClose, onCommitCheckout, onCommitDiffAddToContext, activeMeeting, onMeetingClose }, ref) {
     const activeFile = openFiles.find(f => f.path === activeFilePath) ?? null;
     const { diff: diffData, refreshDiff } = useFileDiff(
       (activeFile?.isImage || activeFile?.isUrl || activeFile?.isExternal) ? null : (activeFile?.path ?? null),
       activeFile?.content ?? '',
     );
+    const containerRef = useRef<HTMLDivElement>(null);
     const monacoEditorRef = useRef<MonacoEditorAPI.IStandaloneCodeEditor | null>(null);
     const scrollPercentageRef = useRef(0);
     const previousViewRef = useRef<EditorView>('source');
@@ -457,6 +463,7 @@ export const EditorArea = forwardRef<EditorAreaHandle, EditorAreaProps>(
 
     return (
       <div
+        ref={containerRef}
         style={{
           flex: 1,
           display: 'flex',
@@ -807,6 +814,9 @@ export const EditorArea = forwardRef<EditorAreaHandle, EditorAreaProps>(
               onAddToContext={onCommitDiffAddToContext}
             />
           </div>
+        )}
+        {activeMeeting && (
+          <LiveMeetingCard containerRef={containerRef} onClose={() => onMeetingClose?.()} />
         )}
       </div>
     );
