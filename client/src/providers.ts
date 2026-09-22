@@ -71,5 +71,5 @@ export const PROVIDERS: Provider[] = [
   },
 ];
 
-export const DEFAULT_PROVIDER = PROVIDERS.find((provider) => provider.id === 'openai')!;
-export const DEFAULT_MODEL = 'gpt-5.6-sol';
+export const DEFAULT_PROVIDER = PROVIDERS.find((provider) => provider.id === 'google')!;
+export const DEFAULT_MODEL = 'gemini-3.8-flash';
