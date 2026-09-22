@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 
 const BAR_COUNT = 26;
+const USER_COLOR = 'rgba(255,255,255,0.88)';
+const AGENT_COLOR = '#4ec9b0';
 
 function MicIcon() {
   return (
@@ -37,14 +39,21 @@ function CloseIcon() {
 interface LiveMeetingCardProps {
   containerRef: React.RefObject<HTMLDivElement>;
   onClose: () => void;
+  /** Live AnalyserNode from the active AudioContext. When provided the waveform
+   *  reacts to real frequency data instead of the CSS idle animation. */
+  analyserNode?: AnalyserNode | null;
+  /** Who is currently speaking — controls bar colour. */
+  speaking?: 'user' | 'agent' | 'idle';
 }
 
-export function LiveMeetingCard({ containerRef, onClose }: LiveMeetingCardProps) {
+export function LiveMeetingCard({ containerRef, onClose, analyserNode, speaking = 'idle' }: LiveMeetingCardProps) {
   const cardRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ startMouseX: number; startMouseY: number; startX: number; startY: number } | null>(null);
+  const frameRef = useRef(0);
   const [pos, setPos] = useState({ x: 20, y: 20 });
   const [isMuted, setIsMuted] = useState(false);
   const [seconds, setSeconds] = useState(0);
+  const [barScales, setBarScales] = useState<number[]>(() => Array(BAR_COUNT).fill(0));
 
   // Timer
   useEffect(() => {
@@ -73,8 +82,29 @@ export function LiveMeetingCard({ containerRef, onClose }: LiveMeetingCardProps)
     };
   }, [containerRef]);
 
+  // rAF loop — reads frequency data from analyserNode each frame
+  useEffect(() => {
+    if (!analyserNode) {
+      setBarScales(Array(BAR_COUNT).fill(0));
+      return;
+    }
+    const data = new Uint8Array(analyserNode.frequencyBinCount);
+    const step = Math.max(1, Math.floor(data.length / BAR_COUNT));
+    const tick = () => {
+      analyserNode.getByteFrequencyData(data);
+      setBarScales(Array.from({ length: BAR_COUNT }, (_, i) =>
+        Math.max(0.05, data[i * step] / 255),
+      ));
+      frameRef.current = requestAnimationFrame(tick);
+    };
+    frameRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frameRef.current);
+  }, [analyserNode]);
+
   const formatTime = (s: number) =>
     `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
+
+  const barColor = speaking === 'user' ? USER_COLOR : AGENT_COLOR;
 
   return (
     <div
@@ -151,7 +181,7 @@ export function LiveMeetingCard({ containerRef, onClose }: LiveMeetingCardProps)
         </div>
       </div>
 
-      {/* Waveform — fills rest of card */}
+      {/* Waveform — CSS animation when idle, rAF-driven when analyserNode is live */}
       <div style={{ flex: 1, display: 'flex', alignItems: 'flex-end', padding: '0 10px 12px', gap: 3 }}>
         {Array.from({ length: BAR_COUNT }, (_, i) => (
           <div
@@ -160,10 +190,16 @@ export function LiveMeetingCard({ containerRef, onClose }: LiveMeetingCardProps)
               flex: 1,
               height: '100%',
               borderRadius: 2,
-              background: '#4ec9b0',
+              background: barColor,
               transformOrigin: 'bottom',
-              animation: 'meeting-wave 1.7s ease-in-out infinite',
-              animationDelay: `${-(i * 0.068) % 1.7}s`,
+              transition: analyserNode ? 'background 400ms ease' : undefined,
+              ...(analyserNode
+                ? { transform: `scaleY(${barScales[i]})` }
+                : {
+                    animation: 'meeting-wave 1.7s ease-in-out infinite',
+                    animationDelay: `${-(i * 0.068) % 1.7}s`,
+                  }
+              ),
             }}
           />
         ))}
