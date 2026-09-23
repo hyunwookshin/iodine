@@ -278,7 +278,8 @@ function RightPanel({ width, animated, workspacePath, activeFilePath, onWorkspac
           onFileTreeRefresh={onFileTreeRefresh}
           onSummaryRequest={onSummaryRequest}
           commitDiffContext={commitDiffContext}
-          onClearCommitDiffContext={onClearCommitDiffContext} />
+          onClearCommitDiffContext={onClearCommitDiffContext}
+          meetingActive={meetingActive} />
       </div>
     </div>
   );
