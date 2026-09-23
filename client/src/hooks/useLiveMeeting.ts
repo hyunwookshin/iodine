@@ -314,13 +314,13 @@ export function useLiveMeeting(provider: string, onTranscriptReady?: (transcript
       ws.send(JSON.stringify({
         setup: {
           model: 'models/gemini-3.8-live',
-          ...(ctx ? {
-            systemInstruction: {
-              parts: [{
-                text: `You are a helpful voice assistant continuing a prior text conversation with the user.\n\nUse the following conversation history as context — refer back to it naturally when relevant, but respond conversationally and concisely as this is now a live voice session.\n\n[PRIOR CONVERSATION]\n${ctx}`,
-              }],
-            },
-          } : {}),
+          systemInstruction: {
+            parts: [{
+              text: ctx
+                ? `You are a helpful voice assistant continuing a prior text conversation with the user. Respond conversationally and concisely — this is a live voice session, not a text chat.\n\nWhen the session starts, greet the user with a single warm sentence that naturally references the prior topic (e.g. "Hey, great to continue our chat about X this way!"), then wait for them to speak. Do not list what you can do.\n\n[PRIOR CONVERSATION]\n${ctx}`
+                : `You are a helpful voice assistant. Respond conversationally and concisely — this is a live voice session.\n\nWhen the session starts, greet the user with a single friendly sentence and ask what they're working on. Keep it brief.`,
+            }],
+          },
           generationConfig: {
             responseModalities: ['AUDIO'],
             speechConfig: {
@@ -334,9 +334,16 @@ export function useLiveMeeting(provider: string, onTranscriptReady?: (transcript
       return;
     }
 
-    // Gemini setup complete — safe to start sending audio
+    // Gemini setup complete — safe to start sending audio.
+    // Send a silent trigger so Gemini opens with its intro without waiting for the user.
     if ('setupComplete' in msg) {
       readyRef.current = true;
+      ws.send(JSON.stringify({
+        clientContent: {
+          turns: [{ role: 'user', parts: [{ text: 'start' }] }],
+          turnComplete: true,
+        },
+      }));
       return;
     }
 
