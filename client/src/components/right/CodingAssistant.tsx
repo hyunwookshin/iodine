@@ -246,7 +246,6 @@ export const CodingAssistant = forwardRef<CodingAssistantHandle, CodingAssistant
   const [shimmerMsgId, setShimmerMsgId] = useState<string | null>(null);
   const [verballyLoadingId, setVerballyLoadingId] = useState<string | null>(null);
   const [verballyError, setVerballyError] = useState<string | null>(null);
-  const [showVerballyDialog, setShowVerballyDialog] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const prevIsLoadingRef = useRef(false);
   // Ref mirrors: transcribeAndSend is a useCallback whose deps don't include these
@@ -378,7 +377,7 @@ export const CodingAssistant = forwardRef<CodingAssistantHandle, CodingAssistant
       const r = await fetch(`${API_BASE}/api/stt/transcribe`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ audioBase64, mimeType, provider: provider.id }),
+        body: JSON.stringify({ audioBase64, mimeType, provider: speechOption.id }),
       });
       if (!r.ok) {
         const body = await r.json().catch(() => ({ error: `HTTP ${r.status}` }));
@@ -401,10 +400,9 @@ export const CodingAssistant = forwardRef<CodingAssistantHandle, CodingAssistant
       setIsTranscribing(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [provider.id, activeFilePath, isTutorMode, showConversations, clearMessages]);
+  }, [speechOption.id, activeFilePath, isTutorMode, showConversations, clearMessages]);
 
   const startRecording = useCallback(async () => {
-    if (provider.id === 'anthropic') { setShowVerballyDialog(true); return; }
     const wasSpeaking = Boolean(narrationAudioRef.current || audioRef.current);
     // Stop any playing audio before recording so the mic doesn't pick it up.
     // Pause audio refs directly — do NOT call stopNarrationQueue() here as it
@@ -466,7 +464,7 @@ export const CodingAssistant = forwardRef<CodingAssistantHandle, CodingAssistant
     } catch (err) {
       console.error('[STT] mic error', err);
     }
-  }, [provider.id, stopRecording, transcribeAndSend, enqueueEventContext, stopExecution]);
+  }, [stopRecording, transcribeAndSend, enqueueEventContext, stopExecution]);
 
   useEffect(() => () => {
     if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
@@ -488,7 +486,7 @@ export const CodingAssistant = forwardRef<CodingAssistantHandle, CodingAssistant
       if (lastMsg?.role === 'assistant') {
         const text = lastMsg.blocks.filter((b): b is UIBlock & { type: 'text' } => b.type === 'text').map(b => b.content).join('\n\n').trim();
         // Enqueue the response audio after any tool narrations — do not interrupt them.
-        if (text && provider.id !== 'anthropic') {
+        if (text) {
           const msgId = lastMsg.id;
           setShimmerMsgId(msgId);
           onNarrationQueueEmptyRef.current = () => setSpeakingMsgId(null);
@@ -598,20 +596,6 @@ export const CodingAssistant = forwardRef<CodingAssistantHandle, CodingAssistant
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}><button role="switch" aria-checked={isTutorMode} onClick={() => setIsTutorMode(v => !v)} title={isTutorMode ? 'Mentor Mode on — AI will guide without editing' : 'Enable Mentor Mode'} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', padding: '5px 4px', color: isTutorMode ? '#4ec9b0' : 'var(--color-text-secondary)', fontSize: 11, fontWeight: isTutorMode ? 600 : 400 }}><span style={{ position: 'relative', width: 26, height: 15, borderRadius: 999, background: isTutorMode ? '#4ec9b0' : 'var(--color-border)', transition: 'background .15s ease', flexShrink: 0 }}><span style={{ position: 'absolute', top: 2, left: isTutorMode ? 13 : 2, width: 11, height: 11, borderRadius: '50%', background: '#fff', transition: 'left .15s ease' }} /></span>Mentor</button>{isLoading && <button onClick={() => stopExecution()} style={{ background: '#f4877118', border: '1px solid #f4877160', borderRadius: 999, color: '#f48771', cursor: 'pointer', fontSize: 12, padding: '5px 14px', fontWeight: 600 }}>Stop</button>}<button onClick={isRecording ? stopRecording : startRecording} disabled={isTranscribing} title={isRecording ? 'Stop recording' : isTranscribing ? 'Transcribing…' : 'Voice input'} style={{ background: isRecording ? '#f4877118' : 'none', border: `1px solid ${isRecording ? '#f48771' : 'var(--color-border)'}`, borderRadius: 999, color: isRecording ? '#f48771' : isTranscribing ? 'var(--color-text-secondary)' : 'var(--color-text-secondary)', cursor: isTranscribing ? 'default' : 'pointer', padding: '5px 8px', display: 'inline-flex', alignItems: 'center', transition: 'background 0.15s ease, border-color 0.15s ease' }}>{isTranscribing ? <span style={{ fontSize: 11 }}>…</span> : <MicIcon />}</button><button onClick={handleSend} disabled={isLoading || !input.trim()} style={{ background: isLoading || !input.trim() ? '#ffffff18' : '#0e639c', border: 'none', borderRadius: 999, color: isLoading || !input.trim() ? 'var(--color-text-secondary)' : '#fff', cursor: isLoading || !input.trim() ? 'default' : 'pointer', fontSize: 12, padding: '5px 15px', fontWeight: 600 }}>{isLoading ? 'Thinking…' : 'Send'}</button></div>
         </div>
       </div>
-      {showVerballyDialog && (
-        <div style={{ position: 'absolute', inset: 0, zIndex: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.4)' }} onClick={() => setShowVerballyDialog(false)}>
-          <div style={{ background: 'var(--color-bg-sidebar)', border: '1px solid var(--color-border)', borderRadius: 8, padding: '20px 22px', width: 280, boxShadow: '0 8px 32px rgba(0,0,0,0.6)' }} onClick={e => e.stopPropagation()}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 8 }}>🔊 Voice Memo requires OpenAI or Gemini</div>
-            <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', lineHeight: 1.6, marginBottom: 16 }}>Anthropic does not offer a text-to-speech API. Switch to OpenAI or Gemini to use Voice Memo.</div>
-            <div style={{ display: 'flex', gap: 6 }}>
-              {PROVIDERS.filter(p => p.id === 'openai' || p.id === 'google').map(p => (
-                <button key={p.id} onClick={() => { setProvider(p.id); setShowVerballyDialog(false); }} style={{ flex: 1, padding: '6px 10px', borderRadius: 6, background: 'var(--color-accent, #0e639c)', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>{p.label}</button>
-              ))}
-              <button onClick={() => setShowVerballyDialog(false)} style={{ padding: '6px 10px', borderRadius: 6, background: 'var(--color-bg-hover)', color: 'var(--color-text-secondary)', fontSize: 12, cursor: 'pointer' }}>Cancel</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>;
 });
 CodingAssistant.displayName = 'CodingAssistant';
