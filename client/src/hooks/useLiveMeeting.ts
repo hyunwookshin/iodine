@@ -6,9 +6,8 @@ const WS_BASE = import.meta.env.DEV
   : `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`;
 
 const BUFFER_SIZE = 4096;
-const OPENAI_INPUT_RATE = 24000;
 const GEMINI_INPUT_RATE = 16000;
-/** Both providers output 24 kHz PCM16. */
+/** Gemini outputs 24 kHz PCM16. */
 const OUTPUT_RATE = 24000;
 
 // ── PCM conversion helpers ──────────────────────────────────────────────────
@@ -58,7 +57,7 @@ function resample(buffer: Float32Array, sourceRate: number, targetRate: number):
 // ── Hook ────────────────────────────────────────────────────────────────────
 
 export interface UseLiveMeetingReturn {
-  /** Start a live meeting with the current provider. */
+  /** Start a live meeting (Google provider only). */
   start: () => Promise<void>;
   /** Stop the active meeting and clean up all resources. */
   stop: () => void;
@@ -90,11 +89,9 @@ export function useLiveMeeting(provider: string): UseLiveMeetingReturn {
   // without re-registering on every state change.
   const isMutedRef = useRef(false);
 
-  // Set to true once the provider confirms the session is ready for audio.
+  // Set to true once Gemini confirms the session is ready for audio.
   const readyRef = useRef(false);
 
-  // Snapshot of provider at the time start() was called.
-  const providerAtStartRef = useRef<string>('');
   // Current provider — updated on every render so start() always reads the latest.
   const providerRef = useRef(provider);
   providerRef.current = provider;
@@ -155,7 +152,6 @@ export function useLiveMeeting(provider: string): UseLiveMeetingReturn {
     playQueueRef.current = [];
     isPlayingRef.current = false;
     readyRef.current = false;
-    providerAtStartRef.current = '';
     setIsActive(false);
     setIsMuted(false);
     isMutedRef.current = false;
@@ -170,11 +166,8 @@ export function useLiveMeeting(provider: string): UseLiveMeetingReturn {
     if (wsRef.current) return;
     setError(null);
 
-    const prov = providerRef.current;
-    providerAtStartRef.current = prov;
-
-    if (prov !== 'openai' && prov !== 'google') {
-      setError(`Provider '${prov}' does not support live meetings. Switch to OpenAI or Google.`);
+    if (providerRef.current !== 'google') {
+      setError(`Live meetings require the Google provider. Switch to Google to start a meeting.`);
       return;
     }
 
@@ -183,17 +176,12 @@ export function useLiveMeeting(provider: string): UseLiveMeetingReturn {
       const res = await fetch('/api/meeting/session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ provider: prov }),
+        body: JSON.stringify({ provider: 'google' }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({ error: res.statusText }));
         throw new Error((body as { error?: string }).error ?? 'Failed to create meeting session');
       }
-      const session = await res.json() as {
-        provider: string;
-        clientSecret?: string;
-        useRelay?: boolean;
-      };
 
       // 2. Request microphone access
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -203,7 +191,6 @@ export function useLiveMeeting(provider: string): UseLiveMeetingReturn {
       const audioCtx = new AudioContext({ sampleRate: OUTPUT_RATE });
       audioCtxRef.current = audioCtx;
       const actualRate = audioCtx.sampleRate;
-      const inputRate = prov === 'openai' ? OPENAI_INPUT_RATE : GEMINI_INPUT_RATE;
 
       // 4. Audio graph
       //    source (mic) ──► analyser (for waveform visualisation)
@@ -223,34 +210,10 @@ export function useLiveMeeting(provider: string): UseLiveMeetingReturn {
       // We silence the output buffer in the callback to prevent mic feedback.
       processor.connect(audioCtx.destination);
 
-      // 5. Open WebSocket to the provider
-      let ws: WebSocket;
-      if (prov === 'openai') {
-        ws = new WebSocket(
-          'wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview',
-          ['realtime', `openai-insecure-api-key.${session.clientSecret}`, 'openai-beta.realtime-v1'],
-        );
-      } else {
-        ws = new WebSocket(`${WS_BASE}/meeting/relay`);
-      }
+      // 5. Open WebSocket relay to Gemini Live
+      const ws = new WebSocket(`${WS_BASE}/meeting/relay`);
       ws.binaryType = 'arraybuffer';
       wsRef.current = ws;
-
-      ws.onopen = () => {
-        if (prov === 'openai') {
-          // Configure the realtime session
-          ws.send(JSON.stringify({
-            type: 'session.update',
-            session: {
-              modalities: ['audio', 'text'],
-              input_audio_format: 'pcm16',
-              output_audio_format: 'pcm16',
-              turn_detection: { type: 'server_vad' },
-            },
-          }));
-        }
-        // Gemini: setup is sent after receiving relay-ready
-      };
 
       ws.onmessage = (event) => {
         try {
@@ -258,12 +221,7 @@ export function useLiveMeeting(provider: string): UseLiveMeetingReturn {
             ? event.data
             : new TextDecoder().decode(event.data as ArrayBuffer);
           const msg = JSON.parse(raw);
-
-          if (prov === 'google') {
-            handleGeminiMessage(msg, ws);
-          } else {
-            handleOpenAIMessage(msg);
-          }
+          handleGeminiMessage(msg, ws);
         } catch { /* ignore malformed frames */ }
       };
 
@@ -277,7 +235,7 @@ export function useLiveMeeting(provider: string): UseLiveMeetingReturn {
         if (wsRef.current === ws) stop();
       };
 
-      // 6. Stream mic audio to the provider
+      // 6. Stream mic audio to Gemini
       processor.onaudioprocess = (e) => {
         // Silence output to prevent speaker feedback
         e.outputBuffer.getChannelData(0).fill(0);
@@ -286,20 +244,16 @@ export function useLiveMeeting(provider: string): UseLiveMeetingReturn {
         if (!ws || ws.readyState !== WebSocket.OPEN) return;
 
         const rawSamples = e.inputBuffer.getChannelData(0);
-        const samples = actualRate !== inputRate
-          ? resample(rawSamples, actualRate, inputRate)
+        const samples = actualRate !== GEMINI_INPUT_RATE
+          ? resample(rawSamples, actualRate, GEMINI_INPUT_RATE)
           : rawSamples;
         const b64 = float32ToBase64Pcm16(samples);
 
-        if (prov === 'openai') {
-          ws.send(JSON.stringify({ type: 'input_audio_buffer.append', audio: b64 }));
-        } else {
-          ws.send(JSON.stringify({
-            realtimeInput: {
-              audio: { mimeType: `audio/pcm;rate=${inputRate}`, data: b64 },
-            },
-          }));
-        }
+        ws.send(JSON.stringify({
+          realtimeInput: {
+            audio: { mimeType: `audio/pcm;rate=${GEMINI_INPUT_RATE}`, data: b64 },
+          },
+        }));
       };
 
       setIsActive(true);
@@ -310,7 +264,7 @@ export function useLiveMeeting(provider: string): UseLiveMeetingReturn {
     }
   }, [stop, enqueueAndPlay]);
 
-  // ── Provider-specific message handlers ────────────────────────────────────
+  // ── Gemini message handler ─────────────────────────────────────────────────
 
   function handleGeminiMessage(msg: Record<string, unknown>, ws: WebSocket) {
     // Relay error (e.g. missing API key)
@@ -358,34 +312,6 @@ export function useLiveMeeting(provider: string): UseLiveMeetingReturn {
     }
     if (serverContent?.turnComplete) {
       setSpeaking(s => s === 'agent' ? 'idle' : s);
-    }
-  }
-
-  function handleOpenAIMessage(msg: Record<string, unknown>) {
-    const type = msg.type as string | undefined;
-
-    // Session confirmed — safe to start sending audio
-    if (type === 'session.created' || type === 'session.updated') {
-      readyRef.current = true;
-    }
-
-    // Agent audio delta
-    if (type === 'response.audio.delta' && msg.delta) {
-      setSpeaking('agent');
-      enqueueAndPlay(base64Pcm16ToFloat32(msg.delta as string));
-    }
-
-    // Agent finished speaking
-    if (type === 'response.audio.done' || type === 'response.done') {
-      setSpeaking(s => s === 'agent' ? 'idle' : s);
-    }
-
-    // User speaking (server VAD)
-    if (type === 'input_audio_buffer.speech_started') {
-      setSpeaking('user');
-    }
-    if (type === 'input_audio_buffer.speech_stopped') {
-      setSpeaking(s => s === 'user' ? 'idle' : s);
     }
   }
 
