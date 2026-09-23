@@ -25,6 +25,12 @@ It reads the project in context, explains how the pieces fit together, and guide
 
 Mentor Mode is Iodine's central experience. It creates a guided walkthrough, opens the relevant file, highlights the lines worth studying, and explains what you are seeing before waiting for you to continue. Every explanation is grounded in the actual project—from architecture diagrams to source code.
 
+## Live Mentor Sessions
+
+**Have a real conversation about your code — voice to voice, in real time.**
+
+Once you have had a few exchanges in the chat, a **Start a meeting** button appears above the input. Click it and Iodine connects you to a live voice session that already knows your conversation history. Talk through the architecture, ask follow-up questions, think out loud — the assistant responds like a senior engineer sitting beside you, not a chatbot reading from a script. When the session ends, the full transcript is dropped back into the chat so the context is never lost and the next message picks up exactly where you left off.
+
 <img src="https://github.com/user-attachments/assets/55a721c6-8990-407f-a343-bdecbdf42b1e" alt="Iodine harness demo" width="100%" />
 
 <p align="center">
@@ -37,7 +43,8 @@ Iodine supports the way a good human mentor would:
 
 - **Explore** — Follow a guided path through the repository, with relevant files and lines brought into focus.
 - **Build Together** — Ask questions, make changes, run tests, and review your work while staying in control.
-- **Explain** - Explain the code like no agent could.
+- **Talk It Through** — Start a live voice session and discuss the code out loud, the way you would with a senior engineer on your team.
+- **Explain** — Explain the code like no agent could.
 
 The assistant uses the code and context already in your workspace, so guidance stays connected to the project rather than generic examples. It can explain what is happening, suggest a next step, and help you verify the result.
 
@@ -68,10 +75,11 @@ System View is interactive documentation generated from the code that is actuall
 2. Browse and edit files in the Monaco-powered editor with Git status and diffs.
 3. Open a file and click **🤖 Summary** for a cached AI-generated tutorial.
 4. Use the **Coding Assistant** to ask questions or make changes with workspace tools.
-5. Toggle **Tutor** for conversational guidance through the codebase, including help making changes when requested.
-6. Use the **Build** tab to generate and execute project-specific commands in a terminal.
-7. Open **System View** and click **⚡ Generate** to build an interactive architecture graph.
-8. Use the integrated terminal to run commands directly in your workspace.
+5. Toggle **Mentor** for step-by-step guided walkthroughs — the assistant opens files, highlights lines, and explains without touching your code.
+6. After a few exchanges, click **Start a meeting** to switch to a live voice session and talk through the code in real time.
+7. Use the **Build** tab to generate and execute project-specific commands in a terminal.
+8. Open **System View** and click **⚡ Generate** to build an interactive architecture graph.
+9. Use the integrated terminal to run commands directly in your workspace.
 
 ## Tech Stack
 
