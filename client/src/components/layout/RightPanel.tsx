@@ -59,10 +59,12 @@ interface RightPanelProps {
   onSummaryRequest?: (filePath: string) => void;
   commitDiffContext?: { shortHash: string; content: string } | null;
   onClearCommitDiffContext?: () => void;
+  /** When true, locks the panel to the Coding Assistant tab for the duration of a live meeting. */
+  meetingActive?: boolean;
 }
 
 export const RightPanel = forwardRef<RightPanelHandle, RightPanelProps>(
-function RightPanel({ width, animated, workspacePath, activeFilePath, onWorkspaceOpen, provider, model, setProvider, setModel, getEditorContext, runCommandInTerminal, contextNodes, onRemoveContextNode, onClearContextNodes, onNavigateToLine, onOpenUrl, activeSystemNode, onUserTyping, onMessageSent, onAssistantBusyChange, onWatchTrigger, onAssistantReply, onFileTreeRefresh, onSummaryRequest, commitDiffContext, onClearCommitDiffContext }, ref) {
+function RightPanel({ width, animated, workspacePath, activeFilePath, onWorkspaceOpen, provider, model, setProvider, setModel, getEditorContext, runCommandInTerminal, contextNodes, onRemoveContextNode, onClearContextNodes, onNavigateToLine, onOpenUrl, activeSystemNode, onUserTyping, onMessageSent, onAssistantBusyChange, onWatchTrigger, onAssistantReply, onFileTreeRefresh, onSummaryRequest, commitDiffContext, onClearCommitDiffContext, meetingActive }, ref) {
   const [activeTab, setActiveTab] = useState<RightTab>('assistant');
   const panelRef             = useRef<HTMLDivElement>(null);
   const pulseAutoStopRef     = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -76,6 +78,11 @@ function RightPanel({ width, animated, workspacePath, activeFilePath, onWorkspac
       codingAssistantRef.current?.focus();
     }
   }, [activeTab]);
+
+  // Lock to Coding Assistant for the duration of a live meeting.
+  useEffect(() => {
+    if (meetingActive) setActiveTab('assistant');
+  }, [meetingActive]);
 
   const handleOpenNode = useCallback((_nodeName: string, _nodeId?: string) => {
     // flushSync commits the tab switch synchronously so the SVG has real
@@ -211,31 +218,36 @@ function RightPanel({ width, animated, workspacePath, activeFilePath, onWorkspac
           { id: 'assistant', label: 'Coding Assistant' },
           { id: 'build',     label: 'Build' },
           { id: 'system',    label: 'Iogram' },
-        ] as { id: RightTab; label: string }[]).map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            style={{
-              background: 'none',
-              border: 'none',
-              borderBottom: activeTab === tab.id ? '2px solid var(--color-accent, #0e639c)' : '2px solid transparent',
-              cursor: 'pointer',
-              padding: '0 12px',
-              fontSize: 11,
-              fontWeight: 600,
-              letterSpacing: '0.04em',
-              textTransform: 'uppercase',
-              color: activeTab === tab.id ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
-              flexShrink: 0,
-              whiteSpace: 'nowrap',
-              flex: 1,
-              display: 'flex',
-              alignItems: 'center',
-            }}
-          >
-            {tab.label}
-          </button>
-        ))}
+        ] as { id: RightTab; label: string }[]).map(tab => {
+          const locked = meetingActive && tab.id !== 'assistant';
+          return (
+            <button
+              key={tab.id}
+              onClick={() => { if (!locked) setActiveTab(tab.id); }}
+              disabled={locked}
+              style={{
+                background: 'none',
+                border: 'none',
+                borderBottom: activeTab === tab.id ? '2px solid var(--color-accent, #0e639c)' : '2px solid transparent',
+                cursor: locked ? 'not-allowed' : 'pointer',
+                padding: '0 12px',
+                fontSize: 11,
+                fontWeight: 600,
+                letterSpacing: '0.04em',
+                textTransform: 'uppercase',
+                color: activeTab === tab.id ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
+                opacity: locked ? 0.3 : 1,
+                flexShrink: 0,
+                whiteSpace: 'nowrap',
+                flex: 1,
+                display: 'flex',
+                alignItems: 'center',
+              }}
+            >
+              {tab.label}
+            </button>
+          );
+        })}
       </div>
 
       {/* Model info section - only show for non-assistant tabs */}

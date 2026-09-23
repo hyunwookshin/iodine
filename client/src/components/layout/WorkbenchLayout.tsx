@@ -647,6 +647,7 @@ export function WorkbenchLayout() {
               onSummaryRequest={handleAgentSummaryRequest}
               commitDiffContext={commitDiffContext}
               onClearCommitDiffContext={() => setCommitDiffContext(null)}
+              meetingActive={liveMeeting.isActive}
             />
           </div>
         </div>
