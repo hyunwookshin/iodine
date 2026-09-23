@@ -16,6 +16,7 @@ import { useUpdateCheck } from '../../hooks/useUpdateCheck';
 import { useProactiveHelp } from '../../hooks/useProactiveHelp';
 import { createIdleChurnSignal } from '../../services/proactiveSignals';
 import { usePanelExpansion, DEFAULT_PANEL_EXPANSION_CONFIG } from '../../hooks/usePanelExpansion';
+import { useLiveMeeting } from '../../hooks/useLiveMeeting';
 import { PROVIDERS, DEFAULT_PROVIDER, DEFAULT_MODEL } from '../../providers';
 import type { Provider } from '../../providers';
 import type { FileNode, SidebarView } from '../../types';
@@ -130,6 +131,17 @@ export function WorkbenchLayout() {
     setModel(p.models[0].id);
     try { localStorage.setItem('iodine-provider', p.id); } catch { /* storage unavailable */ }
   }, [setModel]);
+
+  // ── Live meeting ──────────────────────────────────────────────────────────
+  const liveMeeting = useLiveMeeting(provider.id);
+  // Auto-start when the ?meeting query param is present (testing convenience).
+  // Small delay avoids React 18 StrictMode double-mount race conditions.
+  useEffect(() => {
+    if (!new URLSearchParams(window.location.search).has('meeting')) return;
+    const timer = setTimeout(() => { liveMeeting.start(); }, 500);
+    return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const pushNav = useCallback((path: string) => {
     setNav(prev => {
@@ -591,7 +603,12 @@ export function WorkbenchLayout() {
             onCommitDiffClose={() => setActiveCommitHash(null)}
             onCommitCheckout={handleCommitCheckout}
             onCommitDiffAddToContext={(shortHash, content) => setCommitDiffContext({ shortHash, content })}
-            activeMeeting={new URLSearchParams(window.location.search).has('meeting')}
+            activeMeeting={liveMeeting.isActive}
+            onMeetingClose={liveMeeting.stop}
+            meetingAnalyserNode={liveMeeting.analyserNode}
+            meetingSpeaking={liveMeeting.speaking}
+            meetingMuted={liveMeeting.isMuted}
+            onMeetingMuteToggle={liveMeeting.toggleMute}
           />
 
           <div style={{ display: showRightPanel ? 'contents' : 'none' }}>

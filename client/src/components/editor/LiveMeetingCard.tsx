@@ -44,14 +44,19 @@ interface LiveMeetingCardProps {
   analyserNode?: AnalyserNode | null;
   /** Who is currently speaking — controls bar colour. */
   speaking?: 'user' | 'agent' | 'idle';
+  /** Controlled mute state. When provided, overrides internal state. */
+  isMuted?: boolean;
+  /** Called when the user clicks the mute button (for controlled mode). */
+  onMuteToggle?: () => void;
 }
 
-export function LiveMeetingCard({ containerRef, onClose, analyserNode, speaking = 'idle' }: LiveMeetingCardProps) {
+export function LiveMeetingCard({ containerRef, onClose, analyserNode, speaking = 'idle', isMuted: controlledMuted, onMuteToggle }: LiveMeetingCardProps) {
   const cardRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ startMouseX: number; startMouseY: number; startX: number; startY: number } | null>(null);
   const frameRef = useRef(0);
   const [pos, setPos] = useState({ x: 20, y: 20 });
-  const [isMuted, setIsMuted] = useState(false);
+  const [internalMuted, setInternalMuted] = useState(false);
+  const isMuted = controlledMuted ?? internalMuted;
   const [seconds, setSeconds] = useState(0);
   const [barScales, setBarScales] = useState<number[]>(() => Array(BAR_COUNT).fill(0));
 
@@ -154,7 +159,7 @@ export function LiveMeetingCard({ containerRef, onClose, analyserNode, speaking 
         <div style={{ display: 'flex', gap: 2, alignItems: 'center' }}>
           <button
             type="button"
-            onClick={() => setIsMuted(m => !m)}
+            onClick={() => onMuteToggle ? onMuteToggle() : setInternalMuted(m => !m)}
             title={isMuted ? 'Unmute' : 'Mute'}
             style={{
               background: 'none', border: 'none', cursor: 'pointer',

@@ -4,7 +4,7 @@ import { loadGeminiKey } from './services/geminiAgent';
 
 // Gemini Live WebSocket endpoint (BidiGenerateContent).
 const GEMINI_LIVE_URL = (apiKey: string) =>
-  `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?key=${apiKey}`;
+  `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${apiKey}`;
 
 // Track active Gemini relay sockets for cleanup on server shutdown,
 // same pattern as activePtys in terminal.ts.
@@ -66,9 +66,11 @@ export function setupMeetingRelay(server: Server): void {
         closeAll();
       });
 
-      // Client → Gemini: forward raw frames as-is
-      clientWs.on('message', (data: Buffer) => {
-        if (geminiWs?.readyState === WebSocket.OPEN) geminiWs.send(data);
+      // Client → Gemini: forward as text (client sends JSON strings)
+      clientWs.on('message', (data: Buffer, isBinary: boolean) => {
+        if (geminiWs?.readyState === WebSocket.OPEN) {
+          geminiWs.send(isBinary ? data : data.toString());
+        }
       });
 
       clientWs.on('close', () => {
@@ -82,7 +84,6 @@ export function setupMeetingRelay(server: Server): void {
       });
 
     } catch (err) {
-      console.error('[Meeting/Relay] Setup error:', err);
       if (clientWs.readyState === WebSocket.OPEN) {
         clientWs.send(JSON.stringify({ type: 'error', message: (err as Error).message }));
         clientWs.close();

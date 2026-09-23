@@ -77,6 +77,14 @@ interface EditorAreaProps {
   activeMeeting?: boolean;
   /** Called when the user closes the live meeting card. */
   onMeetingClose?: () => void;
+  /** Live AnalyserNode from the meeting hook for waveform visualisation. */
+  meetingAnalyserNode?: AnalyserNode | null;
+  /** Who is currently speaking in the meeting. */
+  meetingSpeaking?: 'user' | 'agent' | 'idle';
+  /** Controlled mute state for the meeting card. */
+  meetingMuted?: boolean;
+  /** Called when the user clicks the mute button in the meeting card. */
+  onMeetingMuteToggle?: () => void;
 }
 
 export interface EditorAreaHandle {
@@ -107,7 +115,7 @@ const btnStyle: React.CSSProperties = {
 };
 
 export const EditorArea = forwardRef<EditorAreaHandle, EditorAreaProps>(
-  function EditorArea({ openFiles, activeFilePath, onTabClick, onTabClose, onTabReorder, onContentChange, workspacePath, provider, model, summaryRequestPath, onSummaryHandled, onActivity, onEditorViewChange, onSummaryContentChange, onActiveHeadingChange, onOpenFile, onPreviewRequest, previewRequestPath, onPreviewHandled, onSummaryRequest, onSummaryOpen, canGoBack, canGoForward, onGoBack, onGoForward, activeCommitHash, onCommitDiffClose, onCommitCheckout, onCommitDiffAddToContext, activeMeeting, onMeetingClose }, ref) {
+  function EditorArea({ openFiles, activeFilePath, onTabClick, onTabClose, onTabReorder, onContentChange, workspacePath, provider, model, summaryRequestPath, onSummaryHandled, onActivity, onEditorViewChange, onSummaryContentChange, onActiveHeadingChange, onOpenFile, onPreviewRequest, previewRequestPath, onPreviewHandled, onSummaryRequest, onSummaryOpen, canGoBack, canGoForward, onGoBack, onGoForward, activeCommitHash, onCommitDiffClose, onCommitCheckout, onCommitDiffAddToContext, activeMeeting, onMeetingClose, meetingAnalyserNode, meetingSpeaking, meetingMuted, onMeetingMuteToggle }, ref) {
     const activeFile = openFiles.find(f => f.path === activeFilePath) ?? null;
     const { diff: diffData, refreshDiff } = useFileDiff(
       (activeFile?.isImage || activeFile?.isUrl || activeFile?.isExternal) ? null : (activeFile?.path ?? null),
@@ -816,7 +824,14 @@ export const EditorArea = forwardRef<EditorAreaHandle, EditorAreaProps>(
           </div>
         )}
         {activeMeeting && (
-          <LiveMeetingCard containerRef={containerRef} onClose={() => onMeetingClose?.()} />
+          <LiveMeetingCard
+            containerRef={containerRef}
+            onClose={() => onMeetingClose?.()}
+            analyserNode={meetingAnalyserNode}
+            speaking={meetingSpeaking}
+            isMuted={meetingMuted}
+            onMuteToggle={onMeetingMuteToggle}
+          />
         )}
       </div>
     );
