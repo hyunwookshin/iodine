@@ -133,7 +133,9 @@ export function WorkbenchLayout() {
   }, [setModel]);
 
   // ── Live meeting ──────────────────────────────────────────────────────────
-  const liveMeeting = useLiveMeeting(provider.id);
+  const liveMeeting = useLiveMeeting(provider.id, (transcript) => {
+    rightPanelRef.current?.injectProactiveMessage(transcript, async () => transcript);
+  });
 
   const pushNav = useCallback((path: string) => {
     setNav(prev => {

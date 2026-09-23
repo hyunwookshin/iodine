@@ -71,7 +71,7 @@ export interface UseLiveMeetingReturn {
   error: string | null;
 }
 
-export function useLiveMeeting(provider: string): UseLiveMeetingReturn {
+export function useLiveMeeting(provider: string, onTranscriptReady?: (transcript: string) => void): UseLiveMeetingReturn {
   const [isActive, setIsActive] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [speaking, setSpeaking] = useState<'user' | 'agent' | 'idle'>('idle');
@@ -94,6 +94,13 @@ export function useLiveMeeting(provider: string): UseLiveMeetingReturn {
 
   // Prior conversation context passed to start() — injected as systemInstruction on relay-ready.
   const contextRef = useRef<string | undefined>(undefined);
+
+  // ── Transcript accumulation ───────────────────────────────────────────────
+  const transcriptRef    = useRef<{ role: 'user' | 'agent'; text: string }[]>([]);
+  const userTurnBufRef   = useRef('');
+  const agentTurnBufRef  = useRef('');
+  const onTranscriptRef  = useRef(onTranscriptReady);
+  onTranscriptRef.current = onTranscriptReady;
 
   // Current provider — updated on every render so start() always reads the latest.
   const providerRef = useRef(provider);
@@ -160,6 +167,18 @@ export function useLiveMeeting(provider: string): UseLiveMeetingReturn {
       audioCtxRef.current.close().catch(() => {});
       audioCtxRef.current = null;
     }
+    // Fire transcript callback before clearing state.
+    const lines = transcriptRef.current;
+    if (lines.length > 0) {
+      const formatted = lines
+        .map(e => `**${e.role === 'user' ? 'You' : 'Gemini'}:** ${e.text.trim()}`)
+        .join('\n\n');
+      onTranscriptRef.current?.(`**Meeting transcript**\n\n${formatted}`);
+    }
+    transcriptRef.current   = [];
+    userTurnBufRef.current  = '';
+    agentTurnBufRef.current = '';
+
     playQueueRef.current = [];
     isPlayingRef.current = false;
     readyRef.current = false;
@@ -308,6 +327,8 @@ export function useLiveMeeting(provider: string): UseLiveMeetingReturn {
               voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Aoede' } },
             },
           },
+          inputAudioTranscription: {},
+          outputAudioTranscription: {},
         },
       }));
       return;
@@ -319,9 +340,11 @@ export function useLiveMeeting(provider: string): UseLiveMeetingReturn {
       return;
     }
 
-    // Agent audio data
+    // Agent audio data + transcription
     const serverContent = msg.serverContent as {
       modelTurn?: { parts?: { inlineData?: { data?: string } }[] };
+      inputTranscription?:  { text?: string };
+      outputTranscription?: { text?: string };
       turnComplete?: boolean;
     } | undefined;
 
@@ -333,7 +356,25 @@ export function useLiveMeeting(provider: string): UseLiveMeetingReturn {
         }
       }
     }
+
+    // Accumulate transcription text per turn
+    if (serverContent?.inputTranscription?.text) {
+      userTurnBufRef.current += serverContent.inputTranscription.text;
+    }
+    if (serverContent?.outputTranscription?.text) {
+      agentTurnBufRef.current += serverContent.outputTranscription.text;
+    }
+
     if (serverContent?.turnComplete) {
+      // Flush completed turn buffers into the transcript
+      if (userTurnBufRef.current.trim()) {
+        transcriptRef.current.push({ role: 'user',  text: userTurnBufRef.current.trim() });
+        userTurnBufRef.current = '';
+      }
+      if (agentTurnBufRef.current.trim()) {
+        transcriptRef.current.push({ role: 'agent', text: agentTurnBufRef.current.trim() });
+        agentTurnBufRef.current = '';
+      }
       setSpeaking(s => s === 'agent' ? 'idle' : s);
     }
   }
