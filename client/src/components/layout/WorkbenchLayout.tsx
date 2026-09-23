@@ -134,14 +134,6 @@ export function WorkbenchLayout() {
 
   // ── Live meeting ──────────────────────────────────────────────────────────
   const liveMeeting = useLiveMeeting(provider.id);
-  // Auto-start when the ?meeting query param is present (testing convenience).
-  // Small delay avoids React 18 StrictMode double-mount race conditions.
-  useEffect(() => {
-    if (!new URLSearchParams(window.location.search).has('meeting')) return;
-    const timer = setTimeout(() => { liveMeeting.start(); }, 500);
-    return () => clearTimeout(timer);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const pushNav = useCallback((path: string) => {
     setNav(prev => {
@@ -648,6 +640,8 @@ export function WorkbenchLayout() {
               commitDiffContext={commitDiffContext}
               onClearCommitDiffContext={() => setCommitDiffContext(null)}
               meetingActive={liveMeeting.isActive}
+              onMeetingStart={liveMeeting.start}
+              meetingError={liveMeeting.error}
             />
           </div>
         </div>

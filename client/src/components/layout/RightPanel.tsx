@@ -61,10 +61,14 @@ interface RightPanelProps {
   onClearCommitDiffContext?: () => void;
   /** When true, locks the panel to the Coding Assistant tab for the duration of a live meeting. */
   meetingActive?: boolean;
+  /** Starts a live meeting session. */
+  onMeetingStart?: () => void;
+  /** Error message from the live meeting hook, if any. */
+  meetingError?: string | null;
 }
 
 export const RightPanel = forwardRef<RightPanelHandle, RightPanelProps>(
-function RightPanel({ width, animated, workspacePath, activeFilePath, onWorkspaceOpen, provider, model, setProvider, setModel, getEditorContext, runCommandInTerminal, contextNodes, onRemoveContextNode, onClearContextNodes, onNavigateToLine, onOpenUrl, activeSystemNode, onUserTyping, onMessageSent, onAssistantBusyChange, onWatchTrigger, onAssistantReply, onFileTreeRefresh, onSummaryRequest, commitDiffContext, onClearCommitDiffContext, meetingActive }, ref) {
+function RightPanel({ width, animated, workspacePath, activeFilePath, onWorkspaceOpen, provider, model, setProvider, setModel, getEditorContext, runCommandInTerminal, contextNodes, onRemoveContextNode, onClearContextNodes, onNavigateToLine, onOpenUrl, activeSystemNode, onUserTyping, onMessageSent, onAssistantBusyChange, onWatchTrigger, onAssistantReply, onFileTreeRefresh, onSummaryRequest, commitDiffContext, onClearCommitDiffContext, meetingActive, onMeetingStart, meetingError }, ref) {
   const [activeTab, setActiveTab] = useState<RightTab>('assistant');
   const panelRef             = useRef<HTMLDivElement>(null);
   const pulseAutoStopRef     = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -279,7 +283,9 @@ function RightPanel({ width, animated, workspacePath, activeFilePath, onWorkspac
           onSummaryRequest={onSummaryRequest}
           commitDiffContext={commitDiffContext}
           onClearCommitDiffContext={onClearCommitDiffContext}
-          meetingActive={meetingActive} />
+          meetingActive={meetingActive}
+          onMeetingStart={onMeetingStart}
+          meetingError={meetingError} />
       </div>
     </div>
   );
