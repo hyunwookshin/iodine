@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 function MicIcon() {
   return (
@@ -51,7 +51,19 @@ export function LiveMeetingCard({ containerRef, onClose, analyserNode, isMuted: 
   const canvasRef  = useRef<HTMLCanvasElement>(null);
   const dragRef    = useRef<{ startMouseX: number; startMouseY: number; startX: number; startY: number } | null>(null);
   const frameRef   = useRef(0);
-  const [pos, setPos]         = useState({ x: 20, y: 20 });
+  const CARD_W = 240, CARD_H = 148, MARGIN = 20;
+  const [pos, setPos] = useState({ x: 20, y: 20 });
+
+  // Position at bottom-right of the container on first render.
+  useLayoutEffect(() => {
+    if (!containerRef.current) return;
+    const { width, height } = containerRef.current.getBoundingClientRect();
+    setPos({
+      x: Math.max(0, width  - CARD_W - MARGIN),
+      y: Math.max(0, height - CARD_H - MARGIN),
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [internalMuted, setInternalMuted] = useState(false);
   const isMuted = controlledMuted ?? internalMuted;
   const [seconds, setSeconds] = useState(0);
