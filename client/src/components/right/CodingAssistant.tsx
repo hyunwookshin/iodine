@@ -192,8 +192,8 @@ export interface CodingAssistantHandle {
   focus: () => void;
 }
 interface CodingAssistantProps { workspacePath: string | null; activeFilePath: string | null; onWorkspaceOpen: (path: string) => void; provider: Provider; model: string; setProvider: (id: string) => void; setModel: (id: string) => void; getEditorContext?: () => string | null; contextNodes: FileNode[]; onRemoveContextNode: (path: string) => void; onClearContextNodes: () => void; onNavigateToLine?: (filePath: string, line: number, endLine?: number, startCol?: number, endCol?: number) => void; onOpenNode?: (nodeName: string, nodeId?: string) => void; activeSystemNode?: string | null; graph: SystemGraph; onOpenIogram: () => void; onUserTyping?: () => void; onMessageSent?: () => void; onAssistantBusyChange?: (busy: boolean) => void; onWatchTrigger?: () => void; onAssistantReply?: (text: string, hadToolUse: boolean) => void; onFileTreeRefresh?: () => void; onSummaryRequest?: (filePath: string) => void; commitDiffContext?: { shortHash: string; content: string } | null; onClearCommitDiffContext?: () => void; /** When true, disables the input area for the duration of a live meeting. */ meetingActive?: boolean;
-  /** Starts a live meeting session. */
-  onMeetingStart?: () => void;
+  /** Starts a live meeting session, optionally with prior conversation context. */
+  onMeetingStart?: (context?: string) => void;
   /** Error from the live meeting hook (e.g. wrong provider, mic denied). */
   meetingError?: string | null;
 }
@@ -595,7 +595,18 @@ export const CodingAssistant = forwardRef<CodingAssistantHandle, CodingAssistant
         {verballyError && <div style={{ padding: '6px 10px', background: '#f4877112', border: '1px solid #f4877160', borderRadius: 6, fontSize: 11, color: '#f48771', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><span>🔊 Voice Memo: {verballyError}</span><button onClick={() => setVerballyError(null)} style={{ background: 'none', border: 'none', color: '#f48771', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: '0 2px' }}>×</button></div>}
         {meetingError && <div style={{ padding: '6px 10px', background: '#f4877112', border: '1px solid #f4877160', borderRadius: 6, fontSize: 11, color: '#f48771' }}>🎙 {meetingError}</div>}
         {isWatching && <div className="watching-alert" style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, padding: '7px 10px', border: '1px solid #e7c547', borderRadius: 6, background: '#e7c54718' }}><span className="watching-dot" />Assistant is actively watching your progress</div>}
-        {!meetingActive && provider.id === 'google' && uiMessages.some(m => m.role === 'assistant') && onMeetingStart && <button onClick={onMeetingStart} title="Start a live voice meeting" style={{ alignSelf: 'stretch', background: 'rgba(78,201,176,0.1)', border: '1px solid rgba(78,201,176,0.35)', borderRadius: 8, color: '#4ec9b0', cursor: 'pointer', fontSize: 12, padding: '7px 12px', fontWeight: 600, textAlign: 'center' }}>Start a meeting</button>}
+        {!meetingActive && provider.id === 'google' && uiMessages.some(m => m.role === 'assistant') && onMeetingStart && <button onClick={() => {
+            const lines: string[] = [];
+            for (const msg of uiMessages) {
+              if (msg.role === 'user') {
+                lines.push(`User: ${msg.content}`);
+              } else {
+                const text = msg.blocks.filter(b => b.type === 'text').map(b => (b as { type: 'text'; content: string }).content).join('\n').trim();
+                if (text) lines.push(`Assistant: ${text}`);
+              }
+            }
+            onMeetingStart(lines.join('\n\n'));
+          }} title="Start a live voice meeting" style={{ alignSelf: 'stretch', background: 'rgba(78,201,176,0.1)', border: '1px solid rgba(78,201,176,0.35)', borderRadius: 8, color: '#4ec9b0', cursor: 'pointer', fontSize: 12, padding: '7px 12px', fontWeight: 600, textAlign: 'center' }}>Start a meeting</button>}
         {meetingActive && <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, padding: '7px 10px', border: '1px solid rgba(78,201,176,0.4)', borderRadius: 6, background: 'rgba(78,201,176,0.08)', color: '#4ec9b0' }}>🎙 Live meeting in progress — chat is paused</div>}
         <textarea ref={textareaRef} value={input} onChange={e => { setInput(e.target.value); onUserTyping?.(); }} onKeyDown={handleKeyDown} placeholder="Ask anything… (Enter to send, Shift+Enter for newline)" rows={3} disabled={isLoading || !!meetingActive} style={{ background: 'var(--color-bg-input)', border: '1px solid var(--color-border)', borderRadius: 10, color: 'var(--color-text-primary)', fontSize: 12, padding: '9px 11px', resize: 'none', fontFamily: 'inherit', outline: 'none', width: '100%', boxSizing: 'border-box', opacity: meetingActive ? 0.4 : 1 }} />
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>

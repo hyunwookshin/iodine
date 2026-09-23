@@ -61,8 +61,8 @@ interface RightPanelProps {
   onClearCommitDiffContext?: () => void;
   /** When true, locks the panel to the Coding Assistant tab for the duration of a live meeting. */
   meetingActive?: boolean;
-  /** Starts a live meeting session. */
-  onMeetingStart?: () => void;
+  /** Starts a live meeting session, optionally with prior conversation context. */
+  onMeetingStart?: (context?: string) => void;
   /** Error message from the live meeting hook, if any. */
   meetingError?: string | null;
 }

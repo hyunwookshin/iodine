@@ -57,8 +57,8 @@ function resample(buffer: Float32Array, sourceRate: number, targetRate: number):
 // ── Hook ────────────────────────────────────────────────────────────────────
 
 export interface UseLiveMeetingReturn {
-  /** Start a live meeting (Google provider only). */
-  start: () => Promise<void>;
+  /** Start a live meeting (Google provider only). Optionally pass prior conversation context. */
+  start: (context?: string) => Promise<void>;
   /** Stop the active meeting and clean up all resources. */
   stop: () => void;
   /** Toggle microphone mute on/off. */
@@ -92,14 +92,19 @@ export function useLiveMeeting(provider: string): UseLiveMeetingReturn {
   // Set to true once Gemini confirms the session is ready for audio.
   const readyRef = useRef(false);
 
+  // Prior conversation context passed to start() — injected as systemInstruction on relay-ready.
+  const contextRef = useRef<string | undefined>(undefined);
+
   // Current provider — updated on every render so start() always reads the latest.
   const providerRef = useRef(provider);
   providerRef.current = provider;
 
   // ── Agent audio playback queue ──────────────────────────────────────────
 
-  const playQueueRef = useRef<Float32Array[]>([]);
-  const isPlayingRef = useRef(false);
+  const playQueueRef      = useRef<Float32Array[]>([]);
+  const isPlayingRef      = useRef(false);
+  // Analyser tapped on the Gemini playback path — drives the waveform visualisation.
+  const outputAnalyserRef = useRef<AnalyserNode | null>(null);
 
   const enqueueAndPlay = useCallback((samples: Float32Array) => {
     const ctx = audioCtxRef.current;
@@ -119,7 +124,13 @@ export function useLiveMeeting(provider: string): UseLiveMeetingReturn {
       buf.copyToChannel(chunk as Float32Array<ArrayBuffer>, 0);
       const src = c.createBufferSource();
       src.buffer = buf;
-      src.connect(c.destination);
+      // Route through output analyser so the waveform reflects Gemini's voice.
+      const outAnalyser = outputAnalyserRef.current;
+      if (outAnalyser) {
+        src.connect(outAnalyser);
+      } else {
+        src.connect(c.destination);
+      }
       src.onended = playNext;
       src.start();
     };
@@ -152,6 +163,8 @@ export function useLiveMeeting(provider: string): UseLiveMeetingReturn {
     playQueueRef.current = [];
     isPlayingRef.current = false;
     readyRef.current = false;
+    contextRef.current = undefined;
+    outputAnalyserRef.current = null;
     setIsActive(false);
     setIsMuted(false);
     isMutedRef.current = false;
@@ -161,10 +174,11 @@ export function useLiveMeeting(provider: string): UseLiveMeetingReturn {
 
   // ── Start ─────────────────────────────────────────────────────────────────
 
-  const start = useCallback(async () => {
+  const start = useCallback(async (context?: string) => {
     // Prevent double-start
     if (wsRef.current) return;
     setError(null);
+    contextRef.current = context;
 
     if (providerRef.current !== 'google') {
       setError(`Live meetings require the Google provider. Switch to Google to start a meeting.`);
@@ -193,15 +207,16 @@ export function useLiveMeeting(provider: string): UseLiveMeetingReturn {
       const actualRate = audioCtx.sampleRate;
 
       // 4. Audio graph
-      //    source (mic) ──► analyser (for waveform visualisation)
-      //                └──► scriptProcessor (PCM capture; output silenced)
+      //    Gemini playback: bufferSource ──► outputAnalyser ──► destination
+      //    Mic capture:     source ──► scriptProcessor (PCM; output silenced)
+      const outputAnalyser = audioCtx.createAnalyser();
+      outputAnalyser.fftSize = 2048; // time-domain buffer for smooth waveform
+      outputAnalyser.connect(audioCtx.destination);
+      outputAnalyserRef.current = outputAnalyser;
+      setAnalyserNode(outputAnalyser);
+
       const source = audioCtx.createMediaStreamSource(stream);
       sourceRef.current = source;
-
-      const analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 256;
-      source.connect(analyser);
-      setAnalyserNode(analyser);
 
       const processor = audioCtx.createScriptProcessor(BUFFER_SIZE, 1, 1);
       processorRef.current = processor;
@@ -276,9 +291,17 @@ export function useLiveMeeting(provider: string): UseLiveMeetingReturn {
 
     // Relay ready — send the Gemini Live setup message
     if (msg.type === 'relay-ready') {
+      const ctx = contextRef.current;
       ws.send(JSON.stringify({
         setup: {
           model: 'models/gemini-3.8-live',
+          ...(ctx ? {
+            systemInstruction: {
+              parts: [{
+                text: `You are a helpful voice assistant continuing a prior text conversation with the user.\n\nUse the following conversation history as context — refer back to it naturally when relevant, but respond conversationally and concisely as this is now a live voice session.\n\n[PRIOR CONVERSATION]\n${ctx}`,
+              }],
+            },
+          } : {}),
           generationConfig: {
             responseModalities: ['AUDIO'],
             speechConfig: {
