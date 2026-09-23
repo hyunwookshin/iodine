@@ -801,6 +801,33 @@ A microphone button sits left of the Send button in the Coding Assistant input r
 
 **Auto-send:** After transcription succeeds, `sendMessage` is called directly with the transcribed text; the textarea is not populated.
 
+## Live Meeting
+
+A real-time bidirectional voice session powered by the Gemini Live API (BidiGenerateContent WebSocket). A **Start a meeting** button appears above the chat textarea once the Google provider is active and at least one assistant reply exists in the current thread. Clicking it opens a floating draggable card over the editor with a continuous monochrome waveform, a mute toggle, and a close button. When the meeting ends the transcript is injected into the chat as an assistant message and also passed as context to the next API call.
+
+| File | Role |
+|------|------|
+| `client/src/hooks/useLiveMeeting.ts` | Core hook. Manages mic capture (`ScriptProcessorNode`), PCM resampling (48 kHz → 16 kHz), Gemini relay WebSocket, output playback queue, output `AnalyserNode` for waveform, and transcript accumulation. `start(context?)` accepts the prior conversation as a string, stores it in `contextRef`, and sends it as `systemInstruction` on `relay-ready`. After `setupComplete` a silent `clientContent: { turns: [{role:'user', parts:[{text:'start'}]}] }` triggers Gemini's opening greeting. `stop()` formats accumulated transcript entries and calls `onTranscriptReady`. |
+| `client/src/components/editor/LiveMeetingCard.tsx` | Floating card (240×148 px, `position:absolute`). Defaults to the bottom-right of the editor container via `useLayoutEffect`. Draggable via window-level `mousemove`/`mouseup` listeners. Canvas waveform: `getByteTimeDomainData` sampled at ~80 points per frame, smoothed with the quadratic bezier midpoint method, stroked with a vertical monochrome gradient (transparent → white → transparent). Idle state: animated sine wave using `Date.now()`. |
+| `server/src/meeting.ts` | WebSocket relay at `/meeting/relay`. Connects to the Gemini Live `v1beta` BidiGenerateContent endpoint, forwards text frames as text and binary frames as binary. Tracks active relay sockets for SIGTERM/SIGINT cleanup. |
+| `client/src/components/layout/EditorArea.tsx` | Renders `<LiveMeetingCard>` as `position:absolute; inset:0; zIndex:10` overlay when `activeMeeting` is true. |
+| `client/src/components/layout/WorkbenchLayout.tsx` | Mounts `useLiveMeeting(provider.id, onTranscriptReady)`. `onTranscriptReady` calls `rightPanelRef.current?.injectProactiveMessage(transcript, async () => transcript)` so the transcript is both visible in the UI and passed as context to the next agent call. |
+| `client/src/components/layout/RightPanel.tsx` | `meetingActive` prop locks the panel to the Coding Assistant tab (other tabs disabled). Threads `onMeetingStart` and `meetingError` to `CodingAssistant`. |
+| `client/src/components/right/CodingAssistant.tsx` | **Start a meeting** button above the textarea — shown when provider is Google + at least one assistant reply exists + no active meeting. Formats `uiMessages` into `User: … / Assistant: …` blocks and passes them to `onMeetingStart(context)`. During an active meeting: textarea, send, mic, Conversations button, and clear button are all disabled; a teal banner with an orange pulsing dot is shown. |
+
+**Audio graph:**
+```
+Gemini PCM → BufferSource → outputAnalyser (fftSize=2048) → AudioContext.destination
+Mic stream → ScriptProcessorNode (PCM capture, output silenced)
+```
+The waveform visualises Gemini's audio output, not the user's mic.
+
+**Transcript accumulation:** `inputAudioTranscription: {}` and `outputAudioTranscription: {}` are enabled in the Gemini setup `generationConfig`. Text chunks arrive in `serverContent.inputTranscription.text` (user) and `serverContent.outputTranscription.text` (Gemini). Chunks are buffered per-turn and flushed into `transcriptRef` on each `turnComplete` event. On `stop()` the accumulated entries are formatted as `**You:** / **Gemini:**` markdown and fired via `onTranscriptReady`.
+
+**Chat freeze during meeting:** All interactive chat controls are disabled while `meetingActive` is true. The Conversations list is closed automatically, and switching to Build or Iogram tabs is prevented.
+
+**Provider restriction:** Google only. Attempting to start with a different provider surfaces an error in the chat input area.
+
 ## Implementation Notes
 
 For the full project architecture, APIs, and feature details, inspect the relevant source files and `README.md`. Keep this document concise to preserve context-window space.
