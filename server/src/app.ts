@@ -12,6 +12,7 @@ import proactiveRouter from './routes/proactive';
 import conversationsRouter from './routes/conversations';
 import ttsRouter from './routes/tts';
 import sttRouter from './routes/stt';
+import meetingRouter from './routes/meeting';
 
 export function createApp() {
   const app = express();
@@ -31,6 +32,7 @@ export function createApp() {
   app.use('/api', conversationsRouter);
   app.use('/api', ttsRouter);
   app.use('/api', sttRouter);
+  app.use('/api', meetingRouter);
 
   return app;
 }

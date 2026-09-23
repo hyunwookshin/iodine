@@ -43,10 +43,7 @@ export function setupTerminalWebSocket(server: Server): void {
 
   server.on('upgrade', (req, socket, head) => {
     const url = new URL(req.url!, 'http://localhost');
-    if (url.pathname !== '/terminal') {
-      socket.destroy();
-      return;
-    }
+    if (url.pathname !== '/terminal') return; // other paths handled by their own upgrade listeners
     wss.handleUpgrade(req, socket as never, head, (ws) => {
       wss.emit('connection', ws, req);
     });
