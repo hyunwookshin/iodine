@@ -45,7 +45,6 @@ export function useCodingAssistant(
   onNavigateToLine?: (filePath: string, line: number, endLine?: number, startCol?: number, endCol?: number) => void,
   onWatchTrigger?: () => void,
   onAssistantReply?: (text: string, hadToolUse: boolean) => void,
-  onToolNarration?: (name: string, input: Record<string, unknown>, approvalId?: string) => void,
   onFileTreeRefresh?: () => void,
   onSummaryRequest?: (filePath: string) => void,
 ) {
@@ -70,9 +69,6 @@ export function useCodingAssistant(
 
   const onAssistantReplyRef = useRef(onAssistantReply);
   onAssistantReplyRef.current = onAssistantReply;
-
-  const onToolNarrationRef = useRef(onToolNarration);
-  onToolNarrationRef.current = onToolNarration;
 
   const onFileTreeRefreshRef = useRef(onFileTreeRefresh);
   onFileTreeRefreshRef.current = onFileTreeRefresh;
@@ -601,9 +597,6 @@ export function useCodingAssistant(
           } else if (eventName === 'tool_call') {
             flushNow();
             toolUsedInTurnRef.current = true;
-            if (tutorMode) {
-              onToolNarrationRef.current?.(payload.name as string, payload.input as Record<string, unknown>, payload.approval_id as string | undefined);
-            }
             const toolBlock: UIBlock = {
               type: 'tool',
               id: payload.id as string,

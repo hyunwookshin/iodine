@@ -140,55 +140,5 @@ router.post('/tts/verbally', async (req: Request, res: Response) => {
   }
 });
 
-// Direct TTS — no condensation step (used for tutor-mode tool narrations).
-router.post('/tts/speak', async (req: Request, res: Response) => {
-  const { text, provider } = req.body as { text: string; provider: string };
-
-  if (!text?.trim()) return res.status(400).json({ error: 'No text provided' });
-
-  const sanitizedText = sanitizeForTts(text);
-  if (!sanitizedText) return res.status(400).json({ error: 'No speakable text provided' });
-
-  try {
-    if (provider === 'openai') {
-      const apiKey = await loadOpenAIKey();
-      const client = new OpenAI({ apiKey });
-      const speech = await client.audio.speech.create({
-        model: 'tts-1-hd',
-        voice: 'nova',
-        input: sanitizedText,
-      });
-      res.set('Content-Type', 'audio/mpeg');
-      return res.send(Buffer.from(await speech.arrayBuffer()));
-
-    } else if (provider === 'google') {
-      const apiKey = await loadGeminiKey();
-      const ai = new GoogleGenAI({ apiKey });
-      const audioResp = await ai.models.generateContent({
-        model: 'gemini-2.5-flash-preview-tts',
-        contents: [{ parts: [{ text: sanitizedText }] }],
-        config: {
-          responseModalities: ['AUDIO'],
-          speechConfig: {
-            voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Aoede' } },
-          },
-        } as Record<string, unknown>,
-      });
-
-      const inlineData = audioResp.candidates?.[0]?.content?.parts?.[0]?.inlineData;
-      if (!inlineData?.data) return res.status(500).json({ error: 'No audio returned from Gemini TTS' });
-
-      const pcm = Buffer.from(inlineData.data, 'base64');
-      res.set('Content-Type', 'audio/wav');
-      return res.send(pcmToWav(pcm));
-
-    } else {
-      return res.status(400).json({ error: `Provider '${provider}' does not support TTS narration` });
-    }
-  } catch (err) {
-    console.error('[TTS/Speak]', err);
-    return res.status(500).json({ error: (err as Error).message });
-  }
-});
 
 export default router;

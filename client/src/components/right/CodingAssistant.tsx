@@ -8,7 +8,6 @@ import { UIMessage, UIBlock } from '../../types';
 import { PROVIDERS } from '../../providers';
 import type { Provider } from '../../providers';
 import type { FileNode } from '../../types';
-import { useToolNarration } from '../../hooks/useToolNarration';
 import { FilePathLink } from '../editor/FilePathLink';
 import { parseFilePath, resolveFromRoot } from '../../utils/filePath';
 import { RevertButton } from './RevertButton';
@@ -16,11 +15,6 @@ import { InlineSystemGraph } from './InlineSystemGraph';
 import type { SystemGraph } from '../../api/files';
 
 const API_BASE = import.meta.env.DEV ? 'http://localhost:3001' : '';
-
-export const RESPONSE_TRANSITIONS = {
-  unskippable: ['Alright.', 'Okay.'],
-  default: ['Understood.', 'That gives us the context.'],
-} as const;
 
 const SPEECH_OPTIONS = [
   { id: 'google', label: 'Gemini', model: 'gemini-2.5-flash-preview-tts' },
@@ -161,13 +155,7 @@ function SpeakingWave() {
   );
 }
 
-function MessageBubble({ msg, isLast, sendApproval, stopNarrationQueue, resolveApprovalNarration, onSuggestion, onVerbally, isSpeaking, isVerballyLoading, alwaysVerbally, onReverted, workspacePath, onNavigateToLine, shimmer }: { msg: UIMessage; isLast: boolean; sendApproval: (id: string, approved: boolean) => void; stopNarrationQueue: () => void; resolveApprovalNarration: (id: string, approved: boolean) => void; onSuggestion: (text: string) => void; onVerbally?: (text: string) => void; isSpeaking?: boolean; isVerballyLoading?: boolean; alwaysVerbally?: boolean; onReverted?: (path: string) => void; workspacePath: string | null; onNavigateToLine?: (filePath: string, line: number, endLine?: number, startCol?: number, endCol?: number) => void; shimmer?: boolean }) {
-  const [liveShimmer, setLiveShimmer] = useState(false);
-  useEffect(() => {
-    if (shimmer) { setLiveShimmer(true); return; }
-    const t = setTimeout(() => setLiveShimmer(false), 500);
-    return () => clearTimeout(t);
-  }, [shimmer]);
+function MessageBubble({ msg, isLast, sendApproval, onSuggestion, onVerbally, isSpeaking, isVerballyLoading, onReverted, workspacePath, onNavigateToLine }: { msg: UIMessage; isLast: boolean; sendApproval: (id: string, approved: boolean) => void; onSuggestion: (text: string) => void; onVerbally?: (text: string) => void; isSpeaking?: boolean; isVerballyLoading?: boolean; onReverted?: (path: string) => void; workspacePath: string | null; onNavigateToLine?: (filePath: string, line: number, endLine?: number, startCol?: number, endCol?: number) => void }) {
   if (msg.role === 'user') return <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'flex-end' }}><div style={{ display: 'inline-flex', flexDirection: 'column', maxWidth: '100%' }}><div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 4, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}><span>You</span><span style={{ fontWeight: 400, fontSize: 10 }}>{formatTime(msg.timestamp)}</span></div><div style={{ background: 'var(--color-bg-user-bubble)', borderRadius: 16, padding: '8px 10px', fontSize: 13, color: 'var(--color-text-primary)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', textAlign: 'left' }}>{msg.content}</div></div></div>;
   const isStreaming = msg.isStreaming;
   const hasFileTool = msg.blocks.some(block => block.type === 'tool' && (block.name === 'read_file' || block.name === 'write_file'));
@@ -183,7 +171,7 @@ function MessageBubble({ msg, isLast, sendApproval, stopNarrationQueue, resolveA
     }
     return <code className="md-code-inline" {...props}>{children}</code>;
   };
-  return <div style={{ marginBottom: 12 }}><div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 4, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}><span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><img src="/logo.png" alt="Iodine" style={{ width: 14, height: 14, objectFit: 'contain' }} />Assistant</span><span style={{ fontWeight: 400, fontSize: 10 }}>{formatTime(msg.timestamp)}</span></div><div>{msg.blocks.map((block, i) => { if (block.type === 'text') { const showCursor = isStreaming && isLast && i === msg.blocks.length - 1; return <div key={i} style={{ position: 'relative' }}>{liveShimmer && <div style={{ position: 'absolute', inset: 0, zIndex: 2, overflow: 'hidden', opacity: shimmer ? 1 : 0, transition: 'opacity 500ms ease', pointerEvents: 'none', background: 'var(--color-bg-right-panel)', display: 'flex', flexDirection: 'column', gap: 8, padding: '3px 0' }}>{[88, 72, 95, 60, 83, 78, 45, 92, 55, 70, 38, 50].map((w, i) => <div key={i} style={{ flexShrink: 0, height: 14, width: `${w}%`, borderRadius: 4, background: 'var(--color-shimmer-base)', backgroundImage: 'linear-gradient(90deg, transparent 20%, var(--color-shimmer-highlight) 50%, transparent 80%)', backgroundSize: '200% 100%', animation: 'shimmer-sweep 1.8s ease-in-out infinite', animationDelay: `${-i * 0.12}s` }} />)}</div>}<div className="md-body"><ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code: codeComponent }}>{block.content}</ReactMarkdown>{showCursor && <span style={{ animation: 'blink 1s step-end infinite', opacity: 1 }}>▌</span>}</div></div>; } if (block.type === 'thought') return <ThoughtBlock key={i} block={block} />; if (block.type === 'command-approval') return <CommandApprovalBlock key={i} block={block} onApprove={() => { resolveApprovalNarration(block.id, true); void sendApproval(block.id, true); }} onReject={() => { resolveApprovalNarration(block.id, false); void sendApproval(block.id, false); }} />; return <ToolBlock key={i} block={block} workspacePath={workspacePath} onNavigateToLine={onNavigateToLine} onReverted={onReverted} />; })}{!isStreaming && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 2 }}>{hasFileTool && <button onClick={() => onSuggestion('Open file for me')} style={chipStyle(false)}>Open file for me</button>}{(verballyText.length > 120 || (alwaysVerbally && verballyText.length > 0)) && onVerbally && <button onClick={() => onVerbally(verballyText)} style={chipStyle(isSpeaking ?? false)} disabled={isVerballyLoading}>{isVerballyLoading ? 'Preparing…' : isSpeaking ? <SpeakingWave /> : 'Voice Memo'}</button>}</div>}{isStreaming && msg.blocks.length === 0 && <span style={{ fontSize: 13, color: 'var(--color-text-secondary)', animation: 'blink 1s step-end infinite' }}>▌</span>}</div></div>;
+  return <div style={{ marginBottom: 12 }}><div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 4, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}><span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><img src="/logo.png" alt="Iodine" style={{ width: 14, height: 14, objectFit: 'contain' }} />Assistant</span><span style={{ fontWeight: 400, fontSize: 10 }}>{formatTime(msg.timestamp)}</span></div><div>{msg.blocks.map((block, i) => { if (block.type === 'text') { const showCursor = isStreaming && isLast && i === msg.blocks.length - 1; return <div key={i}><div className="md-body"><ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code: codeComponent }}>{block.content}</ReactMarkdown>{showCursor && <span style={{ animation: 'blink 1s step-end infinite', opacity: 1 }}>▌</span>}</div></div>; } if (block.type === 'thought') return <ThoughtBlock key={i} block={block} />; if (block.type === 'command-approval') return <CommandApprovalBlock key={i} block={block} onApprove={() => void sendApproval(block.id, true)} onReject={() => void sendApproval(block.id, false)} />; return <ToolBlock key={i} block={block} workspacePath={workspacePath} onNavigateToLine={onNavigateToLine} onReverted={onReverted} />; })}{!isStreaming && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 2 }}>{hasFileTool && <button onClick={() => onSuggestion('Open file for me')} style={chipStyle(false)}>Open file for me</button>}{verballyText.length > 120 && onVerbally && <button onClick={() => onVerbally(verballyText)} style={chipStyle(isSpeaking ?? false)} disabled={isVerballyLoading}>{isVerballyLoading ? 'Preparing…' : isSpeaking ? <SpeakingWave /> : 'Voice Memo'}</button>}</div>}{isStreaming && msg.blocks.length === 0 && <span style={{ fontSize: 13, color: 'var(--color-text-secondary)', animation: 'blink 1s step-end infinite' }}>▌</span>}</div></div>;
 }
 
 export interface CodingAssistantHandle {
@@ -203,25 +191,7 @@ export const CodingAssistant = forwardRef<CodingAssistantHandle, CodingAssistant
   useEffect(() => { localStorage.setItem('iodine:speech-provider', speechProviderId); }, [speechProviderId]);
   const speechOption = SPEECH_OPTIONS.find(o => o.id === speechProviderId) ?? SPEECH_OPTIONS[0];
 
-  // Narration queue for tutor-mode tool call commentary — must be defined before useCodingAssistant.
-  const {
-    narrate: handleToolNarration,
-    stop: stopNarrationQueue,
-    drain: drainNarrationQueue,
-    evictSkippable,
-    resolveApprovalNarration,
-    enqueueGreeting,
-    setBridgeQuestion,
-    queueRef: narrationQueueRef,
-    audioRef: narrationAudioRef,
-    hadNarrationsRef: turnHadNarrationsRef,
-    hadUnskippableRef: turnHadUnskippableRef,
-    unskippableCountRef: turnUnskippableCountRef,
-    onEmptyRef: onNarrationQueueEmptyRef,
-    resetTurn: resetNarrationRefs,
-  } = useToolNarration(speechProviderId);
-
-  const { uiMessages, isLoading, isWatching, conversationPersistenceError, canRetryConversationSave, conversationSaveRevision, sendMessage, enqueueEventContext, stopExecution, clearMessages, sendApproval, injectProactiveMessage, notifyEditorActivity, loadConversation, retryConversationSave, clearAllConversations } = useCodingAssistant(provider, model, workspacePath, onNavigateToLine, onWatchTrigger, onAssistantReply, handleToolNarration, onFileTreeRefresh, onSummaryRequest);
+  const { uiMessages, isLoading, isWatching, conversationPersistenceError, canRetryConversationSave, conversationSaveRevision, sendMessage, enqueueEventContext, stopExecution, clearMessages, sendApproval, injectProactiveMessage, notifyEditorActivity, loadConversation, retryConversationSave, clearAllConversations } = useCodingAssistant(provider, model, workspacePath, onNavigateToLine, onWatchTrigger, onAssistantReply, onFileTreeRefresh, onSummaryRequest);
   // Keep a ref to sendMessage so callbacks (like transcribeAndSend) never capture a stale closure.
   const sendMessageRef = useRef(sendMessage);
   sendMessageRef.current = sendMessage;
@@ -248,7 +218,6 @@ export const CodingAssistant = forwardRef<CodingAssistantHandle, CodingAssistant
   const [showConversations, setShowConversations] = useState(false);
   const [conversationLoadError, setConversationLoadError] = useState<string | null>(null);
   const [speakingMsgId, setSpeakingMsgId] = useState<string | null>(null);
-  const [shimmerMsgId, setShimmerMsgId] = useState<string | null>(null);
   const [verballyLoadingId, setVerballyLoadingId] = useState<string | null>(null);
   const [verballyError, setVerballyError] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -258,8 +227,6 @@ export const CodingAssistant = forwardRef<CodingAssistantHandle, CodingAssistant
   const pastConversationsRef = useRef<ConversationRecord[]>([]);
   const conversationLoadErrorRef = useRef<string | null>(null);
   const conversationsLoadingRef = useRef(true);
-  // Guards the opening narration independently of transient message state.
-  const hasGreetedCurrentThreadRef = useRef(false);
   // State (not ref) so handleSend can gate on it synchronously in the render closure.
   const [conversationsLoading, setConversationsLoading] = useState(true);
   const [isRecording, setIsRecording] = useState(false);
@@ -315,7 +282,7 @@ export const CodingAssistant = forwardRef<CodingAssistantHandle, CodingAssistant
   const handleSetWorkspace = async () => { if (!wsInput.trim()) return; setWsOpening(true); setWsError(null); try { const result = await openWorkspace(wsInput.trim()); if (result.path) { onWorkspaceOpen(result.path); setWsInput(''); } } catch (err) { setWsError(err instanceof Error ? err.message : 'Failed to open folder'); } finally { setWsOpening(false); } };
   useEffect(() => { if (!showConversations && scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, [uiMessages, showConversations]);
   useEffect(() => { if (meetingActive) setShowConversations(false); }, [meetingActive]);
-  const handleSend = () => { const text = input.trim(); if (!text || isLoading || conversationsLoading || meetingActive) return; stopNarrationQueue(); resetNarrationRefs(); setBridgeQuestion(text); setInput(''); const isFresh = showConversations; setShowConversations(false); if (isFresh) { clearMessages(); hasGreetedCurrentThreadRef.current = false; } if (!hasGreetedCurrentThreadRef.current && isTutorMode && !conversationLoadError) { enqueueGreeting(pastConversationsRef.current.length === 0 ? 'hello' : 'welcomeBack'); hasGreetedCurrentThreadRef.current = true; } const editorContext = getEditorContext?.() ?? null; const ctxPaths = contextNodes.map(n => !workspacePath ? n.path : n.path.startsWith(workspacePath + '/') ? n.path.slice(workspacePath.length + 1) : n.path); onClearContextNodes(); const extraCtx = commitDiffContext?.content ?? undefined; onClearCommitDiffContext?.(); sendMessage(text, activeFilePath, editorContext, ctxPaths.length > 0 ? ctxPaths : undefined, isTutorMode, isFresh, extraCtx); onMessageSent?.(); };
+  const handleSend = () => { const text = input.trim(); if (!text || isLoading || conversationsLoading || meetingActive) return; setInput(''); const isFresh = showConversations; setShowConversations(false); if (isFresh) { clearMessages(); } const editorContext = getEditorContext?.() ?? null; const ctxPaths = contextNodes.map(n => !workspacePath ? n.path : n.path.startsWith(workspacePath + '/') ? n.path.slice(workspacePath.length + 1) : n.path); onClearContextNodes(); const extraCtx = commitDiffContext?.content ?? undefined; onClearCommitDiffContext?.(); sendMessage(text, activeFilePath, editorContext, ctxPaths.length > 0 ? ctxPaths : undefined, isTutorMode, isFresh, extraCtx); onMessageSent?.(); };
   const handleClearAll = async () => {
     try {
       await clearAllConversations();
@@ -329,13 +296,10 @@ export const CodingAssistant = forwardRef<CodingAssistantHandle, CodingAssistant
   const handleLoadConversation = (conv: ConversationRecord) => {
     if (meetingActive) return;
     loadConversation(conv);
-    hasGreetedCurrentThreadRef.current = true;
     setShowConversations(false);
   };
   const handleSuggestion = (text: string) => { setInput(text); onUserTyping?.(); };
   const handleVerbally = (msgId: string, text: string) => {
-    stopNarrationQueue();
-    setShimmerMsgId(null);
     if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
     if (speakingMsgId === msgId) { setSpeakingMsgId(null); return; }
     setVerballyError(null);
@@ -393,11 +357,9 @@ export const CodingAssistant = forwardRef<CodingAssistantHandle, CodingAssistant
       const { text } = await r.json() as { text: string };
       if (text?.trim()) {
         const trimmedText = text.trim();
-        stopNarrationQueue(); resetNarrationRefs(); setBridgeQuestion(trimmedText);
         const isFresh = showConversations;
         setShowConversations(false);
-        if (isFresh) { clearMessages(); hasGreetedCurrentThreadRef.current = false; }
-        if (!hasGreetedCurrentThreadRef.current && isTutorMode && !conversationsLoadingRef.current && !conversationLoadErrorRef.current) { enqueueGreeting(pastConversationsRef.current.length === 0 ? 'hello' : 'welcomeBack'); hasGreetedCurrentThreadRef.current = true; }
+        if (isFresh) { clearMessages(); }
         sendMessageRef.current(trimmedText, activeFilePath, getEditorContext?.() ?? null, undefined, isTutorMode, isFresh);
         onMessageSent?.();
       }
@@ -410,11 +372,8 @@ export const CodingAssistant = forwardRef<CodingAssistantHandle, CodingAssistant
   }, [speechOption.id, activeFilePath, isTutorMode, showConversations, clearMessages]);
 
   const startRecording = useCallback(async () => {
-    const wasSpeaking = Boolean(narrationAudioRef.current || audioRef.current);
+    const wasSpeaking = Boolean(audioRef.current);
     // Stop any playing audio before recording so the mic doesn't pick it up.
-    // Pause audio refs directly — do NOT call stopNarrationQueue() here as it
-    // mutates the generation counter and can break subsequent narration flow.
-    if (narrationAudioRef.current) { narrationAudioRef.current.pause(); narrationAudioRef.current = null; }
     if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; setSpeakingMsgId(null); }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -479,70 +438,7 @@ export const CodingAssistant = forwardRef<CodingAssistantHandle, CodingAssistant
     recordingStreamRef.current?.getTracks().forEach(t => t.stop());
   }, []);
 
-  // Stop narrations when tutor mode is turned off or component unmounts.
-  useEffect(() => { if (!isTutorMode) stopNarrationQueue(); }, [isTutorMode, stopNarrationQueue]);
-  useEffect(() => () => stopNarrationQueue(), [stopNarrationQueue]);
-
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } };
-  const prevIsLoadingForAutoRef = useRef(false);
-  useEffect(() => {
-    const wasLoading = prevIsLoadingForAutoRef.current;
-    prevIsLoadingForAutoRef.current = isLoading;
-    if (wasLoading && !isLoading && isTutorMode) {
-      const lastMsg = uiMessages[uiMessages.length - 1];
-      if (lastMsg?.role === 'assistant') {
-        const text = lastMsg.blocks.filter((b): b is UIBlock & { type: 'text' } => b.type === 'text').map(b => b.content).join('\n\n').trim();
-        // Enqueue the response audio after any tool narrations — do not interrupt them.
-        if (text) {
-          const msgId = lastMsg.id;
-          setShimmerMsgId(msgId);
-          onNarrationQueueEmptyRef.current = () => setSpeakingMsgId(null);
-          // Skip condensation for short, tool-free responses and speak the original text directly.
-          // Greeting is already in the queue as a dedicated clip; response always receives none.
-          const wordCount = text.split(/\s+/).length;
-          const useDirectSpeech = wordCount < 15 && !turnHadNarrationsRef.current;
-          const speechPromise = fetch(`${API_BASE}/api/tts/${useDirectSpeech ? 'speak' : 'verbally'}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(useDirectSpeech
-              ? { text, provider: speechOption.id }
-              : { text, provider: speechOption.id, chatProvider: provider.id, chatModel: model }),
-          }).then(async r => {
-            if (!r.ok) throw new Error(`HTTP ${r.status}`);
-            return URL.createObjectURL(await r.blob());
-          });
-          // Bridge exploration turns normally, and larger edit/write batches with a concise transition.
-          // One or two edits already have enough narration and do not need an extra bridge.
-          const shouldBridge = turnHadNarrationsRef.current
-            && (!turnHadUnskippableRef.current || turnUnskippableCountRef.current >= 3);
-          if (shouldBridge) {
-            const transitions = turnUnskippableCountRef.current >= 3
-              ? RESPONSE_TRANSITIONS.unskippable
-              : RESPONSE_TRANSITIONS.default;
-            const transition = transitions[Math.floor(Math.random() * transitions.length)];
-            narrationQueueRef.current.push({
-              skippable: false,
-              fn: async () => {
-                const r = await fetch(`${API_BASE}/api/tts/speak`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ text: transition, provider: speechOption.id }),
-                });
-                if (!r.ok) throw new Error(`HTTP ${r.status}`);
-                return URL.createObjectURL(await r.blob());
-              },
-            });
-          }
-          // Evict remaining skippable narrations as soon as the response audio is ready.
-          speechPromise.then(() => evictSkippable());
-          narrationQueueRef.current.push({ fn: async () => { const url = await speechPromise; setSpeakingMsgId(msgId); setShimmerMsgId(null); return url; }, skippable: false });
-          void drainNarrationQueue();
-          turnHadNarrationsRef.current = false;
-        }
-      }
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoading]);
   return <div className={isWatching ? 'assistant-panel assistant-panel-attention' : 'assistant-panel'} style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}><style>{`@keyframes shimmer-sweep { 0% { background-position: 200% center; } 100% { background-position: -200% center; } } @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } } @keyframes wave-bar { from { height: 2px; } to { height: 11px; } } .wave-bar { animation: wave-bar 0.65s ease-in-out infinite alternate; } @keyframes watching-pulse { 0%, 100% { opacity: .4; transform: scale(.8); } 50% { opacity: 1; transform: scale(1.15); } } @keyframes assistant-attention { 0%, 100% { box-shadow: inset 0 0 0 1px #e7c54770, 0 0 0 0 #e7c54700, 0 0 10px #e7c54745; } 50% { box-shadow: inset 0 0 0 2px #e7c547, 0 0 0 7px #e7c54735, 0 0 30px #e7c547aa; } } .assistant-panel-attention { animation: assistant-attention 1.15s ease-in-out infinite; } .watching-dot { display:inline-block; width:10px; height:10px; border-radius:50%; background:#e7c547; box-shadow:0 0 0 3px #e7c54745, 0 0 14px #e7c547; animation:watching-pulse .7s ease-in-out infinite; flex-shrink:0; } .watching-alert { color:#e7c547; font-weight:700; font-style:normal; text-shadow:0 0 8px #e7c54780; } .md-body { font-size:13px; color:var(--color-text-primary); line-height:1.6; word-break:break-word; margin-bottom:4px; } .md-body > *:first-child { margin-top:0; } .md-body > *:last-child { margin-bottom:0; } .md-body h1,.md-body h2,.md-body h3,.md-body h4 { font-weight:600; margin:10px 0 4px; } .md-body h1 { font-size:16px; } .md-body h2 { font-size:14px; } .md-body h3,.md-body h4 { font-size:13px; } .md-body p { margin:4px 0; } .md-body ul,.md-body ol { margin:4px 0; padding-left:18px; } .md-body li { margin:2px 0; } .md-body strong { font-weight:600; } .md-body em { font-style:italic; } .md-body blockquote { border-left:3px solid var(--color-border); margin:6px 0; padding:2px 10px; color:var(--color-text-secondary); } .md-body hr { border:none; border-top:1px solid var(--color-border); margin:8px 0; } .md-body a { color:#4fc1ff; text-decoration:underline; } .md-body table { border-collapse:collapse; font-size:12px; margin:6px 0; width:100%; } .md-body th,.md-body td { border:1px solid var(--color-border); padding:4px 8px; text-align:left; } .md-body th { background:#ffffff0a; font-weight:600; } .md-pre { background:var(--color-bg-editor); border:1px solid var(--color-border); border-radius:5px; padding:8px 10px; overflow-x:auto; margin:6px 0; font-size:12px; font-family:monospace; white-space:pre; } .md-code-inline { background:#ffffff12; border-radius:5px; padding:1px 4px; font-size:12px; font-family:monospace; }`}</style>
       <div style={{ display: 'flex', alignItems: 'center', padding: '0 10px', borderBottom: showHelp ? 'none' : '1px solid var(--color-border)', flexShrink: 0, gap: 6, height: 36 }}>
         {PROVIDERS.length === 1 ? <span style={{ fontSize: 11, color: 'var(--color-text-secondary)', flexShrink: 0 }}>{provider.label}</span> : <select value={provider.id} onChange={e => setProvider(e.target.value)} style={{ background: 'var(--color-bg-sidebar)', border: '1px solid var(--color-border)', borderRadius: 6, color: 'var(--color-text-primary)', fontSize: 11, padding: '2px 6px', cursor: 'pointer' }}>{PROVIDERS.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}</select>}
@@ -585,7 +481,7 @@ export const CodingAssistant = forwardRef<CodingAssistantHandle, CodingAssistant
             <p style={{ fontSize: 12, margin: 0 }}>Ask about your code</p>
           </div>
         ) : null}
-        {!showConversations && uiMessages.map((msg, i) => <MessageBubble key={msg.id} msg={msg} isLast={i === uiMessages.length - 1} sendApproval={sendApproval} stopNarrationQueue={stopNarrationQueue} resolveApprovalNarration={resolveApprovalNarration} onSuggestion={handleSuggestion} onVerbally={msg.role === 'assistant' ? (text) => handleVerbally(msg.id, text) : undefined} isSpeaking={speakingMsgId === msg.id} isVerballyLoading={verballyLoadingId === msg.id} alwaysVerbally={isTutorMode} onReverted={handleEditReverted} workspacePath={workspacePath} onNavigateToLine={onNavigateToLine} shimmer={isTutorMode && msg.role === 'assistant' && (isLoading ? i === uiMessages.length - 1 : shimmerMsgId === msg.id)} />)}
+        {!showConversations && uiMessages.map((msg, i) => <MessageBubble key={msg.id} msg={msg} isLast={i === uiMessages.length - 1} sendApproval={sendApproval} onSuggestion={handleSuggestion} onVerbally={msg.role === 'assistant' ? (text) => handleVerbally(msg.id, text) : undefined} isSpeaking={speakingMsgId === msg.id} isVerballyLoading={verballyLoadingId === msg.id} onReverted={handleEditReverted} workspacePath={workspacePath} onNavigateToLine={onNavigateToLine} />)}
       </div>
       <InlineSystemGraph graph={graph} workspacePath={workspacePath} onOpenIogram={onOpenIogram} onNavigateToLine={onNavigateToLine} activeSystemNode={activeSystemNode} />
       <div style={{ borderTop: '1px solid var(--color-border)', padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0 }}>
