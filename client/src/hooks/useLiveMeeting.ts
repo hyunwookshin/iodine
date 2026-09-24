@@ -66,8 +66,10 @@ export interface UseLiveMeetingReturn {
   isActive: boolean;
   isMuted: boolean;
   speaking: 'user' | 'agent' | 'idle';
-  /** Live AnalyserNode for waveform visualisation (mic input). */
+  /** Live AnalyserNode on the Gemini output path — drives the waveform visualisation. */
   analyserNode: AnalyserNode | null;
+  /** Live AnalyserNode on the mic input path — drives the bottom glow bar. */
+  micAnalyserNode: AnalyserNode | null;
   error: string | null;
 }
 
@@ -76,6 +78,7 @@ export function useLiveMeeting(provider: string, onTranscriptReady?: (transcript
   const [isMuted, setIsMuted] = useState(false);
   const [speaking, setSpeaking] = useState<'user' | 'agent' | 'idle'>('idle');
   const [analyserNode, setAnalyserNode] = useState<AnalyserNode | null>(null);
+  const [micAnalyserNode, setMicAnalyserNode] = useState<AnalyserNode | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Refs for cleanup — all torn down in stop()
@@ -189,6 +192,7 @@ export function useLiveMeeting(provider: string, onTranscriptReady?: (transcript
     isMutedRef.current = false;
     setSpeaking('idle');
     setAnalyserNode(null);
+    setMicAnalyserNode(null);
   }, []);
 
   // ── Start ─────────────────────────────────────────────────────────────────
@@ -227,7 +231,8 @@ export function useLiveMeeting(provider: string, onTranscriptReady?: (transcript
 
       // 4. Audio graph
       //    Gemini playback: bufferSource ──► outputAnalyser ──► destination
-      //    Mic capture:     source ──► scriptProcessor (PCM; output silenced)
+      //    Mic capture:     source ──► micAnalyser (read-only tap)
+      //                     source ──► scriptProcessor (PCM; output silenced)
       const outputAnalyser = audioCtx.createAnalyser();
       outputAnalyser.fftSize = 2048; // time-domain buffer for smooth waveform
       outputAnalyser.connect(audioCtx.destination);
@@ -236,6 +241,12 @@ export function useLiveMeeting(provider: string, onTranscriptReady?: (transcript
 
       const source = audioCtx.createMediaStreamSource(stream);
       sourceRef.current = source;
+
+      // Mic analyser: read-only tap for the bottom glow bar (no destination connection needed).
+      const micAnalyser = audioCtx.createAnalyser();
+      micAnalyser.fftSize = 512;
+      source.connect(micAnalyser);
+      setMicAnalyserNode(micAnalyser);
 
       const processor = audioCtx.createScriptProcessor(BUFFER_SIZE, 1, 1);
       processorRef.current = processor;
@@ -395,5 +406,5 @@ export function useLiveMeeting(provider: string, onTranscriptReady?: (transcript
     });
   }, []);
 
-  return { start, stop, toggleMute, isActive, isMuted, speaking, analyserNode, error };
+  return { start, stop, toggleMute, isActive, isMuted, speaking, analyserNode, micAnalyserNode, error };
 }

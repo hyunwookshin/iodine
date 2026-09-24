@@ -79,6 +79,8 @@ interface EditorAreaProps {
   onMeetingClose?: () => void;
   /** Live AnalyserNode from the meeting hook for waveform visualisation. */
   meetingAnalyserNode?: AnalyserNode | null;
+  /** Live AnalyserNode on the mic input path — drives the bottom glow bar. */
+  meetingMicAnalyserNode?: AnalyserNode | null;
   /** Who is currently speaking in the meeting. */
   meetingSpeaking?: 'user' | 'agent' | 'idle';
   /** Controlled mute state for the meeting card. */
@@ -115,7 +117,7 @@ const btnStyle: React.CSSProperties = {
 };
 
 export const EditorArea = forwardRef<EditorAreaHandle, EditorAreaProps>(
-  function EditorArea({ openFiles, activeFilePath, onTabClick, onTabClose, onTabReorder, onContentChange, workspacePath, provider, model, summaryRequestPath, onSummaryHandled, onActivity, onEditorViewChange, onSummaryContentChange, onActiveHeadingChange, onOpenFile, onPreviewRequest, previewRequestPath, onPreviewHandled, onSummaryRequest, onSummaryOpen, canGoBack, canGoForward, onGoBack, onGoForward, activeCommitHash, onCommitDiffClose, onCommitCheckout, onCommitDiffAddToContext, activeMeeting, onMeetingClose, meetingAnalyserNode, meetingSpeaking, meetingMuted, onMeetingMuteToggle }, ref) {
+  function EditorArea({ openFiles, activeFilePath, onTabClick, onTabClose, onTabReorder, onContentChange, workspacePath, provider, model, summaryRequestPath, onSummaryHandled, onActivity, onEditorViewChange, onSummaryContentChange, onActiveHeadingChange, onOpenFile, onPreviewRequest, previewRequestPath, onPreviewHandled, onSummaryRequest, onSummaryOpen, canGoBack, canGoForward, onGoBack, onGoForward, activeCommitHash, onCommitDiffClose, onCommitCheckout, onCommitDiffAddToContext, activeMeeting, onMeetingClose, meetingAnalyserNode, meetingMicAnalyserNode, meetingSpeaking, meetingMuted, onMeetingMuteToggle }, ref) {
     const activeFile = openFiles.find(f => f.path === activeFilePath) ?? null;
     const { diff: diffData, refreshDiff } = useFileDiff(
       (activeFile?.isImage || activeFile?.isUrl || activeFile?.isExternal) ? null : (activeFile?.path ?? null),
@@ -828,6 +830,7 @@ export const EditorArea = forwardRef<EditorAreaHandle, EditorAreaProps>(
             containerRef={containerRef}
             onClose={() => onMeetingClose?.()}
             analyserNode={meetingAnalyserNode}
+            micAnalyserNode={meetingMicAnalyserNode}
             speaking={meetingSpeaking}
             isMuted={meetingMuted}
             onMuteToggle={onMeetingMuteToggle}

@@ -35,9 +35,10 @@ function CloseIcon() {
 interface LiveMeetingCardProps {
   containerRef: React.RefObject<HTMLDivElement>;
   onClose: () => void;
-  /** Live AnalyserNode from the active AudioContext. When provided the waveform
-   *  reacts to real PCM data instead of the idle sine animation. */
+  /** Live AnalyserNode on the Gemini output path — drives the waveform canvas. */
   analyserNode?: AnalyserNode | null;
+  /** Live AnalyserNode on the mic input path — drives the bottom glow bar. */
+  micAnalyserNode?: AnalyserNode | null;
   /** Who is currently speaking — unused for colour (monochrome) but kept for future use. */
   speaking?: 'user' | 'agent' | 'idle';
   /** Controlled mute state. When provided, overrides internal state. */
@@ -46,9 +47,10 @@ interface LiveMeetingCardProps {
   onMuteToggle?: () => void;
 }
 
-export function LiveMeetingCard({ containerRef, onClose, analyserNode, isMuted: controlledMuted, onMuteToggle }: LiveMeetingCardProps) {
+export function LiveMeetingCard({ containerRef, onClose, analyserNode, micAnalyserNode, isMuted: controlledMuted, onMuteToggle }: LiveMeetingCardProps) {
   const cardRef    = useRef<HTMLDivElement>(null);
   const canvasRef  = useRef<HTMLCanvasElement>(null);
+  const glowBarRef = useRef<HTMLDivElement>(null);
   const dragRef    = useRef<{ startMouseX: number; startMouseY: number; startX: number; startY: number } | null>(null);
   const frameRef   = useRef(0);
   const CARD_W = 240, CARD_H = 148, MARGIN = 20;
@@ -96,13 +98,15 @@ export function LiveMeetingCard({ containerRef, onClose, analyserNode, isMuted: 
   }, [containerRef]);
 
   // rAF loop — draws a smooth bezier waveform on canvas each frame
+  // and updates the bottom glow bar based on mic amplitude.
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const timeDomain = analyserNode ? new Uint8Array(analyserNode.fftSize) : null;
+    const timeDomain    = analyserNode    ? new Uint8Array(analyserNode.fftSize)    : null;
+    const micTimeDomain = micAnalyserNode ? new Uint8Array(micAnalyserNode.fftSize) : null;
 
     const draw = () => {
       const dpr = window.devicePixelRatio || 1;
@@ -163,12 +167,32 @@ export function LiveMeetingCard({ containerRef, onClose, analyserNode, isMuted: 
       ctx.lineTo(points[points.length - 1][0], points[points.length - 1][1]);
       ctx.stroke();
 
+      // Bottom glow bar — driven by mic RMS (muted = no glow).
+      if (glowBarRef.current) {
+        let intensity = 0;
+        if (micAnalyserNode && micTimeDomain && !controlledMuted) {
+          micAnalyserNode.getByteTimeDomainData(micTimeDomain);
+          let sumSq = 0;
+          for (let i = 0; i < micTimeDomain.length; i++) {
+            const s = (micTimeDomain[i] - 128) / 128;
+            sumSq += s * s;
+          }
+          intensity = Math.min(1, Math.sqrt(sumSq / micTimeDomain.length) * 10);
+        }
+        const alpha = 0.12 + intensity * 0.88;
+        const blur  = 4 + intensity * 18;
+        glowBarRef.current.style.background = `rgba(78,201,176,${0.08 + intensity * 0.55})`;
+        glowBarRef.current.style.boxShadow  = intensity > 0.04
+          ? `0 0 ${blur}px rgba(78,201,176,${alpha}), 0 0 ${blur * 0.4}px rgba(78,201,176,${alpha * 0.5})`
+          : 'none';
+      }
+
       frameRef.current = requestAnimationFrame(draw);
     };
 
     frameRef.current = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(frameRef.current);
-  }, [analyserNode]);
+  }, [analyserNode, micAnalyserNode, controlledMuted]);
 
   const formatTime = (s: number) =>
     `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
@@ -249,12 +273,24 @@ export function LiveMeetingCard({ containerRef, onClose, analyserNode, isMuted: 
       </div>
 
       {/* Waveform canvas */}
-      <div style={{ flex: 1, padding: '0 12px 12px' }}>
+      <div style={{ flex: 1, padding: '0 12px 8px' }}>
         <canvas
           ref={canvasRef}
           style={{ width: '100%', height: '100%', display: 'block' }}
         />
       </div>
+
+      {/* Mic glow bar — pulses with voice amplitude */}
+      <div
+        ref={glowBarRef}
+        style={{
+          height: 3,
+          borderRadius: '0 0 10px 10px',
+          background: 'rgba(78,201,176,0.08)',
+          flexShrink: 0,
+          transition: 'background 0.05s ease',
+        }}
+      />
     </div>
   );
 }

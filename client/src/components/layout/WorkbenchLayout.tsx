@@ -600,6 +600,7 @@ export function WorkbenchLayout() {
             activeMeeting={liveMeeting.isActive}
             onMeetingClose={liveMeeting.stop}
             meetingAnalyserNode={liveMeeting.analyserNode}
+            meetingMicAnalyserNode={liveMeeting.micAnalyserNode}
             meetingSpeaking={liveMeeting.speaking}
             meetingMuted={liveMeeting.isMuted}
             onMeetingMuteToggle={liveMeeting.toggleMute}
