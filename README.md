@@ -34,7 +34,9 @@ Once you have had a few exchanges in the chat, a **Start a meeting** button appe
 <img src="https://github.com/user-attachments/assets/55a721c6-8990-407f-a343-bdecbdf42b1e" alt="Iodine harness demo" width="100%" />
 
 <p align="center">
-  More demos on YouTube: <a href="https://youtu.be/QgfjxkFNNDA">Demo 1</a> · <a href="https://youtu.be/DFy1F0CQmN8">Demo 2</a> · <a href="https://youtu.be/gl_IeYgDNJw">Demo 3</a> · <a href="https://www.youtube.com/watch?v=66pxz-CJ_sg">Demo 4</a> · <a href="https://youtu.be/M6C0rk1DwNs">Demo 5</a>
+  More demos on YouTube: <a href="
+  https://youtube.com/shorts/VeYM4Gd6_Pc?feature=share">Demo 1</a>
+  · <a href="https://youtu.be/DFy1F0CQmN8">Demo 2</a> · <a href="https://www.youtube.com/watch?v=66pxz-CJ_sg">Demo 4</a> · <a href="https://youtu.be/M6C0rk1DwNs">Demo 5</a>
 </p>
 
 ## How Iodine helps
