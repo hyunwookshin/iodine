@@ -328,8 +328,8 @@ export function useLiveMeeting(provider: string, onTranscriptReady?: (transcript
           systemInstruction: {
             parts: [{
               text: ctx
-                ? `You are a helpful voice assistant continuing a prior text conversation with the user. Respond conversationally and concisely — this is a live voice session, not a text chat.\n\nWhen the session starts, greet the user with a single warm sentence that naturally references the prior topic (e.g. "Hey, great to continue our chat about X this way!"), then wait for them to speak. Do not list what you can do.\n\n[PRIOR CONVERSATION]\n${ctx}`
-                : `You are a helpful voice assistant. Respond conversationally and concisely — this is a live voice session.\n\nWhen the session starts, greet the user with a single friendly sentence and ask what they're working on. Keep it brief.`,
+                ? `You are a helpful voice assistant. This is a live voice session — be conversational, natural, and concise. Short sentences. No bullet points or markdown.\n\nYou have context from a prior text conversation below, but do NOT mention it or summarize it in your greeting. Just say hi warmly and naturally, like a colleague picking up the phone — one or two short sentences, then stop and listen.\n\nExamples of good openers: "Hey! Good to connect." / "Hi there! What's on your mind?" / "Hey, glad we could chat!"\n\n[PRIOR CONVERSATION CONTEXT — for reference only, do not narrate]\n${ctx}`
+                : `You are a helpful voice assistant. This is a live voice session — be conversational, natural, and concise.\n\nSay hi warmly in one or two short sentences, then stop and listen. Do not list what you can do.`,
             }],
           },
           generationConfig: {
@@ -351,7 +351,7 @@ export function useLiveMeeting(provider: string, onTranscriptReady?: (transcript
       readyRef.current = true;
       ws.send(JSON.stringify({
         clientContent: {
-          turns: [{ role: 'user', parts: [{ text: 'start' }] }],
+          turns: [{ role: 'user', parts: [{ text: 'hi' }] }],
           turnComplete: true,
         },
       }));
