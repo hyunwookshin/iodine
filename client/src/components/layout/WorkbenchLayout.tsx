@@ -133,8 +133,30 @@ export function WorkbenchLayout() {
   }, [setModel]);
 
   // ── Live meeting ──────────────────────────────────────────────────────────
-  const liveMeeting = useLiveMeeting(provider.id, (transcript) => {
-    rightPanelRef.current?.injectProactiveMessage(transcript, async () => transcript);
+  const providerRef = useRef(provider);
+  providerRef.current = provider;
+  const modelRef = useRef(model);
+  modelRef.current = model;
+
+  const liveMeeting = useLiveMeeting(provider.id, async (transcript) => {
+    // Try to summarize the transcript; fall back to the raw lines on error.
+    let display = `**Meeting transcript**\n\n${transcript}`;
+    try {
+      const r = await fetch('/api/proactive/meeting-summary', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          transcript,
+          provider: providerRef.current.id,
+          model: modelRef.current,
+        }),
+      });
+      if (r.ok) {
+        const { summary } = await r.json() as { summary: string | null };
+        if (summary) display = `✍️ **Meeting notes**\n\n${summary}`;
+      }
+    } catch { /* fall back to raw transcript */ }
+    rightPanelRef.current?.injectProactiveMessage(display, async () => transcript);
   });
 
   const pushNav = useCallback((path: string) => {

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, useImperativeHandle, forwardR
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useCodingAssistant } from '../../hooks/useCodingAssistant';
-import { openWorkspace } from '../../api/files';
+import { openWorkspace, fetchOverallDiff } from '../../api/files';
 import { fetchConversations, clearConversations as apiClearConversations, type ConversationRecord } from '../../api/conversations';
 import { UIMessage, UIBlock } from '../../types';
 import { PROVIDERS } from '../../providers';
@@ -491,7 +491,7 @@ export const CodingAssistant = forwardRef<CodingAssistantHandle, CodingAssistant
         {verballyError && <div style={{ padding: '6px 10px', background: '#f4877112', border: '1px solid #f4877160', borderRadius: 6, fontSize: 11, color: '#f48771', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><span>🔊 Voice Memo: {verballyError}</span><button onClick={() => setVerballyError(null)} style={{ background: 'none', border: 'none', color: '#f48771', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: '0 2px' }}>×</button></div>}
         {meetingError && <div style={{ padding: '6px 10px', background: '#f4877112', border: '1px solid #f4877160', borderRadius: 6, fontSize: 11, color: '#f48771' }}>🎙 {meetingError}</div>}
         {isWatching && <div className="watching-alert" style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, padding: '7px 10px', border: '1px solid #e7c547', borderRadius: 6, background: '#e7c54718' }}><span className="watching-dot" />Assistant is actively watching your progress</div>}
-        {!meetingActive && provider.id === 'google' && uiMessages.some(m => m.role === 'assistant') && onMeetingStart && <button onClick={() => {
+        {!meetingActive && provider.id === 'google' && uiMessages.some(m => m.role === 'assistant') && onMeetingStart && <button onClick={() => void (async () => {
             const lines: string[] = [];
             for (const msg of uiMessages) {
               if (msg.role === 'user') {
@@ -501,8 +501,17 @@ export const CodingAssistant = forwardRef<CodingAssistantHandle, CodingAssistant
                 if (text) lines.push(`Assistant: ${text}`);
               }
             }
-            onMeetingStart(lines.join('\n\n'));
-          }} title="Start a live voice meeting" style={{ alignSelf: 'stretch', background: 'rgba(78,201,176,0.1)', border: '1px solid rgba(78,201,176,0.35)', borderRadius: 8, color: '#4ec9b0', cursor: 'pointer', fontSize: 12, padding: '7px 12px', fontWeight: 600, textAlign: 'center' }}>Start a meeting</button>}
+            const parts: string[] = [lines.join('\n\n')];
+            const editorCtx = getEditorContext?.();
+            if (activeFilePath && editorCtx) {
+              parts.push(`[ACTIVE FILE: ${activeFilePath}]\n${editorCtx}`);
+            }
+            try {
+              const { diff } = await fetchOverallDiff();
+              if (diff.trim()) parts.push(`[CURRENT GIT DIFF]\n${diff}`);
+            } catch { /* ignore — diff is optional context */ }
+            onMeetingStart(parts.join('\n\n---\n\n'));
+          })()} title="Start a live voice meeting" style={{ alignSelf: 'stretch', background: 'rgba(78,201,176,0.1)', border: '1px solid rgba(78,201,176,0.35)', borderRadius: 8, color: '#4ec9b0', cursor: 'pointer', fontSize: 12, padding: '7px 12px', fontWeight: 600, textAlign: 'center' }}>Start a meeting</button>}
         {meetingActive && <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, padding: '7px 10px', border: '1px solid rgba(78,201,176,0.4)', borderRadius: 6, background: 'rgba(78,201,176,0.08)', color: '#4ec9b0' }}><span style={{ width: 7, height: 7, borderRadius: '50%', background: '#f5a623', boxShadow: '0 0 6px #f5a62399', display: 'inline-block', flexShrink: 0, animation: 'meeting-dot-pulse 2s ease-in-out infinite' }} />Live meeting in progress — chat is paused</div>}
         <textarea ref={textareaRef} value={input} onChange={e => { setInput(e.target.value); onUserTyping?.(); }} onKeyDown={handleKeyDown} placeholder="Ask anything… (Enter to send, Shift+Enter for newline)" rows={3} disabled={isLoading || !!meetingActive} style={{ background: 'var(--color-bg-input)', border: '1px solid var(--color-border)', borderRadius: 10, color: 'var(--color-text-primary)', fontSize: 12, padding: '9px 11px', resize: 'none', fontFamily: 'inherit', outline: 'none', width: '100%', boxSizing: 'border-box', opacity: meetingActive ? 0.4 : 1 }} />
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>

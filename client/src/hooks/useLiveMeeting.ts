@@ -171,12 +171,13 @@ export function useLiveMeeting(provider: string, onTranscriptReady?: (transcript
       audioCtxRef.current = null;
     }
     // Fire transcript callback before clearing state.
+    // Pass just the formatted lines — the caller adds the header and/or summary.
     const lines = transcriptRef.current;
     if (lines.length > 0) {
       const formatted = lines
         .map(e => `**${e.role === 'user' ? 'You' : 'Gemini'}:** ${e.text.trim()}`)
         .join('\n\n');
-      onTranscriptRef.current?.(`**Meeting transcript**\n\n${formatted}`);
+      onTranscriptRef.current?.(formatted);
     }
     transcriptRef.current   = [];
     userTurnBufRef.current  = '';
@@ -328,8 +329,8 @@ export function useLiveMeeting(provider: string, onTranscriptReady?: (transcript
           systemInstruction: {
             parts: [{
               text: ctx
-                ? `You are a helpful voice assistant. This is a live voice session — be conversational, natural, and concise. Short sentences. No bullet points or markdown.\n\nYou have context from a prior text conversation below, but do NOT mention it or summarize it in your greeting. Just say hi warmly and naturally, like a colleague picking up the phone — one or two short sentences, then stop and listen.\n\nExamples of good openers: "Hey! Good to connect." / "Hi there! What's on your mind?" / "Hey, glad we could chat!"\n\n[PRIOR CONVERSATION CONTEXT — for reference only, do not narrate]\n${ctx}`
-                : `You are a helpful voice assistant. This is a live voice session — be conversational, natural, and concise.\n\nSay hi warmly in one or two short sentences, then stop and listen. Do not list what you can do.`,
+                ? `You are a senior engineer on a voice call with a developer. This is a live voice meeting — not a coding session. You CANNOT edit files, run commands, or make any code changes during this call. Short, natural sentences only. No bullet points or markdown.\n\nIf the user asks you to make a change, implement something, or fix a bug: acknowledge it, say you've noted it, and let them know you'll take care of it after the meeting ends. Do not pretend to act on it now.\n\nWhen the conversation is wrapping up, say something like "I'll write up our notes" so the user knows a summary is coming.\n\nYou have context from a prior text conversation below for reference — do NOT summarize or narrate it in your greeting. Just say hi warmly in one or two sentences, then listen.\n\nExamples of good openers: "Hey! Good to connect." / "Hi there! What's on your mind?" / "Hey, glad we could chat!"\n\n[PRIOR CONVERSATION CONTEXT — for reference only]\n${ctx}`
+                : `You are a senior engineer on a voice call with a developer. This is a live voice meeting — not a coding session. You CANNOT edit files, run commands, or make any code changes during this call. Short, natural sentences only. No bullet points or markdown.\n\nIf the user asks you to make a change or fix something: acknowledge it, say you've noted it, and let them know you'll handle it after the meeting ends.\n\nWhen the conversation is wrapping up, say something like "I'll write up our notes".\n\nSay hi warmly in one or two sentences, then stop and listen.`,
             }],
           },
           generationConfig: {

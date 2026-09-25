@@ -141,4 +141,68 @@ router.post('/proactive/watch', async (req, res) => {
   }
 });
 
+const MEETING_SUMMARY_SYSTEM = `You are a meeting notes assistant. Given the transcript of a voice conversation between a developer and an AI coding assistant, produce clean, concise meeting notes in markdown.
+
+Use this structure (omit a section if there's nothing to put there):
+
+**Summary**
+2–3 sentences covering what was discussed.
+
+**Decisions**
+- Bullet list of any decisions made.
+
+**Action items**
+- Bullet list of concrete things the AI should implement or follow up on after the meeting.
+
+Be specific — reference actual files, features, or bugs discussed. No filler or generic phrasing. Keep it tight.`;
+
+router.post('/proactive/meeting-summary', async (req, res) => {
+  const { transcript, provider, model } = req.body as {
+    transcript: string;
+    provider: string;
+    model: string;
+  };
+
+  try {
+    let summary = '';
+
+    if (provider === 'anthropic') {
+      const client = new Anthropic({ apiKey: await loadApiKey() });
+      const response = await client.messages.create({
+        model,
+        max_tokens: 350,
+        system: MEETING_SUMMARY_SYSTEM,
+        messages: [{ role: 'user', content: transcript }],
+      });
+      const block = response.content[0];
+      if (block?.type === 'text') summary = block.text.trim();
+
+    } else if (provider === 'openai') {
+      const client = new OpenAI({ apiKey: await loadOpenAIKey() });
+      const response = await client.chat.completions.create({
+        model,
+        max_completion_tokens: 350,
+        messages: [
+          { role: 'system', content: MEETING_SUMMARY_SYSTEM },
+          { role: 'user', content: transcript },
+        ],
+      });
+      summary = response.choices[0]?.message?.content?.trim() ?? '';
+
+    } else {
+      const ai = new GoogleGenAI({ apiKey: await loadGeminiKey() });
+      const response = await ai.models.generateContent({
+        model,
+        contents: [{ role: 'user', parts: [{ text: transcript }] }],
+        config: { systemInstruction: MEETING_SUMMARY_SYSTEM },
+      });
+      summary = response.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? '';
+    }
+
+    res.json({ summary: summary || null });
+  } catch {
+    res.json({ summary: null });
+  }
+});
+
 export default router;
