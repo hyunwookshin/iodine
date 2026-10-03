@@ -1,7 +1,8 @@
 import { rootPath } from '../state';
 import { TUTOR_SYSTEM_ADDENDUM } from '../prompts/tutorSystem';
+import { ENTER_PLANNING_MODE, DRAFT_PLAN, EXIT_PLANNING_MODE} from "../prompts/planningSystem";
 
-export function buildSystemPrompt(activeFile: string | null, tutorMode?: boolean): string {
+export function buildSystemPrompt(activeFile: string | null, tutorMode?: boolean, planningMode?: boolean): string {
   const workspaceInfo = rootPath ? `Workspace: ${rootPath}` : 'No workspace is currently open.';
   const activeFileInfo = activeFile ? `The user currently has this file open in the editor: ${activeFile}` : '';
   const base = `You are a coding assistant with access to the user's project files.
@@ -28,7 +29,13 @@ Avoid just stating what is needed, instead ask the user if they want to do it th
 
 If you feel that the user is progressively struggling or not making progress, be more liberal in adding assistance and help, going beyond the set response limit.
 `;
-  return tutorMode ? base + TUTOR_SYSTEM_ADDENDUM : base;
+  if (tutorMode) {
+    return base + TUTOR_SYSTEM_ADDENDUM;
+  } else if (planningMode) {
+    return base + ENTER_PLANNING_MODE + DRAFT_PLAN + EXIT_PLANNING_MODE
+  } else {
+    return base
+  }
 }
 
 export { TUTOR_SYSTEM_ADDENDUM } from '../prompts/tutorSystem';

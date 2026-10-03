@@ -5,3 +5,4 @@ dist/
 .env
 __pycache__/
 **/uv.lock
+package-lock.json

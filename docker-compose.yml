@@ -1,0 +1,4 @@
+services:
+  fastapi-services:
+    build: ./server/models
+  
