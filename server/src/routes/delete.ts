@@ -11,15 +11,15 @@ router.delete('/files', async (req, res) => {
   const filePath = req.query.path as string;
   if (!filePath) return res.status(400).json({ error: 'path query param is required' });
 
-  const resolved = path.resolve(filePath);
-  // Resolve symlinks so a symlink inside workspace pointing outside is caught
-  const realResolved = fs.realpathSync(resolved);
-  const realRoot = fs.realpathSync(rootPath);
-  if (!realResolved.startsWith(realRoot + path.sep) && realResolved !== realRoot) {
-    return res.status(400).json({ error: 'Path outside workspace' });
-  }
-
   try {
+    const resolved = path.resolve(filePath);
+    // Resolve symlinks so a symlink inside workspace pointing outside is caught
+    const realResolved = fs.realpathSync(resolved);
+    const realRoot = fs.realpathSync(rootPath);
+    if (!realResolved.startsWith(realRoot + path.sep) && realResolved !== realRoot) {
+      return res.status(400).json({ error: 'Path outside workspace' });
+    }
+
     const stat = await fs.promises.stat(resolved);
     if (stat.isDirectory()) {
       await fs.promises.rm(resolved, { recursive: true });

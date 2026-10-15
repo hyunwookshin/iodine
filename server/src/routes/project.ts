@@ -41,6 +41,16 @@ async function getGitDiff(): Promise<string | null> {
   }
 }
 
+/**
+ * Approvals are granted by the person at the keyboard, so they never travel in a shared
+ * bundle: left out of the zip on the way out, and refused on the way in.
+ */
+const NON_PORTABLE_FILES = ['approval-rules.json', 'approval-log.jsonl'];
+
+export function isNonPortableArchiveEntry(entry: string): boolean {
+  return NON_PORTABLE_FILES.includes(path.posix.basename(path.posix.normalize(entry)).toLowerCase());
+}
+
 // GET /api/project/metadata/download
 // Streams a zip of ~/.iodine/<workspace-md5>/ as a downloadable file.
 // Includes git-commit and git-diff files at the root of the zip.
@@ -77,6 +87,10 @@ router.get('/metadata/download', async (_req, res) => {
       // Copy cache dir contents directly to tmpWorkDir root so import unpacks correctly
       // Use execFile (not sh -c) to avoid shell injection via path strings
       await execFileAsync('cp', ['-r', `${cacheDir}/.`, `${tmpWorkDir}/`]);
+
+      for (const name of NON_PORTABLE_FILES) {
+        await fs.promises.rm(path.join(tmpWorkDir, name), { force: true });
+      }
 
       // Write git metadata alongside cache files
       if (commitHash) {
@@ -162,8 +176,12 @@ router.post(
         return res.status(400).json({ error: 'Zip file contains unsafe paths (path traversal detected)' });
       }
 
+      if (entries.some(isNonPortableArchiveEntry)) {
+        return res.status(400).json({ error: 'Zip file contains local approval data' });
+      }
+
       await new Promise<void>((resolve, reject) => {
-        execFile('unzip', ['-o', tmpFile, '-d', cacheDir], (_err, _stdout, stderr) => {
+        execFile('unzip', ['-o', tmpFile, '-d', cacheDir, '-x', ...NON_PORTABLE_FILES], (_err, _stdout, stderr) => {
           // unzip exits non-zero for warnings too; only fail on real errors
           if (_err && _err.code !== 1) {
             reject(new Error(stderr.trim() || _err.message));

@@ -15,11 +15,15 @@ router.post('/files/create', async (req, res) => {
   const currentRoot = rootPath;
   if (!currentRoot) return res.status(400).json({ error: 'No workspace open' });
 
-  const resolved = path.resolve(filePath);
-  // Resolve symlinks so a symlink inside workspace pointing outside is caught
-  const realResolved = fs.realpathSync(resolved);
-  const realRoot = fs.realpathSync(currentRoot);
-  if (!realResolved.startsWith(realRoot + path.sep) && realResolved !== realRoot) {
+  // Resolve against the workspace root so relative paths work correctly.
+  const resolved = path.isAbsolute(filePath)
+    ? path.resolve(filePath)
+    : path.resolve(currentRoot, filePath);
+  // Resolve symlinks on the real root; use path.resolve for the new path since it doesn't exist yet.
+  let realRoot: string;
+  try { realRoot = fs.realpathSync(currentRoot); } catch { realRoot = currentRoot; }
+  const normalizedResolved = path.resolve(resolved);
+  if (!normalizedResolved.startsWith(realRoot + path.sep) && normalizedResolved !== realRoot) {
     return res.status(400).json({ error: 'Path outside workspace' });
   }
 
@@ -54,10 +58,13 @@ router.post('/files/rename', async (req, res) => {
   const currentRoot = rootPath;
   if (!currentRoot) return res.status(400).json({ error: 'No workspace open' });
 
-  const resolvedOld = path.resolve(oldPath);
-  // Resolve symlinks so a symlink inside workspace pointing outside is caught
-  const realResolvedOld = fs.realpathSync(resolvedOld);
-  const realRoot = fs.realpathSync(currentRoot);
+  const resolvedOld = path.isAbsolute(oldPath)
+    ? path.resolve(oldPath)
+    : path.resolve(currentRoot, oldPath);
+  let realRoot: string;
+  try { realRoot = fs.realpathSync(currentRoot); } catch { realRoot = currentRoot; }
+  let realResolvedOld: string;
+  try { realResolvedOld = fs.realpathSync(resolvedOld); } catch { realResolvedOld = resolvedOld; }
   if (!realResolvedOld.startsWith(realRoot + path.sep) && realResolvedOld !== realRoot) {
     return res.status(400).json({ error: 'Path outside workspace' });
   }

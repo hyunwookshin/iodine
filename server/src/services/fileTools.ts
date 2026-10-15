@@ -14,6 +14,37 @@ function matchGlob(name: string, glob: string): boolean {
   return new RegExp(`^${escaped}$`, 'i').test(name);
 }
 
+// ── .NO_AGENT_ACCESS ──────────────────────────────────────────────────────────
+
+function globPatternToRegex(pattern: string): RegExp {
+  const escaped = pattern
+    .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+    .replace(/\*\*/g, '\x00')
+    .replace(/\*/g, '[^/]*')
+    .replace(/\?/g, '[^/]')
+    .replace(/\x00/g, '.*');
+  return new RegExp(`^${escaped}$`);
+}
+
+async function getNoAgentAccessPatterns(workspaceRoot: string): Promise<RegExp[]> {
+  try {
+    const content = await fs.promises.readFile(path.join(workspaceRoot, '.NO_AGENT_ACCESS'), 'utf-8');
+    return content
+      .split('\n')
+      .map(l => l.trim())
+      .filter(l => l && !l.startsWith('#'))
+      .map(globPatternToRegex);
+  } catch {
+    return [];
+  }
+}
+
+function isAgentAccessBlocked(absPath: string, workspaceRoot: string, patterns: RegExp[]): boolean {
+  if (patterns.length === 0) return false;
+  const rel = path.relative(workspaceRoot, absPath).replace(/\\/g, '/');
+  return patterns.some(re => re.test(rel));
+}
+
 /** Resolve a tool-provided path against the workspace and enforce the workspace boundary. */
 function resolveToolPath(inputPath: string): string {
   if (!rootPath) throw new Error('No workspace open');
@@ -60,6 +91,13 @@ export async function executeTool(name: string, input: Record<string, unknown>, 
   try {
     if (name === 'read_file') {
       if (!rootPath) return { content: 'No workspace open', preview: 'No workspace open', error: true };
+      const absForCheck = path.isAbsolute(input.path as string)
+        ? path.resolve(input.path as string)
+        : path.resolve(rootPath, input.path as string);
+      const blockPatterns = await getNoAgentAccessPatterns(rootPath);
+      if (isAgentAccessBlocked(absForCheck, rootPath, blockPatterns)) {
+        return { content: `Access denied: "${input.path}" is restricted by .NO_AGENT_ACCESS.`, preview: 'Access denied', error: true };
+      }
       const full = await readFileContent(input.path as string, rootPath);
       const startLine = typeof input.start_line === 'number' ? input.start_line : null;
       const endLine   = typeof input.end_line   === 'number' ? input.end_line   : null;
@@ -78,6 +116,10 @@ export async function executeTool(name: string, input: Record<string, unknown>, 
       const filePath = input.path as string;
       const content = input.content as string;
       const abs = resolveToolPath(filePath);
+      const blockPatterns = await getNoAgentAccessPatterns(rootPath);
+      if (isAgentAccessBlocked(abs, rootPath, blockPatterns)) {
+        return { content: `Access denied: "${filePath}" is restricted by .NO_AGENT_ACCESS.`, preview: 'Access denied', error: true };
+      }
       await fs.promises.mkdir(path.dirname(abs), { recursive: true });
       if (toolCallId) await saveSnapshot(rootPath, toolCallId, abs, content, name);
       await writeFileContent(abs, content, rootPath);
@@ -90,6 +132,10 @@ export async function executeTool(name: string, input: Record<string, unknown>, 
       const oldString = input.old_string as string;
       const newString = input.new_string as string;
       const abs = resolveToolPath(filePath);
+      const blockPatterns = await getNoAgentAccessPatterns(rootPath);
+      if (isAgentAccessBlocked(abs, rootPath, blockPatterns)) {
+        return { content: `Access denied: "${filePath}" is restricted by .NO_AGENT_ACCESS.`, preview: 'Access denied', error: true };
+      }
       const original = await fs.promises.readFile(abs, 'utf-8');
       const count = original.split(oldString).length - 1;
       if (count === 0) {

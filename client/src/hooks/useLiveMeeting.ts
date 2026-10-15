@@ -15,6 +15,32 @@ import {
 } from './geminiMessage';
 import { fetchFileContent, fetchFileWithPath, fetchFileTree, fetchFileDiff } from '../api/files';
 
+// ── .NO_AGENT_ACCESS glob filter ──────────────────────────────────────────────
+
+function globToRegex(pattern: string): RegExp {
+  const escaped = pattern
+    .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+    .replace(/\*\*/g, '\x00')
+    .replace(/\*/g, '[^/]*')
+    .replace(/\?/g, '[^/]')
+    .replace(/\x00/g, '.*');
+  return new RegExp(`^${escaped}$`);
+}
+
+function parseNoAgentAccess(content: string): RegExp[] {
+  return content
+    .split('\n')
+    .map(l => l.trim())
+    .filter(l => l && !l.startsWith('#'))
+    .map(globToRegex);
+}
+
+function isPathBlocked(path: string, patterns: RegExp[]): boolean {
+  if (patterns.length === 0) return false;
+  const normalized = path.replace(/\\/g, '/').replace(/^\/+/, '');
+  return patterns.some(re => re.test(normalized));
+}
+
 // WebSocket connections bypass the Vite proxy and hit the backend directly.
 const WS_BASE = import.meta.env.DEV
   ? 'ws://localhost:3001'
@@ -147,6 +173,8 @@ export function useLiveMeeting(
   const clearWhiteboardRef = useRef(clearWhiteboard);
   clearWhiteboardRef.current = clearWhiteboard;
   const whiteboardInstructionsFetchedRef = useRef(false);
+  // Loaded lazily on first file tool call; null = not yet loaded.
+  const noAgentAccessRef = useRef<RegExp[] | null>(null);
 
   // ── Agent audio playback queue ──────────────────────────────────────────
 
@@ -250,6 +278,7 @@ export function useLiveMeeting(
     readyRef.current = false;
     contextRef.current = undefined;
     outputAnalyserRef.current = null;
+    noAgentAccessRef.current = null;
     setIsActive(false);
     setIsMuted(false);
     isMutedRef.current = false;
@@ -497,6 +526,22 @@ Never append a new diagram on top of an existing one — it creates confusion.
                 const path = call.args.path;
                 if (typeof path !== 'string' || !path.trim()) {
                   throw new Error('Missing required "path" argument.');
+                }
+                // Load .NO_AGENT_ACCESS patterns lazily on first file access.
+                if (noAgentAccessRef.current === null) {
+                  try {
+                    const raw = await fetchFileContent('.NO_AGENT_ACCESS');
+                    noAgentAccessRef.current = parseNoAgentAccess(raw);
+                  } catch {
+                    noAgentAccessRef.current = [];
+                  }
+                }
+                if (isPathBlocked(path, noAgentAccessRef.current)) {
+                  responses.push({
+                    id: call.id, name: call.name,
+                    response: { error: `FAILED: Access denied — "${path}" is restricted by .NO_AGENT_ACCESS. Do not retry; tell the user it is off-limits.` },
+                  });
+                  continue;
                 }
                 if (call.name === 'read_file') {
                   const content = await fetchFileContent(path);
