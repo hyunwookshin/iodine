@@ -421,22 +421,22 @@ router.get('/files/image', async (req, res) => {
     return res.status(400).json({ error: 'path query param is required' });
   }
 
-  // Resolve and guard against path traversal
-  const resolved = path.resolve(filePath);
-  // Resolve symlinks so a symlink inside workspace pointing outside is caught
-  const realResolved = fs.realpathSync(resolved);
-  const realRoot = fs.realpathSync(rootPath);
-  if (!realResolved.startsWith(realRoot + path.sep) && realResolved !== realRoot) {
-    return res.status(400).json({ error: 'Path outside workspace' });
-  }
-
-  const ext = resolved.split('.').pop()?.toLowerCase() ?? '';
-  const mime = IMAGE_MIME[ext];
-  if (!mime) {
-    return res.status(400).json({ error: 'Unsupported image type' });
-  }
-
   try {
+    // Resolve and guard against path traversal
+    const resolved = path.resolve(filePath);
+    // Resolve symlinks so a symlink inside workspace pointing outside is caught
+    const realResolved = fs.realpathSync(resolved);
+    const realRoot = fs.realpathSync(rootPath);
+    if (!realResolved.startsWith(realRoot + path.sep) && realResolved !== realRoot) {
+      return res.status(400).json({ error: 'Path outside workspace' });
+    }
+
+    const ext = resolved.split('.').pop()?.toLowerCase() ?? '';
+    const mime = IMAGE_MIME[ext];
+    if (!mime) {
+      return res.status(400).json({ error: 'Unsupported image type' });
+    }
+
     const data = await fs.promises.readFile(resolved);
     res.setHeader('Content-Type', mime);
     res.setHeader('Cache-Control', 'no-store');
@@ -459,21 +459,21 @@ router.get('/files/pdf', async (req, res) => {
     return res.status(400).json({ error: 'path query param is required' });
   }
 
-  // Resolve and guard against path traversal
-  const resolved = path.resolve(filePath);
-  // Resolve symlinks so a symlink inside workspace pointing outside is caught
-  const realResolved = fs.realpathSync(resolved);
-  const realRoot = fs.realpathSync(rootPath);
-  if (!realResolved.startsWith(realRoot + path.sep) && realResolved !== realRoot) {
-    return res.status(400).json({ error: 'Path outside workspace' });
-  }
-
-  const ext = resolved.split('.').pop()?.toLowerCase() ?? '';
-  if (ext !== 'pdf') {
-    return res.status(400).json({ error: 'Only PDF files are supported' });
-  }
-
   try {
+    // Resolve and guard against path traversal
+    const resolved = path.resolve(filePath);
+    // Resolve symlinks so a symlink inside workspace pointing outside is caught
+    const realResolved = fs.realpathSync(resolved);
+    const realRoot = fs.realpathSync(rootPath);
+    if (!realResolved.startsWith(realRoot + path.sep) && realResolved !== realRoot) {
+      return res.status(400).json({ error: 'Path outside workspace' });
+    }
+
+    const ext = resolved.split('.').pop()?.toLowerCase() ?? '';
+    if (ext !== 'pdf') {
+      return res.status(400).json({ error: 'Only PDF files are supported' });
+    }
+
     const data = await fs.promises.readFile(resolved);
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Cache-Control', 'no-store');
