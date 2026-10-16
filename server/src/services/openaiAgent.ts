@@ -125,11 +125,12 @@ export async function runOpenAIAgentLoop(
   activeFile: string | null = null,
   customSystemPrompt?: string,
   tutorMode?: boolean,
+  planningMode?: boolean,
   redact: boolean = true,
 ) {
   const apiKey = await loadOpenAIKey();
   const client = new OpenAI({ apiKey });
-  const systemPrompt = customSystemPrompt ?? buildSystemPrompt(activeFile, tutorMode);
+  const systemPrompt = customSystemPrompt ?? buildSystemPrompt(activeFile, tutorMode, planningMode);
 
   if (requiresResponsesAPI(model)) {
     return runResponsesAgentLoop(client, messages, model, res, abortSignal, systemPrompt, redact);

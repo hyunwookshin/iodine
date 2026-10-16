@@ -275,4 +275,48 @@ export const TOOL_SCHEMAS = {
       required: ['path', 'line'],
     },
   },
+  enter_planning_mode: {
+    description: 'Switch into planning mode. Use when a task needs a multi-step plan ' +
+    '(multiple files, architectural decisions, unclear requirements). ' +
+    'Not for small, well-defined edits. In planning mode you can read and search ' +
+    'but cannot edit or create files.',
+    parameters: {
+      type: 'object',
+      properties: {}
+    }
+  },
+  exit_planning_mode: {
+    description:
+      'Leave planning mode and begin executing the plan. Only call this after you ' +
+      'have presented a plan with draft_plan and the user has explicitly approved it. ' +
+      'If the user asks for changes, revise the plan with draft_plan instead. ' +
+      'After exiting, you can use edit_file and write_file to carry out the plan.',
+    parameters: { 
+      type: 'object', 
+      properties: {} 
+    },
+  },
+  draft_plan: {
+    description: 'Present a step-by-step plan to the user for review. Call this once you have ' +
+    'explored the code enough to propose an approach. After calling it, stop and ' +
+    'wait for the user\'s feedback. Do not start implementing.',
+    parameters: {
+        type: 'object',
+        properties: {
+          summary: { type: 'string', description: 'One or two sentences on the approach.' },
+          steps: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                description: { type: 'string' },
+                files: { type: 'array', items: { type: 'string' } },
+              },
+              required: ['description'],
+            },
+          },
+        },
+        required: ['summary', 'steps'],
+    }
+  }
 } as const;
