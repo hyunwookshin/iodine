@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import type { OpenFile } from '../../types';
 
 interface EditorTabsProps {
@@ -11,8 +11,13 @@ interface EditorTabsProps {
 
 export function EditorTabs({ openFiles, activeFilePath, onTabClick, onTabClose, onTabReorder }: EditorTabsProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const activeTabRef = useRef<HTMLDivElement>(null);
   const dragIndexRef = useRef<number | null>(null);
   const [draggedPath, setDraggedPath] = useState<string | null>(null);
+
+  useLayoutEffect(() => {
+    activeTabRef.current?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }, [activeFilePath]);
 
   if (openFiles.length === 0) return null;
 
@@ -53,6 +58,7 @@ export function EditorTabs({ openFiles, activeFilePath, onTabClick, onTabClose, 
         return (
           <div
             key={file.path}
+            ref={isActive ? activeTabRef : undefined}
             draggable
             onClick={() => onTabClick(file.path)}
             onDragStart={e => {
