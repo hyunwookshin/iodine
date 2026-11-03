@@ -18,7 +18,22 @@ function slugify(text: string): string {
 
 function parseHeadings(content: string): HeadingEntry[] {
   const seen = new Map<string, number>();
-  return content.split('\n').flatMap(line => {
+  let codeFence: string | null = null;
+  return content.split(/\r?\n/).flatMap(line => {
+    const fence = line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
+    if (codeFence) {
+      if (fence
+        && fence[1][0] === codeFence[0]
+        && fence[1].length >= codeFence.length
+        && /^[ \t]*$/.test(fence[2])) {
+        codeFence = null;
+      }
+      return [];
+    }
+    if (fence && (fence[1][0] === '~' || !fence[2].includes('`'))) {
+      codeFence = fence[1];
+      return [];
+    }
     const m = line.match(/^(#{1,6})\s+(.+)$/);
     if (!m) return [];
     const text = m[2].trim().replace(/[*_`~[\]()]/g, '');
