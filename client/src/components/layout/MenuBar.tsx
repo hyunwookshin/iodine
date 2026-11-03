@@ -116,6 +116,12 @@ export function MenuBar({ onOpenProject, onCloseProject, onCloseAllTabs, onClose
   // Cmd/Ctrl+P → workspace search
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setProjectMenuOpen(false);
+        setFileMenuOpen(false);
+        setEditorMenuOpen(false);
+        setHelpMenuOpen(false);
+      }
       if ((e.metaKey || e.ctrlKey) && e.key === 'p' && workspacePath) {
         e.preventDefault();
         setOpenFileMode('workspace');
