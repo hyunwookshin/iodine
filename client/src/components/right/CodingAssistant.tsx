@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef, useCallback, useImperativeHandle, forwardRef, KeyboardEvent } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, useImperativeHandle, forwardRef, KeyboardEvent } from 'react';
+import { diffRows } from '../../utils/editDiff';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useCodingAssistant } from '../../hooks/useCodingAssistant';
@@ -43,9 +44,31 @@ function lineArgument(input: unknown): number | undefined {
   return typeof line === 'number' ? line : undefined;
 }
 
+/** Line-level red/green diff of an edit_file call, built from its old_string and new_string. */
+function EditDiff({ oldText, newText }: { oldText: string; newText: string }) {
+  const rows = useMemo(() => diffRows(oldText, newText), [oldText, newText]);
+  const added = rows.filter(row => row.kind === 'add').length;
+  const removed = rows.filter(row => row.kind === 'del').length;
+  return (
+    <>
+      <div style={{ color: 'var(--color-text-secondary)', marginBottom: 4 }}>Changes: <span style={{ color: '#4ec9b0' }}>+{added}</span> <span style={{ color: '#f48771' }}>−{removed}</span></div>
+      <div style={{ background: 'var(--color-bg-editor)', border: '1px solid var(--color-border)', borderRadius: 5, fontSize: 10, maxHeight: 320, overflowY: 'auto' }}>
+        {rows.map((row, index) => (
+          <div key={index} style={{ display: 'flex', background: row.kind === 'add' ? '#4ec9b01f' : row.kind === 'del' ? '#f487711f' : 'transparent' }}>
+            <span style={{ width: 18, flexShrink: 0, textAlign: 'center', userSelect: 'none', color: row.kind === 'add' ? '#4ec9b0' : row.kind === 'del' ? '#f48771' : 'var(--color-text-secondary)' }}>{row.kind === 'add' ? '+' : row.kind === 'del' ? '−' : ' '}</span>
+            <span style={{ flex: 1, minWidth: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-all', color: 'var(--color-text-primary)' }}>{row.text || ' '}</span>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
 function ToolBlock({ block, workspacePath, onNavigateToLine, onReverted }: { block: UIBlock & { type: 'tool' }; workspacePath: string | null; onNavigateToLine?: (filePath: string, line: number, endLine?: number, startCol?: number, endCol?: number) => void; onReverted?: (path: string) => void }) {
   const [expanded, setExpanded] = useState(false);
   const inputStr = JSON.stringify(block.input, null, 2);
+  const editInput = block.name === 'edit_file' && block.input && typeof block.input === 'object' ? block.input as Record<string, unknown> : null;
+  const editDiff = editInput && typeof editInput.old_string === 'string' && typeof editInput.new_string === 'string' ? { oldText: editInput.old_string, newText: editInput.new_string } : null;
   const pathLabel = argumentSummary(block.input);
   const fullPath = pathArgument(block.input);
   const openTarget = fullPath && workspacePath && onNavigateToLine && parseFilePath(fullPath) ? fullPath : null;
@@ -64,7 +87,7 @@ function ToolBlock({ block, workspacePath, onNavigateToLine, onReverted }: { blo
         </span>
         <span style={{ fontSize: 10, flexShrink: 0 }}>{expanded ? '▲' : '▼'}</span>
       </button>
-      {expanded && <div style={{ padding: '0 12px 10px', fontSize: 11, fontFamily: 'monospace' }}><div style={{ color: 'var(--color-text-secondary)', marginBottom: 4 }}>Arguments:</div><pre style={{ margin: 0, padding: '7px 8px', background: 'var(--color-bg-editor)', border: '1px solid var(--color-border)', borderRadius: 5, whiteSpace: 'pre-wrap', wordBreak: 'break-all', color: 'var(--color-text-primary)', fontSize: 10 }}>{inputStr}</pre>{block.result !== undefined && <><div style={{ color: 'var(--color-text-secondary)', marginTop: 8, marginBottom: 4 }}>{block.error ? 'Error:' : 'Output:'}</div><pre style={{ margin: 0, padding: '7px 8px', background: 'var(--color-bg-code)', border: '1px solid var(--color-border)', borderRadius: 5, whiteSpace: 'pre-wrap', wordBreak: 'break-all', color: block.error ? '#f48771' : 'var(--color-text-primary)', fontSize: 10, maxHeight: 220, overflowY: 'auto' }}>{block.result}</pre></>}{canRevert && <div style={{ marginTop: 8 }}><RevertButton toolCallId={block.id} onReverted={onReverted!} /></div>}</div>}
+      {expanded && <div style={{ padding: '0 12px 10px', fontSize: 11, fontFamily: 'monospace' }}>{editDiff ? <EditDiff oldText={editDiff.oldText} newText={editDiff.newText} /> : <><div style={{ color: 'var(--color-text-secondary)', marginBottom: 4 }}>Arguments:</div><pre style={{ margin: 0, padding: '7px 8px', background: 'var(--color-bg-editor)', border: '1px solid var(--color-border)', borderRadius: 5, whiteSpace: 'pre-wrap', wordBreak: 'break-all', color: 'var(--color-text-primary)', fontSize: 10 }}>{inputStr}</pre></>}{block.result !== undefined && <><div style={{ color: 'var(--color-text-secondary)', marginTop: 8, marginBottom: 4 }}>{block.error ? 'Error:' : 'Output:'}</div><pre style={{ margin: 0, padding: '7px 8px', background: 'var(--color-bg-code)', border: '1px solid var(--color-border)', borderRadius: 5, whiteSpace: 'pre-wrap', wordBreak: 'break-all', color: block.error ? '#f48771' : 'var(--color-text-primary)', fontSize: 10, maxHeight: 220, overflowY: 'auto' }}>{block.result}</pre></>}{canRevert && <div style={{ marginTop: 8 }}><RevertButton toolCallId={block.id} onReverted={onReverted!} /></div>}</div>}
     </div>
   );
 }
