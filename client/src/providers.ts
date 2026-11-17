@@ -62,9 +62,9 @@ export const PROVIDERS: Provider[] = [
     id: 'google',
     label: 'Google',
     models: [
+      { id: 'gemini-4-hydrogen',    label: 'Gemini 4 Hydrogen'},
       { id: 'gemini-4-carbon',       label: 'Gemini 4 Carbon'},
       { id: 'gemini-4-argon',        label: 'Gemini 4 Argon' },
-      { id: 'gemini-4-hydrogen',    label: 'Gemini 4 Hydrogen'},
       { id: 'gemini-3.8-flash',      label: 'Gemini 3.8 Flash'},
     ],
     setupTitle: 'Google AI API key',
@@ -78,5 +78,5 @@ export const PROVIDERS: Provider[] = [
   },
 ];
 
-export const DEFAULT_PROVIDER = PROVIDERS.find((provider) => provider.id === 'anthropic')!;
-export const DEFAULT_MODEL = 'claude-sonnet-5-5';
+export const DEFAULT_PROVIDER = PROVIDERS.find((provider) => provider.id === 'google')!;
+export const DEFAULT_MODEL = 'gemini-4-hydrogen';
