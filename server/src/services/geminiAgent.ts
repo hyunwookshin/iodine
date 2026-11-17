@@ -21,28 +21,45 @@ function toGeminiType(t: string): Type {
   }
 }
 
-// Convert a JSON Schema properties map to Gemini Schema properties
-function convertProperties(
-  props: Record<string, { type: string; description?: string }>,
-): Record<string, { type: Type; description?: string }> {
-  const out: Record<string, { type: Type; description?: string }> = {};
-  for (const [k, v] of Object.entries(props)) {
-    out[k] = { type: toGeminiType(v.type), description: v.description };
+type JsonSchema = {
+  type?: string;
+  description?: string;
+  items?: JsonSchema;
+  properties?: Record<string, JsonSchema>;
+  required?: readonly string[];
+};
+
+type GeminiSchema = {
+  type: Type;
+  description?: string;
+  items?: GeminiSchema;
+  properties?: Record<string, GeminiSchema>;
+  required?: string[];
+};
+
+// Recursively convert a JSON Schema node to a Gemini Schema.
+// Gemini rejects arrays without `items`, so nested items/properties must be preserved.
+function convertSchema(s: JsonSchema): GeminiSchema {
+  const out: GeminiSchema = { type: toGeminiType(s.type ?? 'object') };
+  if (s.description) out.description = s.description;
+  if (s.type === 'array') out.items = convertSchema(s.items ?? { type: 'string' });
+  if (s.properties) {
+    out.properties = Object.fromEntries(
+      Object.entries(s.properties).map(([k, v]) => [k, convertSchema(v)]),
+    );
   }
+  if (s.required?.length) out.required = [...s.required];
   return out;
 }
 
-const FUNCTION_DECLARATIONS = Object.entries(TOOL_SCHEMAS).map(([name, schema]) => ({
-  name,
-  description: schema.description,
-  parameters: {
-    type: Type.OBJECT,
-    properties: convertProperties(
-      (schema.parameters as { properties?: Record<string, { type: string; description?: string }> }).properties ?? {},
-    ),
-    required: (schema.parameters as { required?: string[] }).required ?? [],
-  },
-}));
+const FUNCTION_DECLARATIONS = Object.entries(TOOL_SCHEMAS).map(([name, schema]) => {
+  const params = convertSchema(schema.parameters as JsonSchema);
+  return {
+    name,
+    description: schema.description,
+    parameters: { ...params, properties: params.properties ?? {}, required: params.required ?? [] },
+  };
+});
 
 function writeSSE(res: Response, event: string, data: unknown) {
   res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
