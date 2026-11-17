@@ -20,10 +20,10 @@ export const PROVIDERS: Provider[] = [
     models: [
       { id: 'claude-sonnet-5-5',        label: 'Claude Sonnet 5.5'},
       { id: 'claude-opus-5-5',          label: 'Claude Opus 5.5'},
+      { id: 'claude-fable-5-2',         label: 'Claude Fable 5.2' },
       { id: 'claude-fable-5-1',         label: 'Claude Fable 5.1' },
       { id: 'claude-fable-5',           label: 'Claude Fable 5' },
       { id: 'claude-opus-5',            label: 'Claude Opus 5' },
-      { id: 'claude-opus-4-8',          label: 'Claude Opus 4.8' },
       { id: 'claude-sonnet-5',          label: 'Claude Sonnet 5' },
     ],
     setupTitle: 'Anthropic API key',
@@ -62,10 +62,10 @@ export const PROVIDERS: Provider[] = [
     id: 'google',
     label: 'Google',
     models: [
+      { id: 'gemini-4-carbon',       label: 'Gemini 4 Carbon'},
       { id: 'gemini-4-argon',        label: 'Gemini 4 Argon' },
+      { id: 'gemini-4-hydrogen',    label: 'Gemini 4 Hydrogen'},
       { id: 'gemini-3.8-flash',      label: 'Gemini 3.8 Flash'},
-      { id: 'gemini-3.7-flash',      label: 'Gemini 3.7 Flash' },
-      { id: 'gemini-3.5-flash',      label: 'Gemini 3.5 Flash' },
     ],
     setupTitle: 'Google AI API key',
     setupInstructions:
