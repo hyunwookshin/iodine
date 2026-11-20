@@ -64,7 +64,7 @@ export const PROVIDERS: Provider[] = [
     models: [
       { id: 'gemini-4-hydrogen',    label: 'Gemini 4 Hydrogen'},
       { id: 'gemini-4-carbon',       label: 'Gemini 4 Carbon'},
-      { id: 'gemini-4-argon',        label: 'Gemini 4 Argon' },
+      { id: 'gemini-4-neon',         label: 'Gemini 4 Neon' },
       { id: 'gemini-3.8-flash',      label: 'Gemini 3.8 Flash'},
     ],
     setupTitle: 'Google AI API key',
